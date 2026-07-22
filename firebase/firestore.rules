@@ -1,0 +1,69 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isAdmin() {
+      return isAuth() && userDoc().role == 'admin';
+    }
+
+    function isSalesRep() {
+      return isAuth() && userDoc().role == 'sales_rep';
+    }
+
+    match /users/{userId} {
+      allow read: if isAuth() && (request.auth.uid == userId || isAdmin());
+      allow write: if isAdmin();
+    }
+
+    match /customers/{customerId} {
+      allow read: if isAuth() && (isAdmin() || resource.data.salesRepId == request.auth.uid);
+      allow write: if isAdmin() || (isAuth() && request.resource.data.salesRepId == request.auth.uid);
+
+      match /branches/{branchId} {
+        allow read: if isAuth();
+        allow write: if isAuth() && (
+          get(/databases/$(database)/documents/customers/$(customerId)).data.salesRepId == request.auth.uid ||
+          isAdmin()
+        );
+      }
+    }
+
+    match /products/{productId} {
+      allow read: if isAuth();
+      allow write: if isAdmin();
+    }
+
+    match /orders/{orderId} {
+      allow read: if isAuth() && (isAdmin() || resource.data.salesRepId == request.auth.uid);
+      allow create: if isAuth() &&
+        request.resource.data.salesRepId == request.auth.uid &&
+        request.resource.data.status in ['draft', 'submitted'];
+      allow update: if isAuth() && (
+        (resource.data.salesRepId == request.auth.uid &&
+         resource.data.status in ['draft', 'submitted']) ||
+        isAdmin()
+      );
+
+      match /lines/{lineId} {
+        allow read: if isAuth();
+        allow write: if isAuth() && (
+          get(/databases/$(database)/documents/orders/$(orderId)).data.salesRepId == request.auth.uid ||
+          isAdmin()
+        );
+      }
+    }
+
+    match /syncLogs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isAuth();
+    }
+  }
+}

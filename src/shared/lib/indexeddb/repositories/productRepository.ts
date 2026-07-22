@@ -1,0 +1,98 @@
+import { db, type LocalProduct } from '../db';
+import { BaseRepository } from './baseRepository';
+import type { SyncStatus } from '@/shared/types/base.types';
+
+class ProductLocalRepository extends BaseRepository<LocalProduct> {
+  protected tableName = 'products';
+
+  async getById(id: string): Promise<LocalProduct | undefined> {
+    return db.products.get(id);
+  }
+
+  async getAll(): Promise<LocalProduct[]> {
+    return db.products.toArray();
+  }
+
+  async save(entity: LocalProduct): Promise<void> {
+    await db.products.put(entity);
+  }
+
+  async saveMany(entities: LocalProduct[]): Promise<void> {
+    await db.products.bulkPut(entities);
+  }
+
+  delete(_id: string): Promise<void> {
+    return Promise.reject(new Error('Fiziksel silme yasaktır.'));
+  }
+
+  async findBySyncStatus(status: SyncStatus): Promise<LocalProduct[]> {
+    return db.products.where('syncStatus').equals(status).toArray();
+  }
+
+  async findBySku(sku: string): Promise<LocalProduct | undefined> {
+    return db.products.where('sku').equals(sku).first();
+  }
+
+  async findByBarcode(barcode: string): Promise<LocalProduct | undefined> {
+    return db.products.where('barcode').equals(barcode).first();
+  }
+
+  async findActive(): Promise<LocalProduct[]> {
+    return db.products.filter((p) => p.isActive && !p.isDeleted).toArray();
+  }
+
+  async findActiveNotDeleted(): Promise<LocalProduct[]> {
+    return this.findActive();
+  }
+}
+
+export const productLocalRepository = new ProductLocalRepository();
+
+export function dedupeProducts(products: LocalProduct[]): LocalProduct[] {
+  const byKey = new Map<string, LocalProduct>();
+
+  for (const product of products) {
+    const sku = product.sku.trim().toUpperCase();
+    const barcode = (product.barcode ?? '').trim();
+    const name = product.name.trim().toLocaleLowerCase('tr-TR');
+    const key = `${sku}|${barcode}|${name}`;
+
+    const existing = byKey.get(key);
+    if (!existing) {
+      byKey.set(key, product);
+      continue;
+    }
+
+    const preferred =
+      product.version > existing.version ||
+      (product.version === existing.version &&
+        product.updatedAt >= existing.updatedAt)
+        ? product
+        : existing;
+    byKey.set(key, preferred);
+  }
+
+  return Array.from(byKey.values());
+}
+
+export function filterProducts(
+  products: LocalProduct[],
+  options: { search?: string },
+): LocalProduct[] {
+  let result = dedupeProducts(products.filter((p) => !p.isDeleted));
+
+  if (options.search?.trim()) {
+    const term = options.search.trim().toLocaleLowerCase('tr-TR');
+    result = result.filter(
+      (p) =>
+        p.name.toLocaleLowerCase('tr-TR').includes(term) ||
+        p.sku.toLocaleLowerCase('tr-TR').includes(term) ||
+        (p.barcode?.toLocaleLowerCase('tr-TR').includes(term) ?? false) ||
+        p.barcode === options.search?.trim(),
+    );
+  }
+
+  return result.sort((a, b) =>
+    a.name.localeCompare(b.name, 'tr-TR', { sensitivity: 'base' }),
+  );
+}
