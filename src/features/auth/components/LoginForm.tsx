@@ -55,15 +55,19 @@ export function LoginForm() {
         </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} noValidate className="space-y-4">
         <Input
           label="Kullanıcı Adı"
+          name="username"
           type="text"
+          inputMode="text"
           autoComplete="username"
+          autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
           value={username}
           onChange={(e) => { setUsername(e.target.value); }}
           placeholder="admin"
-          required
         />
         <Input
           label="Şifre"
