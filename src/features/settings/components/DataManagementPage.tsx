@@ -9,7 +9,6 @@ const DATA_MANAGEMENT_ITEMS = [
   { label: 'Ürün Kartlarını İçe Aktar', path: ROUTES.SETTINGS_IMPORT_PRODUCTS },
   { label: 'Cari Kartlarını İçe Aktar', path: ROUTES.SETTINGS_IMPORT_CUSTOMERS },
   { label: 'Depo Stoklarını Güncelle', path: ROUTES.SETTINGS_STOCK_UPDATE },
-  { label: 'Demo Verileri Yükle', path: ROUTES.SETTINGS_DEMO_DATA },
   { label: 'İçe Aktarma Raporları', path: ROUTES.SETTINGS_IMPORT_REPORTS },
   { label: 'Sipariş Verilerini Temizle', path: ROUTES.SETTINGS_CLEAR_ORDERS },
 ] as const;

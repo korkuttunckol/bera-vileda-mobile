@@ -226,18 +226,28 @@ export function DashboardPage() {
                 ) : null}
               </div>
             </div>
-            <Button
-              size="sm"
-              variant="secondary"
-              className="shrink-0 border-white/10 bg-white/15 text-white hover:bg-white/25"
-              onClick={() => void syncNow('manual')}
-              isLoading={isSyncing}
-            >
-              <span className="flex items-center gap-1.5">
-                <Icon name="sync" size="sm" className={isSyncing ? 'animate-spin' : undefined} />
-                Sync
-              </span>
-            </Button>
+            <div className="flex shrink-0 flex-col items-end gap-2">
+              <Button
+                size="sm"
+                variant="secondary"
+                className="border-white/10 bg-white/15 text-white hover:bg-white/25"
+                onClick={() => void syncNow('manual')}
+                isLoading={isSyncing}
+              >
+                <span className="flex items-center gap-1.5">
+                  <Icon name="sync" size="sm" className={isSyncing ? 'animate-spin' : undefined} />
+                  Sync
+                </span>
+              </Button>
+              <div className="rounded-xl border border-white/15 bg-white/10 px-2.5 py-2 text-right backdrop-blur-sm">
+                <p className="text-[11px] font-semibold text-white">
+                  {isOnline ? '🟢 Online' : '🔴 Offline'}
+                </p>
+                <p className="mt-0.5 text-[10px] text-white/75">
+                  Bekleyen Senkronizasyon : {pendingSyncCount}
+                </p>
+              </div>
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -329,6 +339,12 @@ export function DashboardPage() {
             Şimdi Senkronize Et ({pendingSyncCount})
           </Button>
         </Card>
+
+        <footer className="pb-4 pt-2 text-center text-[11px] leading-relaxed text-brand-gray-400">
+          <p className="font-medium text-brand-gray-500">BERA Vileda Sipariş Sistemi</p>
+          <p>v1.0.0</p>
+          <p>© 2026 Korkut Tunçkol</p>
+        </footer>
       </div>
     </div>
   );

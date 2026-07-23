@@ -7,7 +7,6 @@ export { ClearOrdersPage } from './components/ClearOrdersPage';
 export { DataManagementPage } from './components/DataManagementPage';
 export { ResetAllDataPage } from './components/ResetAllDataPage';
 export { AppInfoPage } from './components/AppInfoPage';
-export { DemoDataPage } from './components/DemoDataPage';
 export { CustomerDisplaySettingsPage } from './components/CustomerDisplaySettingsPage';
 export { ProductDisplaySettingsPage } from './components/ProductDisplaySettingsPage';
 export { OrderSettingsPage } from './components/OrderSettingsPage';

@@ -22,7 +22,6 @@ import {
   ImportReportsPage,
   ClearOrdersPage,
   AppInfoPage,
-  DemoDataPage,
   CustomerDisplaySettingsPage,
   ProductDisplaySettingsPage,
   OrderSettingsPage,
@@ -85,10 +84,6 @@ export const router = createBrowserRouter([
           {
             path: ROUTES.SETTINGS_RESET_ALL_DATA,
             element: <ResetAllDataPage />,
-          },
-          {
-            path: ROUTES.SETTINGS_DEMO_DATA,
-            element: <DemoDataPage />,
           },
           {
             path: ROUTES.SETTINGS_CUSTOMER_DISPLAY,
