@@ -6,12 +6,9 @@ import { Card } from '@/shared/components/ui/Card';
 import { Button } from '@/shared/components/ui/Button';
 import { LoadingSpinner } from '@/shared/components/feedback/LoadingSpinner';
 import { EmptyState } from '@/shared/components/feedback/EmptyState';
-import { useAuth } from '@/features/auth/hooks/useAuth';
 import { useOrder } from '../hooks/useOrder';
-import {
-  generateOrderExportFiles,
-  shareOrderExportFiles,
-} from '../services/orderExportService';
+import { useOrderCreatedByName } from '../hooks/useOrderCreatedByName';
+import { shareOrderExportFiles } from '../report';
 import { toast } from '@/stores/toastStore';
 import { ROUTES } from '@/shared/constants/routes';
 import { cn } from '@/shared/utils/cn';
@@ -54,17 +51,17 @@ function SendOption({ label, checked, disabled, hint, onChange }: SendOptionProp
 export function SendOrderPage() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
-  const { user } = useAuth();
   const { order, lines, isLoading } = useOrder(id);
+  const createdByName = useOrderCreatedByName(order);
   const [sendPdf, setSendPdf] = useState(true);
   const [sendExcel, setSendExcel] = useState(true);
   const [sendWhatsapp, setSendWhatsapp] = useState(true);
   const [isSending, setIsSending] = useState(false);
 
-  const createdByName = useMemo(
-    () => user?.displayName ?? user?.email ?? 'Kullanıcı',
-    [user],
-  );
+  const subtitle = useMemo(() => {
+    if (!order) return undefined;
+    return `${order.customerName} · ${order.branchName ?? 'Merkez'}`;
+  }, [order]);
 
   const handleSend = async (): Promise<void> => {
     if (!order || lines.length === 0) return;
@@ -75,8 +72,7 @@ export function SendOrderPage() {
 
     setIsSending(true);
     try {
-      const files = await generateOrderExportFiles(order, lines, createdByName);
-      await shareOrderExportFiles(files, {
+      await shareOrderExportFiles(order, lines, createdByName, {
         pdf: sendPdf,
         excel: sendExcel,
         whatsapp: sendWhatsapp,
@@ -110,7 +106,7 @@ export function SendOrderPage() {
     <div>
       <PageHeader
         title="GÖNDER"
-        subtitle={`${order.customerName} · ${order.branchName ?? 'Merkez'}`}
+        subtitle={subtitle}
         backButton={<BackButton to={ROUTES.ORDER_HISTORY} />}
       />
 

@@ -8,38 +8,54 @@ import { Button } from '@/shared/components/ui/Button';
 import { LoadingSpinner } from '@/shared/components/feedback/LoadingSpinner';
 import { EmptyState } from '@/shared/components/feedback/EmptyState';
 import { OrderStatusBadge } from './OrderStatusBadge';
+import { OrderShareActions } from './OrderShareActions';
 import { useOrder } from '../hooks/useOrder';
 import { orderService } from '../services/orderService';
 import { productService } from '@/features/products/services/productService';
 import { useSync } from '@/features/sync';
+import {
+  formatOrderReportDate,
+  formatOrderReportTime,
+} from '../report';
 import { isProductOutOfStock } from '@/features/orders/utils/stockControl';
 import { toast } from '@/stores/toastStore';
-import { formatDate } from '@/shared/utils/cn';
 import { ROUTES } from '@/shared/constants/routes';
 import { isFirebaseConfigured } from '@/config/env';
 import type { OrderLine } from '@/shared/types/order.types';
 
-interface LineStockInfo {
+interface LineProductInfo {
+  barcode?: string;
   stockQuantity: number;
   unit: string;
 }
 
 function OrderDetailLineItem({
   line,
-  stock,
+  productInfo,
 }: {
   line: OrderLine;
-  stock?: LineStockInfo;
+  productInfo?: LineProductInfo;
 }) {
-  const unit = line.unit ?? 'Adet';
-  const isOutOfStock = stock != null && isProductOutOfStock(stock);
+  const unit = line.unit ?? productInfo?.unit ?? 'Adet';
+  const isOutOfStock =
+    productInfo != null && isProductOutOfStock(productInfo);
 
   return (
     <div className="px-4 py-4">
       <p className="break-words text-[16px] font-semibold leading-snug text-brand-navy">
         {line.productName}
       </p>
-      <p className="mt-0.5 text-xs font-medium uppercase tracking-wide text-brand-gray-400">
+      {productInfo?.barcode ? (
+        <>
+          <p className="mt-2 text-xs font-medium uppercase tracking-wide text-brand-gray-400">
+            Barkod
+          </p>
+          <p className="mt-0.5 text-sm font-semibold tracking-wide text-brand-navy">
+            {productInfo.barcode}
+          </p>
+        </>
+      ) : null}
+      <p className="mt-2 text-xs font-medium uppercase tracking-wide text-brand-gray-400">
         Ürün Kodu
       </p>
       <p className="mt-0.5 text-sm font-semibold tracking-wide text-brand-navy">
@@ -48,17 +64,17 @@ function OrderDetailLineItem({
 
       <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
         <p className="font-medium text-brand-gray-700">
-          Sipariş Adedi:{' '}
+          Miktar:{' '}
           <span className="text-brand-navy">
             {line.quantity} {unit}
           </span>
         </p>
       </div>
 
-      {stock != null ? (
+      {productInfo != null ? (
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <p className="text-xs text-brand-gray-500">
-            Depo stok: {stock.stockQuantity} {stock.unit}
+            Depo stok: {productInfo.stockQuantity} {productInfo.unit}
           </p>
           {isOutOfStock ? (
             <Badge
@@ -79,8 +95,8 @@ export function OrderDetailPage() {
   const { order, lines, isLoading, notFound, reload } = useOrder(id);
   const { syncNow, isSyncing } = useSync();
   const [isRetrying, setIsRetrying] = useState(false);
-  const [stockByProductId, setStockByProductId] = useState<
-    Record<string, LineStockInfo>
+  const [productInfoByProductId, setProductInfoByProductId] = useState<
+    Record<string, LineProductInfo>
   >({});
   const isMountedRef = useRef(true);
 
@@ -93,7 +109,7 @@ export function OrderDetailPage() {
 
   useEffect(() => {
     if (lines.length === 0) {
-      setStockByProductId({});
+      setProductInfoByProductId({});
       return;
     }
 
@@ -104,18 +120,22 @@ export function OrderDetailPage() {
           if (!product) return null;
           return [
             line.productId,
-            { stockQuantity: product.stockQuantity, unit: product.unit },
+            {
+              barcode: product.barcode,
+              stockQuantity: product.stockQuantity,
+              unit: product.unit,
+            },
           ] as const;
         }),
       );
 
       if (!isMountedRef.current) return;
 
-      const next: Record<string, LineStockInfo> = {};
+      const next: Record<string, LineProductInfo> = {};
       for (const entry of entries) {
         if (entry) next[entry[0]] = entry[1];
       }
-      setStockByProductId(next);
+      setProductInfoByProductId(next);
     })();
   }, [lines]);
 
@@ -181,29 +201,47 @@ export function OrderDetailPage() {
 
       <div className="space-y-4 p-4">
         <Card padding="md" className="space-y-3">
-          <div className="flex justify-between text-sm">
-            <span className="text-brand-gray-500">Tarih</span>
+          <div className="flex justify-between gap-3 text-sm">
+            <span className="text-brand-gray-500">Sipariş Tarihi</span>
             <span className="font-medium text-brand-navy">
-              {formatDate(order.orderDate)}
+              {formatOrderReportDate(order.orderDate)}
             </span>
           </div>
-          {order.customerCode ? (
-            <div className="flex justify-between text-sm">
-              <span className="text-brand-gray-500">Cari Kodu</span>
-              <span className="font-medium text-brand-navy">{order.customerCode}</span>
-            </div>
-          ) : null}
-          {order.branchName ? (
-            <div className="flex justify-between text-sm">
-              <span className="text-brand-gray-500">Şube</span>
-              <span className="font-medium text-brand-navy">{order.branchName}</span>
-            </div>
-          ) : null}
-          <div className="flex justify-between text-sm">
-            <span className="text-brand-gray-500">Kalem / Adet</span>
+          <div className="flex justify-between gap-3 text-sm">
+            <span className="text-brand-gray-500">Sipariş Saati</span>
             <span className="font-medium text-brand-navy">
-              {order.lineCount} kalem · {totalQuantity} adet
+              {formatOrderReportTime(order.orderDate)}
             </span>
+          </div>
+          <div className="flex justify-between gap-3 text-sm">
+            <span className="text-brand-gray-500">Cari Kod</span>
+            <span className="font-medium text-brand-navy">
+              {order.customerCode ?? '-'}
+            </span>
+          </div>
+          <div className="flex justify-between gap-3 text-sm">
+            <span className="text-brand-gray-500">Cari Adı</span>
+            <span className="text-right font-medium text-brand-navy">
+              {order.customerName}
+            </span>
+          </div>
+          <div className="flex justify-between gap-3 text-sm">
+            <span className="text-brand-gray-500">Şube</span>
+            <span className="font-medium text-brand-navy">
+              {order.branchName ?? 'Merkez'}
+            </span>
+          </div>
+          <div className="flex justify-between gap-3 text-sm">
+            <span className="text-brand-gray-500">Toplam Kalem</span>
+            <span className="font-medium text-brand-navy">{order.lineCount}</span>
+          </div>
+          <div className="flex justify-between gap-3 text-sm">
+            <span className="text-brand-gray-500">Toplam Adet</span>
+            <span className="font-medium text-brand-navy">{totalQuantity}</span>
+          </div>
+          <div className="flex items-center justify-between gap-3 text-sm">
+            <span className="text-brand-gray-500">Sipariş Durumu</span>
+            <OrderStatusBadge status={order.orderSyncStatus} variant="inline" />
           </div>
           {order.notes ? (
             <div className="border-t border-brand-gray-100 pt-3">
@@ -222,7 +260,7 @@ export function OrderDetailPage() {
         <Card padding="none">
           <div className="border-b border-brand-gray-100 px-4 py-3">
             <p className="text-sm font-semibold text-brand-navy">
-              Kalemler ({lines.length})
+              Ürün Listesi ({lines.length})
             </p>
           </div>
           <div className="divide-y divide-brand-gray-100">
@@ -230,11 +268,17 @@ export function OrderDetailPage() {
               <OrderDetailLineItem
                 key={line.id}
                 line={line}
-                stock={stockByProductId[line.productId]}
+                productInfo={productInfoByProductId[line.productId]}
               />
             ))}
           </div>
         </Card>
+
+        {order.orderSyncStatus === 'sent' ? (
+          <Card padding="md">
+            <OrderShareActions order={order} lines={lines} />
+          </Card>
+        ) : null}
 
         {canRetry ? (
           <Button

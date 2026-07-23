@@ -8,6 +8,30 @@ Format [Keep a Changelog](https://keepachangelog.com/) standardına uygundur.
 
 ---
 
+## [1.0.0-rc.1] - 2026-07-23
+
+### Raporlama ve Paylaşım Modülü Revizyonu
+
+#### Eklenen
+- Merkezi rapor mimarisi: `src/features/orders/report/` (builder, PDF, Excel, paylaşım)
+- BERA ve Vileda Professional logo varlıkları (`public/assets/logos/`)
+- HTML tabanlı kurumsal PDF şablonu (Türkçe karakter desteği, otomatik sayfa kırılımı)
+- Excel Sayfa 1: PDF ile aynı mantıkta kurumsal rapor
+- Excel Sayfa 2: Logo Aktarım (Cari Kod, Şube, Barkod, Ürün Kodu, Miktar)
+- `OrderShareActions`: Gönderilen siparişlerde tekrar paylaşım (PDF / Excel / WhatsApp)
+- Her paylaşımda rapor dosyaları yeniden oluşturulur
+
+#### Değiştirilen
+- Sipariş detay ekranı: tarih/saat, cari bilgileri, toplam kalem/adet, ürün listesi, durum
+- Gönderilen siparişler detaydan tekrar açılabilir ve paylaşılabilir
+- `orderExportService` ince facade katmanına indirildi
+
+#### Doğrulanan
+- `npm run build` hatasız
+- `npm run lint` temiz
+
+---
+
 ## [1.0.0-rc] - 2026-07-23
 
 ### v1.0 Release Candidate — Saha Kullanımına Hazırlık
