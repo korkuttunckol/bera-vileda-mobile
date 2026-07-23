@@ -17,13 +17,13 @@ export function useAuth() {
     return unsubscribe;
   }, [setUser, setLoading]);
 
-  const login = async (credentials: LoginCredentials): Promise<void> => {
-    const authUser = await authService.login(credentials);
+  const login = (credentials: LoginCredentials): void => {
+    const authUser = authService.login(credentials);
     setUser(authUser);
   };
 
-  const logout = async (): Promise<void> => {
-    await authService.logout();
+  const logout = (): void => {
+    authService.logout();
     logoutStore();
   };
 

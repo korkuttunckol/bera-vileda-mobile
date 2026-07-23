@@ -11,9 +11,8 @@ export function MainLayout() {
   const navigate = useNavigate();
 
   const handleLogout = (): void => {
-    void logout().then(() => {
-      void navigate(ROUTES.LOGIN);
-    });
+    logout();
+    void navigate(ROUTES.LOGIN);
   };
 
   return (

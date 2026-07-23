@@ -1,38 +1,47 @@
-import { useState, type SubmitEvent } from 'react';
+import { useEffect, useState, type SubmitEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { Button } from '@/shared/components/ui/Button';
 import { Input } from '@/shared/components/ui/Input';
 import { APP_NAME } from '@/shared/constants/app';
-import { isDevAuthBypassEnabled } from '@/config/env';
+import { ROUTES } from '@/shared/constants/routes';
 import { toast } from '@/stores/toastStore';
 
 export function LoginForm() {
-  const { login } = useAuth();
+  const { login, isAuthenticated, isLoading: isAuthLoading } = useAuth();
   const navigate = useNavigate();
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const handleSubmit = async (e: SubmitEvent<HTMLFormElement>): Promise<void> => {
+  useEffect(() => {
+    if (!isAuthLoading && isAuthenticated) {
+      void navigate(ROUTES.DASHBOARD, { replace: true });
+    }
+  }, [isAuthenticated, isAuthLoading, navigate]);
+
+  const handleSubmit = (e: SubmitEvent<HTMLFormElement>): void => {
     e.preventDefault();
     setError('');
     setIsLoading(true);
 
     try {
-      await login({ email, password });
+      login({ username, password });
       toast('Giriş başarılı', 'success');
-      void navigate('/');
+      void navigate(ROUTES.DASHBOARD);
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : 'Giriş yapılamadı.';
+        err instanceof Error ? err.message : 'Kullanıcı adı veya şifre hatalı';
       setError(message);
-      toast(message, 'error');
     } finally {
       setIsLoading(false);
     }
   };
+
+  if (isAuthLoading) {
+    return null;
+  }
 
   return (
     <div className="w-full max-w-sm">
@@ -44,22 +53,16 @@ export function LoginForm() {
         <p className="mt-1 text-sm text-brand-gray-500">
           Saha satış sipariş yönetimi
         </p>
-        {isDevAuthBypassEnabled() ? (
-          <p className="mt-2 rounded-lg bg-yellow-50 px-3 py-2 text-xs text-yellow-800">
-            Geliştirme modu: Firebase bağlantısı yok. Herhangi bir e-posta/şifre
-            ile giriş yapabilirsiniz.
-          </p>
-        ) : null}
       </div>
 
-      <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-4">
         <Input
-          label="E-posta"
-          type="email"
-          autoComplete="email"
-          value={email}
-          onChange={(e) => { setEmail(e.target.value); }}
-          placeholder="ornek@bera.com"
+          label="Kullanıcı Adı"
+          type="text"
+          autoComplete="username"
+          value={username}
+          onChange={(e) => { setUsername(e.target.value); }}
+          placeholder="admin"
           required
         />
         <Input
@@ -68,7 +71,7 @@ export function LoginForm() {
           autoComplete="current-password"
           value={password}
           onChange={(e) => { setPassword(e.target.value); }}
-          placeholder="••••••••"
+          placeholder="••••••"
           required
         />
 

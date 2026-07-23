@@ -9,7 +9,6 @@ import { useSync, SyncReportCard } from '@/features/sync';
 import { useOrders } from '@/features/orders/hooks/useOrders';
 import { useCustomers } from '@/features/customers/hooks/useCustomers';
 import { useProducts } from '@/features/products/hooks/useProducts';
-import { isDevAuthBypassEnabled } from '@/config/env';
 import { ROUTES } from '@/shared/constants/routes';
 import { USER_ROLE_LABELS } from '@/shared/types/role.types';
 import { cn } from '@/shared/utils/cn';
@@ -271,14 +270,6 @@ export function DashboardPage() {
       </section>
 
       <div className="relative -mt-5 space-y-4 px-4">
-        {isDevAuthBypassEnabled() ? (
-          <Card padding="sm" className={cn(DASHBOARD_CARD, 'border-amber-200/80 bg-amber-50/90')}>
-            <p className="text-xs font-medium text-amber-800">
-              Geliştirme modu aktif — Firebase bağlantısı olmadan çalışıyorsunuz.
-            </p>
-          </Card>
-        ) : null}
-
         <div className="grid grid-cols-2 gap-2">
           <StatCard value={todayOrderCount} label="Bugünkü Sipariş" icon="orders" />
           <StatCard

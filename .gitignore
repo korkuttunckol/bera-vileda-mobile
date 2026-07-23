@@ -33,3 +33,5 @@ workbox-*.js
 
 # TypeScript
 *.tsbuildinfo
+.vercel
+.env*
