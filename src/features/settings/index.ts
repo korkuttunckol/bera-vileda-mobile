@@ -10,3 +10,4 @@ export { AppInfoPage } from './components/AppInfoPage';
 export { CustomerDisplaySettingsPage } from './components/CustomerDisplaySettingsPage';
 export { ProductDisplaySettingsPage } from './components/ProductDisplaySettingsPage';
 export { OrderSettingsPage } from './components/OrderSettingsPage';
+export { SyncSettingsPage } from './components/SyncSettingsPage';

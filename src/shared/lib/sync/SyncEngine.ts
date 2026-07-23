@@ -1,5 +1,4 @@
 import { v4 as uuidv4 } from 'uuid';
-import { SYNC_CONFIG } from '@/config/app.config';
 import { isFirebaseConfigured } from '@/config/env';
 import { syncQueueRepository } from '@/shared/lib/indexeddb/repositories/syncQueueRepository';
 import { syncReportRepository } from '@/shared/lib/indexeddb/repositories/syncReportRepository';
@@ -29,20 +28,7 @@ export class SyncEngine implements ISyncEngine {
   private listeners: SyncListener[] = [];
 
   start(): void {
-    if (typeof window === 'undefined') return;
-
-    this.onlineHandler = (): void => {
-      if (navigator.onLine) {
-        void this.syncNow('online_reconnect');
-      }
-    };
-    window.addEventListener('online', this.onlineHandler);
-
-    this.intervalId = setInterval(() => {
-      if (navigator.onLine) {
-        void this.syncNow('auto');
-      }
-    }, SYNC_CONFIG.autoSyncIntervalMs);
+    // Arka plan senkronizasyonu AppProviders üzerinden syncService ile yönetilir.
   }
 
   stop(): void {
@@ -84,11 +70,13 @@ export class SyncEngine implements ISyncEngine {
     };
 
     try {
-      if (navigator.onLine && isFirebaseConfigured()) {
+      if (navigator.onLine) {
         const pushResult = await outboxProcessor.processAll();
         queueRun = pushResult.stats;
         errors.push(...pushResult.errors);
-        pullStats = await pullSync.pullAll();
+        if (isFirebaseConfigured()) {
+          pullStats = await pullSync.pullAll();
+        }
       }
     } catch (err) {
       const errorId = uuidv4();

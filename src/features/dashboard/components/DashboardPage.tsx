@@ -1,11 +1,10 @@
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Card, CardHeader } from '@/shared/components/ui/Card';
-import { Button } from '@/shared/components/ui/Button';
+import { Card } from '@/shared/components/ui/Card';
 import { Icon } from '@/shared/components/ui/Icon';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { useOfflineStore } from '@/stores/offlineStore';
-import { useSync, SyncReportCard } from '@/features/sync';
+import { usePendingSyncCount } from '@/features/sync/hooks/usePendingSyncCount';
 import { useOrders } from '@/features/orders/hooks/useOrders';
 import { useCustomers } from '@/features/customers/hooks/useCustomers';
 import { useProducts } from '@/features/products/hooks/useProducts';
@@ -42,48 +41,6 @@ function getUserInitials(name: string): string {
   if (parts.length === 1) return first.charAt(0).toUpperCase();
   const last = parts[parts.length - 1] ?? first;
   return `${first.charAt(0)}${last.charAt(0)}`.toUpperCase();
-}
-
-interface SyncStatusInfo {
-  dotClass: string;
-  label: string;
-  detail: string;
-}
-
-function getSyncStatusInfo(
-  isOnline: boolean,
-  isSyncing: boolean,
-  pendingCount: number,
-): SyncStatusInfo {
-  if (!isOnline) {
-    return {
-      dotClass: 'bg-amber-400',
-      label: 'Çevrimdışı',
-      detail:
-        pendingCount > 0
-          ? `${String(pendingCount)} sipariş kuyrukta`
-          : 'Bağlantı gelince senkronize edilir',
-    };
-  }
-  if (isSyncing) {
-    return {
-      dotClass: 'bg-blue-400 animate-pulse',
-      label: 'Senkronize ediliyor',
-      detail: 'Siparişler gönderiliyor…',
-    };
-  }
-  if (pendingCount > 0) {
-    return {
-      dotClass: 'bg-amber-400',
-      label: 'Bekleyen gönderim',
-      detail: `${String(pendingCount)} sipariş senkron bekliyor`,
-    };
-  }
-  return {
-    dotClass: 'bg-emerald-400',
-    label: 'Güncel',
-    detail: 'Tüm siparişler senkronize',
-  };
 }
 
 interface StatCardProps {
@@ -167,31 +124,15 @@ export function DashboardPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const isOnline = useOfflineStore((s) => s.isOnline);
-  const pendingSyncCount = useOfflineStore((s) => s.pendingSyncCount);
-  const { isSyncing, lastReport, syncNow } = useSync();
+  const pendingSyncCount = usePendingSyncCount();
   const { orders } = useOrders('all');
   const { customers } = useCustomers('', 'all');
   const { products } = useProducts('');
 
   const todayLabel = useMemo(() => formatDashboardDate(new Date()), []);
 
-  const syncStatus = useMemo(
-    () => getSyncStatusInfo(isOnline, isSyncing, pendingSyncCount),
-    [isOnline, isSyncing, pendingSyncCount],
-  );
-
   const todayOrderCount = useMemo(
     () => orders.filter((o) => isToday(o.orderDate)).length,
-    [orders],
-  );
-
-  const pendingOrders = useMemo(
-    () =>
-      orders.filter(
-        (o) =>
-          o.orderSyncStatus === 'pending_offline' ||
-          o.orderSyncStatus === 'failed',
-      ).length,
     [orders],
   );
 
@@ -200,100 +141,60 @@ export function DashboardPage() {
 
   return (
     <div className="pb-2">
-      <section className="relative overflow-hidden bg-gradient-to-br from-brand-navy-dark via-brand-navy to-brand-navy-light px-4 pb-10 pt-6 shadow-header">
+      <section className="relative overflow-hidden bg-gradient-to-br from-brand-navy-dark via-brand-navy to-brand-navy-light px-4 pb-8 pt-5 shadow-header">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_rgba(255,255,255,0.12)_0%,_transparent_55%)]" />
-        <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-white/[0.07]" />
-        <div className="pointer-events-none absolute -bottom-8 left-0 h-32 w-32 rounded-full bg-white/[0.05]" />
-
-        <div className="relative space-y-5">
+        <div className="relative space-y-3">
           <div className="flex items-start justify-between gap-3">
-            <div className="flex min-w-0 items-center gap-3.5">
-              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-white/20 bg-white/15 text-lg font-bold text-white shadow-lg backdrop-blur-sm">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/20 bg-white/15 text-base font-bold text-white shadow-lg backdrop-blur-sm">
                 {getUserInitials(displayName)}
               </div>
               <div className="min-w-0">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/55">
                   Hoş geldiniz
                 </p>
-                <h1 className="truncate text-xl font-bold tracking-tight text-white">
+                <h1 className="truncate text-lg font-bold tracking-tight text-white">
                   {displayName}
                 </h1>
                 {roleLabel ? (
                   <p className="truncate text-sm text-white/70">{roleLabel}</p>
                 ) : null}
-                {user?.email ? (
-                  <p className="truncate text-xs text-white/50">{user.email}</p>
-                ) : null}
-              </div>
-            </div>
-            <div className="flex shrink-0 flex-col items-end gap-2">
-              <Button
-                size="sm"
-                variant="secondary"
-                className="border-white/10 bg-white/15 text-white hover:bg-white/25"
-                onClick={() => void syncNow('manual')}
-                isLoading={isSyncing}
-              >
-                <span className="flex items-center gap-1.5">
-                  <Icon name="sync" size="sm" className={isSyncing ? 'animate-spin' : undefined} />
-                  Sync
-                </span>
-              </Button>
-              <div className="rounded-xl border border-white/15 bg-white/10 px-2.5 py-2 text-right backdrop-blur-sm">
-                <p className="text-[11px] font-semibold text-white">
-                  {isOnline ? '🟢 Online' : '🔴 Offline'}
-                </p>
-                <p className="mt-0.5 text-[10px] text-white/75">
-                  Bekleyen Senkronizasyon : {pendingSyncCount}
-                </p>
               </div>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-medium text-white/90 backdrop-blur-sm">
-              <svg className="h-3.5 w-3.5 text-white/70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <div className="rounded-2xl border border-white/15 bg-white/10 px-3.5 py-3 backdrop-blur-sm">
+            <div className="flex items-center gap-2 text-sm font-medium text-white">
+              <svg className="h-4 w-4 shrink-0 text-white/75" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
               <span className="capitalize">{todayLabel}</span>
             </div>
-          </div>
-
-          <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/15 bg-white/10 px-3.5 py-3 backdrop-blur-sm">
-            <div className="flex min-w-0 items-center gap-3">
-              <span
-                className={cn('h-2.5 w-2.5 shrink-0 rounded-full shadow-sm', syncStatus.dotClass)}
-                aria-hidden
-              />
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-white">{syncStatus.label}</p>
-                <p className="truncate text-xs text-white/65">{syncStatus.detail}</p>
-              </div>
+            <div className="mt-2 space-y-1 text-sm text-white">
+              <p>{isOnline ? '🟢 Online' : '🔴 Offline'}</p>
+              <p className="text-white/90">
+                Bekleyen Senkronizasyon : {pendingSyncCount}
+              </p>
             </div>
-            {pendingSyncCount > 0 ? (
-              <span className="shrink-0 rounded-full bg-white/20 px-2.5 py-1 text-xs font-bold text-white">
-                {pendingSyncCount}
-              </span>
-            ) : null}
           </div>
         </div>
       </section>
 
-      <div className="relative -mt-5 space-y-4 px-4">
+      <div className="relative -mt-4 space-y-3 px-4">
         <div className="grid grid-cols-2 gap-2">
           <StatCard value={todayOrderCount} label="Bugünkü Sipariş" icon="orders" />
           <StatCard
-            value={pendingOrders}
-            label="Bekleyen / Hatalı"
+            value={pendingSyncCount}
+            label="Bekleyen Senkronizasyon"
             icon="pending"
-            accent={pendingOrders > 0 ? 'warning' : 'default'}
+            accent={pendingSyncCount > 0 ? 'warning' : 'default'}
           />
           <StatCard value={customers.length} label="Toplam Müşteri" icon="customers" />
           <StatCard value={products.length} label="Toplam Ürün" icon="products" />
         </div>
 
         <Card padding="sm" className={DASHBOARD_CARD}>
-          <h3 className="mb-2.5 text-base font-semibold tracking-tight text-brand-navy">
+          <h3 className="mb-2 text-base font-semibold tracking-tight text-brand-navy">
             Hızlı İşlemler
           </h3>
           <div className="grid grid-cols-2 gap-2">
@@ -321,26 +222,7 @@ export function DashboardPage() {
           </div>
         </Card>
 
-        {lastReport ? (
-          <SyncReportCard report={lastReport} variant="compact" />
-        ) : null}
-
-        <Card className={DASHBOARD_CARD}>
-          <CardHeader title="Senkronizasyon" subtitle="Offline sipariş yönetimi" />
-          <p className="mb-4 text-sm leading-relaxed text-brand-gray-500">
-            Offline siparişler internet geldiğinde otomatik gönderilir.
-          </p>
-          <Button
-            fullWidth
-            variant="outline"
-            onClick={() => void syncNow('manual')}
-            isLoading={isSyncing}
-          >
-            Şimdi Senkronize Et ({pendingSyncCount})
-          </Button>
-        </Card>
-
-        <footer className="pb-4 pt-2 text-center text-[11px] leading-relaxed text-brand-gray-400">
+        <footer className="pb-3 pt-1 text-center text-[11px] leading-relaxed text-brand-gray-400">
           <p className="font-medium text-brand-gray-500">BERA Vileda Sipariş Sistemi</p>
           <p>v1.0.0</p>
           <p>© 2026 Korkut Tunçkol</p>

@@ -19,6 +19,10 @@ interface SettingsSection {
 
 const SETTINGS_SECTIONS: SettingsSection[] = [
   {
+    title: 'Senkronizasyon',
+    items: [{ label: 'Senkronizasyon', path: ROUTES.SETTINGS_SYNC }],
+  },
+  {
     title: 'Görünüm & Tercihler',
     items: [
       { label: 'Müşteri Bilgileri', path: ROUTES.SETTINGS_CUSTOMER_DISPLAY },

@@ -27,8 +27,10 @@ import {
   OrderSettingsPage,
   DataManagementPage,
   ResetAllDataPage,
+  SyncSettingsPage,
 } from '@/features/settings';
 import { OrderDetailPage } from '@/features/orders/components/OrderDetailPage';
+import { SendOrderPage } from '@/features/orders/components/SendOrderPage';
 import { ROUTES } from '@/shared/constants/routes';
 
 export const router = createBrowserRouter([
@@ -47,6 +49,7 @@ export const router = createBrowserRouter([
           { path: ROUTES.NEW_ORDER, element: <NewOrderPage /> },
           { path: ROUTES.ORDER_HISTORY, element: <OrderHistoryPage /> },
           { path: ROUTES.ORDER_DETAIL, element: <OrderDetailPage /> },
+          { path: ROUTES.ORDER_SEND, element: <SendOrderPage /> },
           { path: ROUTES.CUSTOMERS, element: <CustomersPage /> },
           { path: ROUTES.CUSTOMER_NEW, element: <CustomerFormPage /> },
           { path: ROUTES.CUSTOMER_EDIT, element: <CustomerFormPage /> },
@@ -57,6 +60,7 @@ export const router = createBrowserRouter([
           { path: ROUTES.PRODUCT_NEW, element: <ProductFormPage /> },
           { path: ROUTES.PRODUCT_EDIT, element: <ProductFormPage /> },
           { path: ROUTES.SETTINGS, element: <SettingsPage /> },
+          { path: ROUTES.SETTINGS_SYNC, element: <SyncSettingsPage /> },
           {
             path: ROUTES.SETTINGS_IMPORT_PRODUCTS,
             element: <ImportProductsPage />,

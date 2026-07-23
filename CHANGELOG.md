@@ -8,11 +8,33 @@ Format [Keep a Changelog](https://keepachangelog.com/) standardına uygundur.
 
 ---
 
----
+## [1.0.0-rc] - 2026-07-23
 
----
+### v1.0 Release Candidate — Saha Kullanımına Hazırlık
 
----
+#### Eklenen
+- **Ayarlar → Senkronizasyon** ekranı: online/offline durumu, bekleyen sayaç, manuel senkronizasyon, tam sync raporu
+- **GÖNDER ekranı** (`/orders/:id/send`): PDF, Excel, WhatsApp seçenekleri; tek GÖNDER butonu
+- **PDF rapor** (`jspdf`): BERA / Vileda başlık, cari bilgileri, ürün tablosu, genel toplam, iletişim bilgileri
+- **Excel rapor** (`xlsx`): Sayfa 1 profesyonel sipariş raporu; Sayfa 2 Logo Aktarım (GO Wings hazırlığı)
+- **WhatsApp paylaşım**: Web Share API ile PDF+Excel birlikte; desteklenmeyen cihazlarda indirme + WhatsApp açılışı
+- **Şube arama** (sipariş akışı): Canlı filtre, büyük/küçük harf duyarsız, mobil uyumlu
+- `usePendingSyncCount` hook — tek kaynak senkron sayaç
+- `orderExportService` — PDF/Excel üretimi ve paylaşım
+
+#### Değiştirilen
+- **Dashboard sadeleştirildi**: yalnızca tarih, online/offline, bekleyen senkronizasyon; sync kartı ve manuel buton kaldırıldı
+- Sipariş kaydı sonrası yönlendirme: Sipariş Geçmişi yerine **GÖNDER** ekranı
+- Offline → online geçişte otomatik senkronizasyon `syncService` üzerinden (30 sn aralık + reconnect)
+- Bekleyen sayaç: `countPendingOrders` tek kaynak; Dashboard, Ayarlar, Sync, Sipariş Geçmişi aynı sayıyı gösterir
+- `PushSync`: Firestore push yalnızca Firebase yapılandırıldığında
+- `SyncEngine`: arka plan dinleyicileri `AppProviders` + `syncService` ile merkezileştirildi
+
+#### Doğrulanan
+- `npm run build` hatasız
+- `npm run lint` temiz
+- TypeScript strict mode uyumlu
+- Vercel deploy edilebilir (`dist/`)
 
 ---
 

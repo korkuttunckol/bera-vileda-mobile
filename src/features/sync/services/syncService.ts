@@ -1,8 +1,10 @@
 import { v4 as uuidv4 } from 'uuid';
 import { syncEngine } from '@/shared/lib/sync/SyncEngine';
 import { outboxProcessor } from '@/shared/lib/sync/OutboxProcessor';
-import { orderLocalRepository } from '@/shared/lib/indexeddb/repositories/orderRepository';
-import { syncQueueRepository } from '@/shared/lib/indexeddb/repositories/syncQueueRepository';
+import {
+  orderLocalRepository,
+  countPendingOrders,
+} from '@/shared/lib/indexeddb/repositories/orderRepository';
 import { syncReportRepository } from '@/shared/lib/indexeddb/repositories/syncReportRepository';
 import {
   publishOrderSyncReport,
@@ -15,7 +17,8 @@ import type { SyncTrigger, SyncResult } from '@/shared/lib/sync/types/sync.types
 
 class SyncService {
   async refreshPendingCount(): Promise<number> {
-    const count = await syncQueueRepository.countPending();
+    const allOrders = await orderLocalRepository.getAll();
+    const count = countPendingOrders(allOrders);
     useOfflineStore.getState().setPendingSyncCount(count);
     useSyncStore.getState().setPendingCount(count);
     return count;

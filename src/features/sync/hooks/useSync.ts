@@ -2,13 +2,14 @@ import { useCallback, useEffect } from 'react';
 import { syncService } from '../services/syncService';
 import { useSyncStore } from '@/stores/syncStore';
 import { useOfflineStore } from '@/stores/offlineStore';
+import { usePendingSyncCount } from './usePendingSyncCount';
 import { toast } from '@/stores/toastStore';
 import type { SyncTrigger } from '@/shared/lib/sync/types/sync.types';
 
 export function useSync() {
   const isSyncing = useSyncStore((s) => s.isSyncing);
   const lastReport = useSyncStore((s) => s.lastReport);
-  const pendingCount = useSyncStore((s) => s.pendingCount);
+  const pendingCount = usePendingSyncCount();
   const isOnline = useOfflineStore((s) => s.isOnline);
 
   useEffect(() => {

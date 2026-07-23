@@ -1,13 +1,18 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Card } from '@/shared/components/ui/Card';
 import { Badge } from '@/shared/components/ui/Badge';
 import { Button } from '@/shared/components/ui/Button';
+import { Input } from '@/shared/components/ui/Input';
 import { LoadingSpinner } from '@/shared/components/feedback/LoadingSpinner';
 import { EmptyState } from '@/shared/components/feedback/EmptyState';
 import { useOrderDraftStore } from '@/stores/orderDraftStore';
 import { useBranches } from '@/features/customers/hooks/useBranches';
 import { buildCustomerBranchNewRoute, ROUTES } from '@/shared/constants/routes';
+
+function normalizeSearch(value: string): string {
+  return value.trim().toLocaleLowerCase('tr-TR');
+}
 
 export function BranchSelectStep() {
   const navigate = useNavigate();
@@ -17,8 +22,25 @@ export function BranchSelectStep() {
   const selectBranch = useOrderDraftStore((s) => s.selectBranch);
   const setStep = useOrderDraftStore((s) => s.setStep);
   const { branches, isLoading, reload } = useBranches(customerId);
+  const [search, setSearch] = useState('');
 
-  const activeBranches = branches.filter((b) => b.isActive && !b.isDeleted);
+  const activeBranches = useMemo(
+    () => branches.filter((branch) => branch.isActive && !branch.isDeleted),
+    [branches],
+  );
+
+  const filteredBranches = useMemo(() => {
+    const term = normalizeSearch(search);
+    if (!term) return activeBranches;
+
+    return activeBranches.filter((branch) => {
+      const haystack = [branch.name, branch.address ?? '']
+        .join(' ')
+        .toLocaleLowerCase('tr-TR');
+
+      return haystack.includes(term);
+    });
+  }, [activeBranches, search]);
 
   useEffect(() => {
     if (location.pathname === ROUTES.NEW_ORDER) {
@@ -38,6 +60,16 @@ export function BranchSelectStep() {
         <p className="font-medium text-brand-navy">{customerName}</p>
       </Card>
 
+      {!isLoading && activeBranches.length > 0 ? (
+        <Input
+          label="Şube Ara"
+          value={search}
+          onChange={(event) => { setSearch(event.target.value); }}
+          placeholder="Şube adı veya adres..."
+          autoComplete="off"
+        />
+      ) : null}
+
       {isLoading ? (
         <LoadingSpinner label="Şubeler yükleniyor..." />
       ) : activeBranches.length === 0 ? (
@@ -50,9 +82,14 @@ export function BranchSelectStep() {
             </Button>
           }
         />
+      ) : filteredBranches.length === 0 ? (
+        <EmptyState
+          title="Sonuç bulunamadı"
+          description="Arama kriterinize uygun şube yok."
+        />
       ) : (
         <div className="space-y-2">
-          {activeBranches.map((branch) => (
+          {filteredBranches.map((branch) => (
             <Card
               key={branch.id}
               padding="none"

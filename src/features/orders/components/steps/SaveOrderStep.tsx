@@ -29,7 +29,7 @@ export function SaveOrderStep() {
 
     setIsSaving(true);
     try {
-      const { isOffline } = await orderService.createFromDraft({
+      const { order, isOffline } = await orderService.createFromDraft({
         draft,
         userId: user.uid,
         userRole: user.role,
@@ -38,11 +38,11 @@ export function SaveOrderStep() {
       if (isOffline) {
         toast('Sipariş telefon hafızasına kaydedildi.', 'success');
       } else {
-        toast('Sipariş kaydedildi ve gönderiliyor.', 'success');
+        toast('Sipariş kaydedildi.', 'success');
       }
 
       reset();
-      void navigate(ROUTES.ORDER_HISTORY);
+      void navigate(ROUTES.ORDER_SEND.replace(':id', order.id));
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Kayıt başarısız', 'error');
     } finally {

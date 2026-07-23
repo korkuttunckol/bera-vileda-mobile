@@ -7,6 +7,7 @@ import {
   pushBranchToFirestore,
 } from '@/shared/lib/firebase/firestoreService';
 import { erpAdapter } from '@/shared/lib/erp/adapters/NullErpAdapter';
+import { isFirebaseConfigured } from '@/config/env';
 import { idempotencyGuard } from './IdempotencyGuard';
 import type { LocalSyncQueueItem } from '@/shared/lib/indexeddb/db';
 import type { SyncReportError } from './types/sync.types';
@@ -79,7 +80,9 @@ export class PushSync {
 
     try {
       const lines = await orderLocalRepository.getLinesByOrderId(order.id);
-      await pushOrderToFirestore(order, lines);
+      if (isFirebaseConfigured()) {
+        await pushOrderToFirestore(order, lines);
+      }
 
       const erpResult = await erpAdapter.exportOrder({
         orderId: order.id,
