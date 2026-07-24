@@ -3,6 +3,7 @@ import { ORDER_REPORT_LAYOUT, ORDER_REPORT_TABLE_COLUMNS } from '../orderReportL
 import { loadOrderReportLogoAssets } from '../orderReportAssets';
 import type { OrderReportTemplateModel } from '../orderReportTemplateModel';
 import type ExcelJS from 'exceljs';
+import { buildLogoWingsTransferSheet } from './logoWingsTransferExcel';
 
 const { colors, excel, fonts } = ORDER_REPORT_LAYOUT;
 
@@ -263,7 +264,6 @@ export async function renderOrderReportExcelFromTemplate(
   model: OrderReportTemplateModel,
 ): Promise<Blob> {
   const { default: ExcelJS } = await import('exceljs');
-  const { buildLogoWingsTransferSheet } = await import('./logoWingsTransferExcel');
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'BERA Vileda Sipariş Sistemi';
   workbook.created = new Date();
