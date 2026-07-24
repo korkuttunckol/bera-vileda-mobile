@@ -119,7 +119,7 @@ export function DiagnosticsPage() {
   });
 
   useEffect(() => {
-    let cancelled = false;
+    const lifecycle = { cancelled: false };
     let getDocsTimeoutId: number | undefined;
 
     async function runTestA(db: NonNullable<ReturnType<typeof getFirestoreDb>>): Promise<void> {
@@ -130,12 +130,14 @@ export function DiagnosticsPage() {
         const ref = doc(db, 'users', 'ADMIN');
         const result = await Promise.race([
           getDoc(ref),
-          new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error('TIMEOUT 5000')), GETDOC_TIMEOUT_MS),
-          ),
+          new Promise<never>((_, reject) => {
+            setTimeout(() => {
+              reject(new Error('TIMEOUT 5000'));
+            }, GETDOC_TIMEOUT_MS);
+          }),
         ]);
 
-        if (cancelled) return;
+        if (lifecycle.cancelled) return;
 
         setTestA({
           status: 'success',
@@ -143,7 +145,7 @@ export function DiagnosticsPage() {
           durationMs: Math.round(performance.now() - startedAt),
         });
       } catch (error: unknown) {
-        if (cancelled) return;
+        if (lifecycle.cancelled) return;
 
         if (error instanceof Error && error.message === 'TIMEOUT 5000') {
           setTestA({ status: 'timeout' });
@@ -178,11 +180,11 @@ export function DiagnosticsPage() {
 
       console.log('GETDOCS START');
 
-      let timedOut = false;
+      const timeoutState = { timedOut: false };
       getDocsTimeoutId = window.setTimeout(() => {
-        timedOut = true;
+        timeoutState.timedOut = true;
         console.log('GETDOCS TIMEOUT');
-        if (!cancelled) {
+        if (!lifecycle.cancelled) {
           setUsersTest({ status: 'timeout' });
         }
       }, GETDOCS_TIMEOUT_MS);
@@ -191,7 +193,7 @@ export function DiagnosticsPage() {
         const snapshot = await getDocs(collection(db, 'users'));
         window.clearTimeout(getDocsTimeoutId);
 
-        if (timedOut || cancelled) return;
+        if (timeoutState.timedOut || lifecycle.cancelled) return;
 
         console.log('GETDOCS SUCCESS', snapshot.size);
         setUsersTest({
@@ -201,7 +203,7 @@ export function DiagnosticsPage() {
       } catch (error: unknown) {
         window.clearTimeout(getDocsTimeoutId);
 
-        if (timedOut || cancelled) return;
+        if (timeoutState.timedOut || lifecycle.cancelled) return;
 
         if (error instanceof Error) {
           const code =
@@ -249,7 +251,7 @@ export function DiagnosticsPage() {
       try {
         const snapshot = await getDocs(collection(db, collectionName));
 
-        if (cancelled) return;
+        if (lifecycle.cancelled) return;
 
         setResult({
           status: 'success',
@@ -257,7 +259,7 @@ export function DiagnosticsPage() {
           durationMs: Math.round(performance.now() - startedAt),
         });
       } catch (error: unknown) {
-        if (cancelled) return;
+        if (lifecycle.cancelled) return;
 
         const { code, message } = getErrorDetails(error);
         setResult({ status: 'error', code, message });
@@ -266,7 +268,7 @@ export function DiagnosticsPage() {
 
     async function runAllTests(): Promise<void> {
       if (!firestoreDb) {
-        if (!cancelled) {
+        if (!lifecycle.cancelled) {
           const noFirestoreError = {
             status: 'error' as const,
             code: 'NO_FIRESTORE',
@@ -284,21 +286,15 @@ export function DiagnosticsPage() {
       }
 
       await runTestA(firestoreDb);
-      if (cancelled) return;
-
       await runUsersGetDocsTest(firestoreDb);
-      if (cancelled) return;
-
       await runCollectionGetDocsTest(firestoreDb, 'customers', setCustomersTest);
-      if (cancelled) return;
-
       await runCollectionGetDocsTest(firestoreDb, 'products', setProductsTest);
     }
 
     void runAllTests();
 
     return () => {
-      cancelled = true;
+      lifecycle.cancelled = true;
       if (getDocsTimeoutId !== undefined) {
         window.clearTimeout(getDocsTimeoutId);
       }
@@ -345,15 +341,15 @@ export function DiagnosticsPage() {
           <DiagnosticRow
             label="2. Firebase Project ID"
             value={
-              firebaseApp?.options.projectId ??
-              env.VITE_FIREBASE_PROJECT_ID ??
+              firebaseApp?.options.projectId ||
+              env.VITE_FIREBASE_PROJECT_ID ||
               '(yok)'
             }
           />
           <DiagnosticRow
             label="3. Firebase App ID"
             value={
-              firebaseApp?.options.appId ?? env.VITE_FIREBASE_APP_ID ?? '(yok)'
+              firebaseApp?.options.appId || env.VITE_FIREBASE_APP_ID || '(yok)'
             }
           />
           <DiagnosticRow
