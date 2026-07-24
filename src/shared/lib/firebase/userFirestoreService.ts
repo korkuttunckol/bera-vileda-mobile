@@ -11,7 +11,7 @@ import { getFirestoreDb } from './firestore';
 import {
   assertOnlineForFirestoreWrite,
   getFirestoreErrorMessage,
-  prepareFirestoreNetwork,
+  logFirestoreError,
 } from './firestoreUtils';
 import { hashPassword } from '@/shared/lib/crypto/passwordService';
 import {
@@ -54,14 +54,6 @@ function mapFirestoreUser(id: string, data: Record<string, unknown>): AppUser | 
   };
 }
 
-async function ensureFirestoreReady(): Promise<void> {
-  const db = getFirestoreDb();
-  if (!db) {
-    throw new Error('Firestore bağlantısı kurulamadı.');
-  }
-  await prepareFirestoreNetwork(db);
-}
-
 export async function fetchUserByCodeFromFirestore(
   userCode: string,
 ): Promise<AppUser | null> {
@@ -74,7 +66,7 @@ export async function fetchUserByCodeFromFirestore(
     if (!snapshot.exists()) return null;
     return mapFirestoreUser(snapshot.id, snapshot.data());
   } catch (error) {
-    console.error('[Firestore] Kullanıcı okuma hatası:', error);
+    logFirestoreError('Kullanıcı okuma hatası', error);
     throw new Error(getFirestoreErrorMessage(error));
   }
 }
@@ -94,7 +86,7 @@ export async function fetchAllUsersFromFirestore(): Promise<AppUser[]> {
 
     return users.sort((a, b) => a.userCode.localeCompare(b.userCode, 'tr-TR'));
   } catch (error) {
-    console.error('[Firestore] Kullanıcı listesi okuma hatası:', error);
+    logFirestoreError('Kullanıcı listesi okuma hatası', error);
     throw new Error(getFirestoreErrorMessage(error));
   }
 }
@@ -106,7 +98,6 @@ export async function createUserInFirestore(input: CreateUserInput): Promise<App
   }
 
   assertOnlineForFirestoreWrite();
-  await ensureFirestoreReady();
 
   const userCode = normalizeUserCode(input.userCode);
   const existing = await fetchUserByCodeFromFirestore(userCode);
@@ -139,7 +130,7 @@ export async function createUserInFirestore(input: CreateUserInput): Promise<App
       updatedAt: now,
     });
   } catch (error) {
-    console.error('[Firestore] Kullanıcı oluşturma hatası:', error);
+    logFirestoreError('Kullanıcı oluşturma hatası', error);
     throw new Error(getFirestoreErrorMessage(error));
   }
 
@@ -156,7 +147,6 @@ export async function updateUserInFirestore(
   }
 
   assertOnlineForFirestoreWrite();
-  await ensureFirestoreReady();
 
   const normalizedCode = normalizeUserCode(userCode);
   const ref = doc(db, USERS_COLLECTION, normalizedCode);
@@ -196,7 +186,7 @@ export async function updateUserInFirestore(
       updatedAt: now,
     });
   } catch (error) {
-    console.error('[Firestore] Kullanıcı güncelleme hatası:', error);
+    logFirestoreError('Kullanıcı güncelleme hatası', error);
     throw new Error(getFirestoreErrorMessage(error));
   }
 
@@ -210,12 +200,17 @@ export async function deleteUserFromFirestore(userCode: string): Promise<void> {
   }
 
   assertOnlineForFirestoreWrite();
-  await ensureFirestoreReady();
+
+  const normalizedCode = normalizeUserCode(userCode);
+  const ref = doc(db, USERS_COLLECTION, normalizedCode);
+
+  console.info('[Firestore] deleteDoc çağrılıyor:', normalizedCode);
 
   try {
-    await deleteDoc(doc(db, USERS_COLLECTION, normalizeUserCode(userCode)));
+    await deleteDoc(ref);
+    console.info('[Firestore] deleteDoc tamamlandı:', normalizedCode);
   } catch (error) {
-    console.error('[Firestore] Kullanıcı silme hatası:', error);
+    logFirestoreError(`Kullanıcı silme hatası (${normalizedCode})`, error);
     throw new Error(getFirestoreErrorMessage(error));
   }
 }

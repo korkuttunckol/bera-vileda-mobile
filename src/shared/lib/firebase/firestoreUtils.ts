@@ -1,4 +1,4 @@
-import { enableNetwork, type Firestore } from 'firebase/firestore';
+import { FirebaseError } from 'firebase/app';
 
 export function isFirestoreOfflineError(error: unknown): boolean {
   if (!(error instanceof Error)) return false;
@@ -11,36 +11,40 @@ export function isFirestoreOfflineError(error: unknown): boolean {
   );
 }
 
+function formatFirebaseErrorCode(code: string): string {
+  const segment = code.split('/').pop() ?? code;
+  return segment.replace(/-/g, '_').toUpperCase();
+}
+
 export function getFirestoreErrorMessage(error: unknown): string {
-  if (error instanceof Error && error.message) {
-    return error.message;
+  if (error instanceof FirebaseError) {
+    const label = formatFirebaseErrorCode(error.code);
+    return `${label}: ${error.message}`;
   }
+
+  if (error instanceof Error) {
+    const cause = (error as Error & { cause?: unknown }).cause;
+    if (cause) {
+      return getFirestoreErrorMessage(cause);
+    }
+    if (error.message) {
+      return error.message;
+    }
+  }
+
   return 'Firestore işlemi başarısız oldu.';
 }
 
-let networkPreparePromise: Promise<void> | null = null;
-
-/** Tek seferlik, zaman aşımısız ağ hazırlığı. Başarısız olursa okuma yine denenir. */
-export async function prepareFirestoreNetwork(db: Firestore): Promise<void> {
-  if (!networkPreparePromise) {
-    networkPreparePromise = (async () => {
-      try {
-        await enableNetwork(db);
-        console.info('[Sync] Firestore ağ bağlantısı hazır');
-      } catch (error) {
-        if (isFirestoreOfflineError(error)) {
-          console.warn('[Sync] Firestore ağ bağlantısı kurulamadı:', error);
-        }
-        networkPreparePromise = null;
-      }
-    })();
+export function logFirestoreError(context: string, error: unknown): void {
+  if (error instanceof FirebaseError) {
+    console.error(`[Firestore] ${context}:`, {
+      code: error.code,
+      message: error.message,
+    });
+    return;
   }
 
-  await networkPreparePromise;
-}
-
-export function resetFirestoreNetworkPrepare(): void {
-  networkPreparePromise = null;
+  console.error(`[Firestore] ${context}:`, error);
 }
 
 export function assertOnlineForFirestoreWrite(): void {

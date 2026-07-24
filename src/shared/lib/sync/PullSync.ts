@@ -14,8 +14,6 @@ import {
   pullCustomersSince,
   pullProductsSince,
 } from '@/shared/lib/firebase/firestoreService';
-import { getFirestoreDb } from '@/shared/lib/firebase/firestore';
-import { prepareFirestoreNetwork } from '@/shared/lib/firebase/firestoreUtils';
 import { conflictResolver } from './ConflictResolver';
 import {
   buildPullValidation,
@@ -119,13 +117,6 @@ async function pullUsersFromFirestore(): Promise<
   const remoteUsers = await fetchAllUsersFromFirestore();
   await setMetaValue(META_KEYS.DATA_SOURCE_USERS, 'firestore');
   return remoteUsers;
-}
-
-async function prepareSyncSession(): Promise<void> {
-  const firestoreDb = getFirestoreDb();
-  if (firestoreDb) {
-    await prepareFirestoreNetwork(firestoreDb);
-  }
 }
 
 async function fetchAllCollectionsSerial(): Promise<{
@@ -234,8 +225,6 @@ export class PullSync {
     const now = new Date().toISOString();
 
     try {
-      await prepareSyncSession();
-
       if (full) {
         const { customers: remoteCustomers, products: remoteProducts, users: remoteUsers } =
           await fetchAllCollectionsSerial();

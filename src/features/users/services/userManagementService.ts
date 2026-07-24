@@ -83,13 +83,23 @@ class UserManagementService {
       throw new Error('Kullanıcı silmek için internet bağlantısı gerekir.');
     }
 
+    const normalizedCode = normalizeUserCode(userCode);
+    const cachedUser = await userLocalRepository.findByCode(normalizedCode);
+
+    if (cachedUser) {
+      await userLocalRepository.remove(normalizedCode);
+      syncService.notifyDataChanged();
+    }
+
     try {
       if (isFirebaseConfigured()) {
-        await deleteUserFromFirestore(userCode);
+        await deleteUserFromFirestore(normalizedCode);
       }
-      await userLocalRepository.remove(userCode);
-      syncService.notifyDataChanged();
     } catch (error) {
+      if (cachedUser) {
+        await userLocalRepository.upsert(cachedUser);
+        syncService.notifyDataChanged();
+      }
       console.error('[UserManagement] Kullanıcı silme hatası:', error);
       throw new Error(getFirestoreErrorMessage(error));
     }
