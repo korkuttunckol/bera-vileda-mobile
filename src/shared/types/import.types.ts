@@ -17,13 +17,6 @@ export interface ImportReportError {
   suggestion?: string;
 }
 
-export interface ImportReportFirestoreSummary {
-  attempted: number;
-  synced: number;
-  failed: number;
-  skipped: number;
-}
-
 export interface ImportReport {
   id: string;
   type: ImportType;
@@ -38,7 +31,6 @@ export interface ImportReport {
   notFound: number;
   errors: ImportReportError[];
   success: boolean;
-  firestore?: ImportReportFirestoreSummary;
 }
 
 export const IMPORT_TYPE_LABELS: Record<ImportType, string> = {

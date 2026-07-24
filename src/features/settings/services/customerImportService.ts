@@ -8,47 +8,14 @@ import {
   CUSTOMER_IMPORT_COLUMNS,
   validateCustomerImportHeaders,
 } from '@/shared/lib/excel/excelParser';
-import { pushImportedCustomersToFirestore } from './importFirestorePushService';
-import type { ImportFirestorePushResult } from './importFirestorePushService';
 import type { Customer } from '@/shared/types/customer.types';
-import type { ImportReport, ImportReportError } from '@/shared/types/import.types';
-
-interface SavedCustomerImportRow {
-  row: number;
-  customer: Customer;
-}
+import type { ImportReport } from '@/shared/types/import.types';
 
 function isEmptyDataRow(row: Record<string, string>): boolean {
   const code = getColumn(row, [...CUSTOMER_IMPORT_COLUMNS.code]);
   const name = getColumn(row, [...CUSTOMER_IMPORT_COLUMNS.name]);
   const city = getColumn(row, [...CUSTOMER_IMPORT_COLUMNS.city]);
   return !code && !name && !city;
-}
-
-async function applyCustomerFirestoreSyncResults(
-  savedRows: SavedCustomerImportRow[],
-  firestoreResult: ImportFirestorePushResult,
-): Promise<void> {
-  const failedIds = new Set(
-    firestoreResult.failed.map((failure) => failure.entityId),
-  );
-  const now = new Date().toISOString();
-
-  for (const { customer } of savedRows) {
-    let syncStatus: Customer['syncStatus'] = 'synced';
-
-    if (firestoreResult.skipped > 0) {
-      syncStatus = 'pending';
-    } else if (failedIds.has(customer.id)) {
-      syncStatus = 'failed';
-    }
-
-    await customerLocalRepository.save({
-      ...customer,
-      syncStatus,
-      updatedAt: now,
-    });
-  }
 }
 
 class CustomerImportService {
@@ -59,7 +26,6 @@ class CustomerImportService {
     const startedAt = new Date().toISOString();
     const reportId = uuidv4();
     const errors: ImportReport['errors'] = [];
-    const savedRows: SavedCustomerImportRow[] = [];
     let created = 0;
     let updated = 0;
     let failed = 0;
@@ -125,10 +91,8 @@ class CustomerImportService {
           await customerLocalRepository.findByCodeExact(normalizedCode);
         const now = new Date().toISOString();
 
-        let customer: Customer;
-
         if (existing) {
-          customer = {
+          await customerLocalRepository.save({
             ...existing,
             code: normalizedCode,
             name,
@@ -141,12 +105,11 @@ class CustomerImportService {
             updatedAt: now,
             updatedBy: userId,
             version: existing.version + 1,
-            syncStatus: 'pending',
-          };
-          await customerLocalRepository.save(customer);
+            syncStatus: 'synced',
+          });
           updated++;
         } else {
-          customer = {
+          const customer: Customer = {
             id: uuidv4(),
             localId: uuidv4(),
             salesRepId: userId,
@@ -161,13 +124,11 @@ class CustomerImportService {
             createdBy: userId,
             updatedBy: userId,
             version: 1,
-            syncStatus: 'pending',
+            syncStatus: 'synced',
           };
           await customerLocalRepository.save(customer);
           created++;
         }
-
-        savedRows.push({ row: rowNum, customer });
       } catch (err) {
         failed++;
         errors.push({
@@ -179,30 +140,6 @@ class CustomerImportService {
         });
       }
     }
-
-    const firestoreErrors: ImportReportError[] = [];
-    const firestoreResult = await pushImportedCustomersToFirestore(
-      savedRows.map((entry) => entry.customer),
-    );
-
-    for (const failure of firestoreResult.failed) {
-      const saved = savedRows.find((entry) => entry.customer.id === failure.entityId);
-      firestoreErrors.push({
-        row: saved?.row ?? 0,
-        category: 'failed',
-        code: saved?.customer.code,
-        name: saved?.customer.name,
-        message: `Firestore yazımı başarısız: ${failure.message}`,
-      });
-    }
-
-    if (firestoreResult.skipped > 0) {
-      console.warn(
-        `[Import] ${String(firestoreResult.skipped)} cari kaydı Firestore'a yazılamadı (çevrimdışı veya yapılandırma yok).`,
-      );
-    }
-
-    await applyCustomerFirestoreSyncResults(savedRows, firestoreResult);
 
     const completedAt = new Date().toISOString();
     const report: ImportReport = {
@@ -218,14 +155,8 @@ class CustomerImportService {
       updated,
       failed,
       notFound: 0,
-      errors: [...errors, ...firestoreErrors],
-      success: failed === 0 && firestoreResult.failed.length === 0,
-      firestore: {
-        attempted: firestoreResult.attempted,
-        synced: firestoreResult.synced,
-        failed: firestoreResult.failed.length,
-        skipped: firestoreResult.skipped,
-      },
+      errors,
+      success: failed === 0,
     };
 
     await importLogRepository.save(report);
