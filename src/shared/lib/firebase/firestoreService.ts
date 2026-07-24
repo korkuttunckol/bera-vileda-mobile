@@ -2,7 +2,6 @@ import {
   collection,
   doc,
   getDocs,
-  getDocsFromServer,
   query,
   setDoc,
   where,
@@ -97,7 +96,7 @@ export async function pullCustomersSince(
       collection(db, 'customers').withConverter(customerConverter),
       where('updatedAt', '>', sinceTimestamp),
     );
-    const snapshot = await getDocsFromServer(q);
+    const snapshot = await getDocs(q);
     return snapshot.docs.map((d) => d.data());
   } catch (error) {
     console.error('[Firestore] Cari çekme hatası:', error);
@@ -113,7 +112,7 @@ export async function pullAllCustomers(): Promise<Customer[]> {
   const startedAt = Date.now();
 
   try {
-    const snapshot = await getDocsFromServer(
+    const snapshot = await getDocs(
       collection(db, 'customers').withConverter(customerConverter),
     );
     console.info(
@@ -139,7 +138,7 @@ export async function pullProductsSince(since: string): Promise<Product[]> {
       collection(db, 'products').withConverter(productConverter),
       where('updatedAt', '>', sinceTimestamp),
     );
-    const snapshot = await getDocsFromServer(q);
+    const snapshot = await getDocs(q);
     return snapshot.docs.map((d) => d.data());
   } catch (error) {
     console.error('[Firestore] Stok çekme hatası:', error);
@@ -155,7 +154,7 @@ export async function pullAllProducts(): Promise<Product[]> {
   const startedAt = Date.now();
 
   try {
-    const snapshot = await getDocsFromServer(
+    const snapshot = await getDocs(
       collection(db, 'products').withConverter(productConverter),
     );
     console.info(

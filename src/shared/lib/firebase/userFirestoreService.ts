@@ -2,7 +2,7 @@ import {
   collection,
   doc,
   getDoc,
-  getDocsFromServer,
+  getDocs,
   setDoc,
   deleteDoc,
   Timestamp,
@@ -79,7 +79,7 @@ export async function fetchAllUsersFromFirestore(): Promise<AppUser[]> {
   const startedAt = Date.now();
 
   try {
-    const snapshot = await getDocsFromServer(collection(db, USERS_COLLECTION));
+    const snapshot = await getDocs(collection(db, USERS_COLLECTION));
     const users: AppUser[] = [];
 
     snapshot.forEach((item) => {
