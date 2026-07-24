@@ -6,7 +6,7 @@ import { saveSyncLog } from '@/shared/lib/firebase/firestoreService';
 import { outboxProcessor } from './OutboxProcessor';
 import { pullSync } from './PullSync';
 import { buildSyncReport, saveAndNotifySyncReport } from './syncReportBuilder';
-import { beginSyncStep, logSyncCompleted } from './syncPullLogger';
+import { logSyncFailed } from './syncPullLogger';
 import type {
   SyncReport,
   SyncResult,
@@ -56,7 +56,7 @@ export class SyncEngine implements ISyncEngine {
     options: SyncNowOptions = {},
   ): Promise<SyncResult> {
     if (this.activeSync) {
-      console.info('[SyncEngine] Devam eden senkronizasyon var, aynı işlem bekleniyor...');
+      console.info('[Sync] SYNC SKIP — engine: devam eden işlem var');
       return this.activeSync;
     }
 
@@ -71,9 +71,7 @@ export class SyncEngine implements ISyncEngine {
     trigger: SyncTrigger,
     options: SyncNowOptions,
   ): Promise<SyncResult> {
-    const syncStartedAt = Date.now();
-    const finishSync = beginSyncStep('Sync');
-    console.info(`[Sync] Sync started (trigger=${trigger})`);
+    console.info(`[Sync] engine start (trigger=${trigger}, getDocs only — onSnapshot yok)`);
 
     const startedAt = new Date().toISOString();
     const errors: SyncReport['errors'] = [];
@@ -87,31 +85,41 @@ export class SyncEngine implements ISyncEngine {
       pending: 0,
     };
 
-    const finishInitialCheck = beginSyncStep('Initial sync check');
     const shouldFullSync =
       options.forceFull === true ||
       options.full === true ||
       trigger === 'manual' ||
       (await pullSync.needsInitialSync());
-    finishInitialCheck(`full=${String(shouldFullSync)}`);
+
+    console.info(`[Sync] mode=${shouldFullSync ? 'full' : 'incremental'}`);
 
     try {
       if (navigator.onLine) {
         if (isFirebaseConfigured()) {
-          const finishPull = beginSyncStep('Pull');
           pullStats = await pullSync.pullAll({ full: shouldFullSync });
-          finishPull(
-            `${String(pullStats.customers)} cari, ${String(pullStats.products)} stok, ${String(pullStats.users)} kullanıcı`,
-          );
         }
 
-        const finishOutbox = beginSyncStep('Outbox push');
-        const pushResult = await outboxProcessor.processAll();
-        queueRun = pushResult.stats;
-        errors.push(...pushResult.errors);
-        finishOutbox(
-          `${String(queueRun.total)} öğe · synced=${String(queueRun.synced)} failed=${String(queueRun.failed)}`,
-        );
+        if (trigger === 'auto') {
+          console.info('[Sync] OUTBOX PUSH START (arka plan, auto sync beklemiyor)');
+          void outboxProcessor.processAll()
+            .then((pushResult) => {
+              console.info(
+                `[Sync] OUTBOX PUSH END · synced=${String(pushResult.stats.synced)} failed=${String(pushResult.stats.failed)}`,
+              );
+            })
+            .catch((error: unknown) => {
+              console.warn('[Sync] OUTBOX PUSH FAILED (arka plan):', error);
+            });
+        } else {
+          console.info('[Sync] OUTBOX PUSH START');
+          const outboxStartedAt = Date.now();
+          const pushResult = await outboxProcessor.processAll();
+          queueRun = pushResult.stats;
+          errors.push(...pushResult.errors);
+          console.info(
+            `[Sync] OUTBOX PUSH END (${String(Date.now() - outboxStartedAt)} ms) · synced=${String(queueRun.synced)} failed=${String(queueRun.failed)}`,
+          );
+        }
       } else {
         console.info('[Sync] Çevrimdışı — Firestore adımları atlandı');
       }
@@ -127,17 +135,15 @@ export class SyncEngine implements ISyncEngine {
         message,
         timestamp: new Date().toISOString(),
       });
-      console.error('[SyncEngine] Synchronization failed:', message, err);
+      logSyncFailed(err);
     }
 
-    const finishReportBuild = beginSyncStep('Report build');
     const report = await buildSyncReport({
       trigger,
       pull: pullStats,
       errors,
       startedAt,
     });
-    finishReportBuild();
 
     const syncSuccessful =
       pullSucceeded &&
@@ -149,18 +155,13 @@ export class SyncEngine implements ISyncEngine {
       success: syncSuccessful,
     };
 
-    const finishReportSave = beginSyncStep('Report save (IndexedDB)');
     await saveAndNotifySyncReport(finalReport);
-    finishReportSave();
 
-    if (navigator.onLine && syncSuccessful) {
-      const finishMeta = beginSyncStep('Meta update (lastSyncAt)');
+    if (navigator.onLine && pullSucceeded) {
       await setMetaValue(META_KEYS.LAST_SYNC_AT, finalReport.completedAt);
-      finishMeta();
     }
 
     if (isFirebaseConfigured()) {
-      console.info('[Sync] Sync log write started (Firestore, arka planda)');
       void saveSyncLog({
         id: finalReport.id,
         push: { synced: queueRun.synced, failed: queueRun.failed },
@@ -173,8 +174,6 @@ export class SyncEngine implements ISyncEngine {
         errors,
         startedAt,
         completedAt: finalReport.completedAt,
-      }).then(() => {
-        console.info('[Sync] Sync log write finished');
       }).catch((error: unknown) => {
         console.warn('[Sync] Sync log write failed:', error);
       });
@@ -182,8 +181,7 @@ export class SyncEngine implements ISyncEngine {
 
     this.listeners.forEach((l) => { l(finalReport); });
 
-    finishSync(`success=${String(syncSuccessful)}`);
-    logSyncCompleted(Date.now() - syncStartedAt);
+    console.info(`[Sync] engine complete success=${String(syncSuccessful)} pull=${String(pullSucceeded)}`);
 
     return { success: syncSuccessful, report: finalReport };
   }

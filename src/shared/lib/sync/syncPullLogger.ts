@@ -1,5 +1,3 @@
-type SyncCollection = 'Customers' | 'Products' | 'Users';
-
 function formatError(error: unknown): string {
   if (error instanceof Error) {
     return error.message;
@@ -7,80 +5,80 @@ function formatError(error: unknown): string {
   return String(error);
 }
 
-export function beginSyncStep(step: string): (detail?: string) => void {
-  const startedAt = Date.now();
-  console.info(`[Sync] ${step} started`);
-
-  return (detail = '') => {
-    const durationMs = Date.now() - startedAt;
-    const suffix = detail ? ` · ${detail}` : '';
-    console.info(`[Sync] ${step} finished (${String(durationMs)} ms)${suffix}`);
-  };
+export function logSyncStart(): void {
+  console.info('[Sync] SYNC START');
 }
 
-export function logSyncStarted(mode: 'full' | 'incremental'): void {
-  console.info(`[Sync] Sync started (${mode}, getDocs — onSnapshot kullanılmıyor)`);
-}
-
-export function logSyncCollectionStarted(collection: SyncCollection): void {
-  console.info(`[Sync] ${collection} fetch started`);
-}
-
-export function logSyncCollectionCompleted(
-  collection: SyncCollection,
-  count: number,
-  durationMs: number,
-): void {
-  console.info(
-    `[Sync] ${collection} fetch finished (${String(durationMs)} ms) · ${String(count)} kayıt`,
-  );
-}
-
-export function logSyncCollectionFailed(
-  collection: SyncCollection,
-  error: unknown,
-  durationMs: number,
-): void {
-  console.error(
-    `[Sync] ${collection} fetch failed (${String(durationMs)} ms):`,
-    formatError(error),
-  );
-}
-
-export function logSyncCompleted(totalMs?: number): void {
-  if (totalMs !== undefined) {
-    console.info(`[Sync] Sync completed (toplam ${String(totalMs)} ms)`);
-    return;
-  }
-  console.info('[Sync] Sync completed');
+export function logSyncComplete(): void {
+  console.info('[Sync] SYNC COMPLETE');
 }
 
 export function logSyncFailed(error: unknown): void {
-  console.error('[Sync] Sync failed:', formatError(error));
+  console.error('[Sync] SYNC FAILED:', formatError(error));
 }
 
-export async function runLoggedCollectionPull<T>(
-  collection: SyncCollection,
+export function logUsersFetchStart(): void {
+  console.info('[Sync] USERS FETCH START');
+}
+
+export function logUsersFetchEnd(durationMs: number, count?: number): void {
+  const detail = count !== undefined ? ` (${String(count)} kayıt)` : '';
+  console.info(`[Sync] USERS FETCH END (${String(durationMs)} ms)${detail}`);
+}
+
+export function logCustomersFetchStart(): void {
+  console.info('[Sync] CUSTOMERS FETCH START');
+}
+
+export function logCustomersFetchEnd(durationMs: number, count?: number): void {
+  const detail = count !== undefined ? ` (${String(count)} kayıt)` : '';
+  console.info(`[Sync] CUSTOMERS FETCH END (${String(durationMs)} ms)${detail}`);
+}
+
+export function logProductsFetchStart(): void {
+  console.info('[Sync] PRODUCTS FETCH START');
+}
+
+export function logProductsFetchEnd(durationMs: number, count?: number): void {
+  const detail = count !== undefined ? ` (${String(count)} kayıt)` : '';
+  console.info(`[Sync] PRODUCTS FETCH END (${String(durationMs)} ms)${detail}`);
+}
+
+export function logIndexedDbWriteStart(): void {
+  console.info('[Sync] INDEXEDDB WRITE START');
+}
+
+export function logIndexedDbWriteEnd(durationMs: number, detail = ''): void {
+  const suffix = detail ? ` · ${detail}` : '';
+  console.info(`[Sync] INDEXEDDB WRITE END (${String(durationMs)} ms)${suffix}`);
+}
+
+export function logSyncingState(isSyncing: boolean, reason: string): void {
+  console.info(`[Sync] isSyncing=${String(isSyncing)} (${reason})`);
+}
+
+export async function runTimedFetch<T>(
+  startLog: () => void,
+  endLog: (durationMs: number, count?: number) => void,
   pull: () => Promise<T>,
   countOf: (result: T) => number,
 ): Promise<T> {
-  logSyncCollectionStarted(collection);
+  startLog();
   const startedAt = Date.now();
 
   try {
     const result = await pull();
-    logSyncCollectionCompleted(collection, countOf(result), Date.now() - startedAt);
+    endLog(Date.now() - startedAt, countOf(result));
     return result;
   } catch (error) {
-    logSyncCollectionFailed(collection, error, Date.now() - startedAt);
+    console.error(
+      `[Sync] FETCH FAILED (${String(Date.now() - startedAt)} ms):`,
+      formatError(error),
+    );
     throw error;
   }
 }
 
-export function wrapCollectionError(
-  collection: SyncCollection,
-  error: unknown,
-): Error {
-  const detail = formatError(error);
-  return new Error(`${collection}: ${detail}`);
+export function wrapCollectionError(label: string, error: unknown): Error {
+  return new Error(`${label}: ${formatError(error)}`);
 }

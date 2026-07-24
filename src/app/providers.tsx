@@ -46,7 +46,7 @@ function AppProviders({ children }: AppProvidersProps) {
     window.addEventListener('online', onlineHandler);
 
     const intervalId = setInterval(() => {
-      if (navigator.onLine) {
+      if (navigator.onLine && !useSyncStore.getState().isSyncing) {
         runBackgroundSync('auto');
       }
     }, SYNC_CONFIG.autoSyncIntervalMs);

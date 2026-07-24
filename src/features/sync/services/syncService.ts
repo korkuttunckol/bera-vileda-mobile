@@ -26,6 +26,8 @@ interface SyncNowServiceOptions {
 }
 
 class SyncService {
+  private inFlight: Promise<SyncResult> | null = null;
+
   async refreshPendingCount(): Promise<number> {
     const allOrders = await orderLocalRepository.getAll();
     const count = countPendingOrders(allOrders);
@@ -120,6 +122,11 @@ class SyncService {
     trigger: SyncTrigger = 'manual',
     options: SyncNowServiceOptions = {},
   ): Promise<SyncResult> {
+    if (this.inFlight) {
+      console.info(`[Sync] SYNC SKIP — service: zaten devam ediyor (trigger=${trigger})`);
+      return this.inFlight;
+    }
+
     const needsFull =
       options.forceFull === true ||
       trigger === 'manual' ||
@@ -132,44 +139,57 @@ class SyncService {
     if (showDownloadMessage) {
       useSyncStore.getState().setInitialSyncing(true);
     }
+
+    console.info(`[Sync] isSyncing=true (trigger=${trigger})`);
     useSyncStore.getState().setSyncing(true);
 
-    try {
-      const result = await syncEngine.syncNow(trigger, {
-        full: needsFull,
-        forceFull: options.forceFull,
-      });
+    this.inFlight = (async () => {
+      try {
+        const result = await syncEngine.syncNow(trigger, {
+          full: needsFull,
+          forceFull: options.forceFull,
+        });
 
-      await this.refreshPendingCount();
-      await this.refreshDataStats();
+        await this.refreshPendingCount();
+        await this.refreshDataStats();
 
-      const lastSyncAt = await getMetaValue(META_KEYS.LAST_SYNC_AT);
-      useSyncStore.getState().setLastSyncAt(lastSyncAt ?? null);
+        const lastSyncAt = await getMetaValue(META_KEYS.LAST_SYNC_AT);
+        useSyncStore.getState().setLastSyncAt(lastSyncAt ?? null);
 
-      if (result.success) {
-        const pulledTotal =
-          result.report.pull.customers +
-          result.report.pull.products +
-          result.report.pull.users;
+        const pullErrors = result.report.errors.filter(
+          (error) => error.entityType === 'sync',
+        );
+        const pullOk = pullErrors.length === 0;
 
-        if (pulledTotal > 0 || result.report.pull.full) {
-          useSyncStore.getState().setHasRemoteUpdates(true);
+        if (pullOk) {
+          const pulledTotal =
+            result.report.pull.customers +
+            result.report.pull.products +
+            result.report.pull.users;
+
+          if (pulledTotal > 0 || result.report.pull.full) {
+            useSyncStore.getState().setHasRemoteUpdates(true);
+          }
         }
 
-        if (navigator.onLine) {
+        if (pullOk && navigator.onLine) {
           await this.markIndexedDbSourcesFromFirestore();
+        } else if (!navigator.onLine) {
+          await this.markOfflineSources();
         }
-      } else if (!navigator.onLine) {
-        await this.markOfflineSources();
-      }
 
-      return result;
-    } finally {
-      useSyncStore.getState().setSyncing(false);
-      if (showDownloadMessage) {
-        useSyncStore.getState().setInitialSyncing(false);
+        return result;
+      } finally {
+        console.info('[Sync] isSyncing=false');
+        useSyncStore.getState().setSyncing(false);
+        if (showDownloadMessage) {
+          useSyncStore.getState().setInitialSyncing(false);
+        }
+        this.inFlight = null;
       }
-    }
+    })();
+
+    return this.inFlight;
   }
 
   private async markIndexedDbSourcesFromFirestore(): Promise<void> {
