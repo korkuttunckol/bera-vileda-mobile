@@ -72,7 +72,7 @@ export function BottomNav() {
   );
 
   return (
-    <nav className="safe-area-bottom fixed bottom-0 left-0 right-0 z-40 border-t border-brand-gray-200/80 bg-white/95 shadow-nav backdrop-blur-md">
+    <nav className="safe-area-bottom fixed bottom-0 left-0 right-0 z-50 border-t border-brand-gray-200/80 bg-white/95 shadow-nav backdrop-blur-md">
       <div className="app-shell flex min-w-0 items-stretch justify-around">
         {primaryNav.map((item) => {
           const isActive =

@@ -8,6 +8,73 @@ Format [Keep a Changelog](https://keepachangelog.com/) standardına uygundur.
 
 ---
 
+## [1.0.0-rc.4] - 2026-07-24
+
+### Toplu Sipariş Gönderme Modülü
+
+#### Eklenen
+- Gönderildi sekmesinde çoklu sipariş seçimi (checkbox)
+- Sabit alt panel: Seçilen Müşteri, Toplam Kalem, Toplam Adet, **TOPLU GÖNDER**
+- Toplu gönderim seçenekleri: PDF, Excel, WhatsApp (Logo GO Wings hazır mimari)
+- `shareBulkOrderReport` — seçilen siparişlerden tek PDF + tek Excel
+- `useBulkOrderSelection`, `BulkSendPanel`, `bulkOrderSendService`
+
+#### Değiştirilen
+- Rapor şablonu: Müşteri 1/2/3 başlıkları, müşteri toplam satırı, ayırıcılar
+- Excel: müşteriler arası belirgin bölüm başlıkları
+- Sipariş Geçmişi varsayılan filtre: Gönderildi (toplu akış)
+
+#### Korunan
+- Tek sipariş paylaşımı (detay ekranı + GÖNDER akışı)
+
+---
+
+## [1.0.0-rc.3] - 2026-07-23
+
+### Rapor Modülü — Son Revizyon (PDF + Excel)
+
+#### Eklenen
+- Tek şablon modeli (`orderReportTemplateModel.ts`) — PDF ve Excel aynı veri kaynağı
+- Ortak HTML şablon (`orderReportTemplateHtml.ts`) — PDF çıktısı Excel ile aynı görünüm
+- PDF: `html2canvas` doğrudan kullanımı (boş PDF hatası giderildi)
+- Canvas piksel ve PDF boyutu doğrulaması — boş rapor engellenir
+
+#### Değiştirilen
+- Excel: logo hizalama, belirgin başlık, etiket/değer bilgi kutusu (açık gri etiket hücreleri)
+- Genel toplam: kutulu, kalın, belirgin satır
+- Yazdırma: A4 dikey, fit-to-width, print area, başlık tekrarı (satır 1–5)
+- Müşteri/şube/ürün/toplam verisi export öncesi doğrulanır
+
+#### Doğrulanan
+- `npm run build` hatasız
+- `npm run lint` temiz
+
+---
+
+## [1.0.0-rc.2] - 2026-07-23
+
+### Raporlama Modülü — Kurumsal Görünüm Revizyonu
+
+#### Eklenen
+- ExcelJS ile profesyonel yazdırılabilir Excel raporu (kenarlık, gri müşteri kutusu, koyu tablo başlığı, logo görselleri)
+- Paylaşılan layout tanımı (`orderReportLayout.ts`) — PDF ve Excel aynı yapıyı kullanır
+- Rapor doğrulama (`orderReportValidation.ts`) — boş veri/boş PDF engellenir
+- Logo PNG dönüştürme ve yükleme (`orderReportAssets.ts`)
+
+#### Değiştirilen
+- Excel: grid gizli, A4 dikey, fit-to-width, başlık satırları yazdırmada tekrar eder
+- Müşteri bilgi kutusu: Cari Kod, Cari Adı, Şube, Toplam Kalem, Toplam Adet
+- Tablo sütun sırası: Barkod | Ürün Kodu | Ürün Adı | Miktar
+- PDF: boş çıktı hatası giderildi (scale düzeltmesi, DOM görünürlük, logo bekleme, içerik doğrulama)
+- PDF ve Excel görsel olarak aynı şablondan üretilir
+- Alt bilgi ortalanmış; son satır **GENEL TOPLAM ADET**
+
+#### Doğrulanan
+- `npm run build` hatasız
+- `npm run lint` temiz
+
+---
+
 ## [1.0.0-rc.1] - 2026-07-23
 
 ### Raporlama ve Paylaşım Modülü Revizyonu

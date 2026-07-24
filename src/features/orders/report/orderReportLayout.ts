@@ -1,0 +1,67 @@
+export const ORDER_REPORT_LAYOUT = {
+  page: {
+    format: 'a4' as const,
+    orientation: 'portrait' as const,
+    marginMm: 10,
+    contentWidthMm: 190,
+    contentBottomMm: 287,
+  },
+  colors: {
+    navy: '#1E2A4A',
+    navyArgb: 'FF1E2A4A',
+    red: '#C8102E',
+    redArgb: 'FFC8102E',
+    tableHeaderBg: '#1E2A4A',
+    tableHeaderBgArgb: 'FF1E2A4A',
+    customerLabelBg: '#E5E7EB',
+    customerLabelBgArgb: 'FFE5E7EB',
+    customerTotalBoxBg: '#F3F4F6',
+    customerTotalBoxBgArgb: 'FFF3F4F6',
+    border: '#CBD5E1',
+    borderArgb: 'FFCBD5E1',
+    separator: '#9CA3AF',
+    separatorArgb: 'FF9CA3AF',
+    text: '#111827',
+    textMuted: '#4B5563',
+    white: '#FFFFFF',
+    whiteArgb: 'FFFFFFFF',
+  },
+  fonts: {
+    titlePt: 18,
+    headerPt: 10,
+    bodyPt: 9,
+    footerPt: 10,
+    customerTotalPt: 28,
+    grandTotalPt: 14,
+  },
+  columns: {
+    barcode: { label: 'Barkod', widthMm: 28, excelWidth: 16 },
+    productSku: { label: 'Ürün Kodu', widthMm: 32, excelWidth: 18 },
+    productName: { label: 'Ürün Adı', widthMm: 92, excelWidth: 48 },
+    quantity: { label: 'Miktar', widthMm: 18, excelWidth: 10 },
+  },
+  rowHeights: {
+    headerMm: 7,
+    bodyMm: 6,
+    customerMetaMm: 24,
+  },
+  excel: {
+    totalColumns: 4,
+    headerRepeatRows: 6,
+    printMarginInches: {
+      left: 0.4,
+      right: 0.4,
+      top: 0.5,
+      bottom: 0.5,
+      header: 0.2,
+      footer: 0.2,
+    },
+  },
+} as const;
+
+export const ORDER_REPORT_TABLE_COLUMNS = [
+  ORDER_REPORT_LAYOUT.columns.barcode,
+  ORDER_REPORT_LAYOUT.columns.productSku,
+  ORDER_REPORT_LAYOUT.columns.productName,
+  ORDER_REPORT_LAYOUT.columns.quantity,
+] as const;

@@ -9,6 +9,7 @@ export interface OrderReportCustomerBlock {
   customerCode: string;
   customerName: string;
   branchName: string;
+  lineCount: number;
   lines: OrderReportLine[];
   totalQuantity: number;
 }

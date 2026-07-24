@@ -33,7 +33,10 @@ export function buildOrderReportFileNameBase(
   return `Toplu_Siparis_${code}_${date}`;
 }
 
-export function resolveLogoAssetUrl(path: string): string {
-  if (typeof window === 'undefined') return path;
-  return new URL(path, window.location.origin).href;
+export function buildMultiOrderReportFileNameBase(
+  reportDate: string,
+  orderCount: number,
+): string {
+  const date = new Date(reportDate).toISOString().slice(0, 10);
+  return `Toplu_Siparis_${date}_${String(orderCount)}Siparis`;
 }

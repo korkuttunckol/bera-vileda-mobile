@@ -1,6 +1,6 @@
 import { productLocalRepository } from '@/shared/lib/indexeddb/repositories/productRepository';
 import type { Order, OrderLine } from '@/shared/types/order.types';
-import { buildOrderReportFileNameBase } from './orderReportFormat';
+import { buildOrderReportFileNameBase, buildMultiOrderReportFileNameBase } from './orderReportFormat';
 import type {
   BulkOrderReport,
   OrderReportCustomerBlock,
@@ -31,6 +31,7 @@ function buildCustomerBlock(
     customerCode: order.customerCode ?? '-',
     customerName: order.customerName,
     branchName: order.branchName ?? 'Merkez',
+    lineCount: lines.length,
     lines,
     totalQuantity,
   };
@@ -85,11 +86,14 @@ export async function buildBulkOrderReportFromOrders(
   }
 
   const firstOrder = entries[0].order;
-  const fileNameBase = buildOrderReportFileNameBase(
-    firstOrder.customerCode,
-    firstOrder.customerId,
-    reportDate,
-  );
+  const fileNameBase =
+    entries.length > 1
+      ? buildMultiOrderReportFileNameBase(reportDate, entries.length)
+      : buildOrderReportFileNameBase(
+          firstOrder.customerCode,
+          firstOrder.customerId,
+          reportDate,
+        );
 
   return {
     reportDate,

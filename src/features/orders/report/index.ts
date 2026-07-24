@@ -29,6 +29,23 @@ export {
   generateOrderReportFiles,
   shareOrderExportFiles,
   shareOrderReport,
+  shareBulkOrderReport,
 } from './orderReportService';
 
 export { shareGeneratedFiles } from './orderReportShareService';
+
+export {
+  buildOrderReportTemplateModel,
+} from './orderReportTemplateModel';
+
+export type {
+  OrderReportTemplateModel,
+  OrderReportCustomerSection,
+  OrderReportTableRow,
+} from './orderReportTemplateModel';
+
+export {
+  validateBulkOrderReport,
+  validateOrderReportTemplateModel,
+  OrderReportValidationError,
+} from './orderReportValidation';
