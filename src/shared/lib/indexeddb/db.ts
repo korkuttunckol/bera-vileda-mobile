@@ -39,6 +39,10 @@ export const META_KEYS = {
   LAST_PULL_PRODUCTS: 'lastPullSyncAt:products',
   LAST_SYNC_AT: 'lastSyncAt',
   LAST_SYNC_REPORT_ID: 'lastSyncReportId',
+  INITIAL_SYNC_COMPLETE: 'initialSyncComplete',
+  DATA_SOURCE_CUSTOMERS: 'dataSource:customers',
+  DATA_SOURCE_PRODUCTS: 'dataSource:products',
+  DATA_SOURCE_USERS: 'dataSource:users',
   PROCESSED_PREFIX: 'processed:',
 } as const;
 

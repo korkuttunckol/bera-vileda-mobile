@@ -15,13 +15,23 @@ interface AppProvidersProps {
 
 function AppProviders({ children }: AppProvidersProps) {
   useEffect(() => {
-    void initDatabase().then(() => {
+    void initDatabase().then(async () => {
       void useDisplayPreferencesStore.getState().load();
       void useOrderSettingsStore.getState().load();
-      void syncService.refreshPendingCount();
-      void syncService.loadLastReport();
+      await syncService.refreshPendingCount();
+      await syncService.loadLastReport();
+      await syncService.loadDataSourcesFromMeta();
+      await syncService.refreshDataStats();
+
       if (navigator.onLine) {
-        void syncService.syncNow('auto');
+        useSyncStore.getState().setInitialSyncing(true);
+        try {
+          await syncService.syncNow('auto');
+        } catch (error) {
+          console.error('[App] Başlangıç senkronizasyonu başarısız:', error);
+        } finally {
+          useSyncStore.getState().setInitialSyncing(false);
+        }
       }
     });
 

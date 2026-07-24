@@ -1,11 +1,4 @@
 import { isFirebaseConfigured } from '@/config/env';
-import {
-  createUserInFirestore,
-  deleteUserFromFirestore,
-  fetchAllUsersFromFirestore,
-  updateUserInFirestore,
-} from '@/shared/lib/firebase/userFirestoreService';
-import { getFirestoreErrorMessage } from '@/shared/lib/firebase/firestoreUtils';
 import { userLocalRepository } from '@/shared/lib/indexeddb/repositories/userRepository';
 import {
   normalizeUserCode,
@@ -15,19 +8,16 @@ import {
   type UpdateUserInput,
 } from '@/shared/types/user.types';
 import { getDevUsers } from '@/features/auth/services/devUsers';
+import {
+  createUserInFirestore,
+  deleteUserFromFirestore,
+  updateUserInFirestore,
+} from '@/shared/lib/firebase/userFirestoreService';
+import { getFirestoreErrorMessage } from '@/shared/lib/firebase/firestoreUtils';
+import { syncService } from '@/features/sync/services/syncService';
 
 class UserManagementService {
   async listUsers(): Promise<AppUserPublic[]> {
-    if (navigator.onLine && isFirebaseConfigured()) {
-      try {
-        const remoteUsers = await fetchAllUsersFromFirestore();
-        await userLocalRepository.upsertMany(remoteUsers);
-        return remoteUsers.map(toPublicUser);
-      } catch (error) {
-        console.error('[UserManagement] Firestore kullanıcı listesi alınamadı:', error);
-      }
-    }
-
     const cached = await userLocalRepository.findAll();
     if (cached.length > 0) {
       return cached.map(toPublicUser);
@@ -56,6 +46,7 @@ class UserManagementService {
     try {
       const created = await createUserInFirestore(input);
       await userLocalRepository.upsert(created);
+      syncService.notifyDataChanged();
       return toPublicUser(created);
     } catch (error) {
       console.error('[UserManagement] Kullanıcı oluşturma hatası:', error);
@@ -75,6 +66,7 @@ class UserManagementService {
     try {
       const updated = await updateUserInFirestore(userCode, input);
       await userLocalRepository.upsert(updated);
+      syncService.notifyDataChanged();
       return toPublicUser(updated);
     } catch (error) {
       console.error('[UserManagement] Kullanıcı güncelleme hatası:', error);
@@ -96,6 +88,7 @@ class UserManagementService {
         await deleteUserFromFirestore(userCode);
       }
       await userLocalRepository.remove(userCode);
+      syncService.notifyDataChanged();
     } catch (error) {
       console.error('[UserManagement] Kullanıcı silme hatası:', error);
       throw new Error(getFirestoreErrorMessage(error));

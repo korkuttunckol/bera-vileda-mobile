@@ -56,7 +56,7 @@ export async function buildSyncReport({
     durationMs: new Date(completedAt).getTime() - new Date(startedAt).getTime(),
     trigger,
     push: orderStatsToPushStats(orders),
-    pull: pull ?? { customers: 0, products: 0 },
+    pull: pull ?? { customers: 0, products: 0, users: 0 },
     orders,
     errors,
     success: errors.length === 0 && orders.failed === 0,

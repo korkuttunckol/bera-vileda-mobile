@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useSyncStore } from '@/stores/syncStore';
 import { userManagementService } from '../services/userManagementService';
 import type { AppUserPublic } from '@/shared/types/user.types';
 
 export function useUsers() {
+  const dataRevision = useSyncStore((s) => s.dataRevision);
   const [users, setUsers] = useState<AppUserPublic[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -20,7 +22,7 @@ export function useUsers() {
 
   useEffect(() => {
     void reload();
-  }, [reload]);
+  }, [reload, dataRevision]);
 
   return { users, isLoading, reload };
 }

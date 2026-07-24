@@ -9,6 +9,7 @@ import {
   Timestamp,
 } from 'firebase/firestore';
 import { getFirestoreDb } from './firestore';
+import { withFirestoreTimeout, getFirestoreErrorMessage } from './firestoreUtils';
 import {
   orderConverter,
   orderLineConverter,
@@ -89,32 +90,72 @@ export async function pullCustomersSince(
   const db = getFirestoreDb();
   if (!db) return [];
 
-  const sinceTimestamp = Timestamp.fromDate(new Date(since));
-  const q = query(
-    collection(db, 'customers').withConverter(customerConverter),
-    where('updatedAt', '>', sinceTimestamp),
-  );
-  const snapshot = await getDocs(q);
-  return snapshot.docs.map((d) => d.data());
+  try {
+    const sinceTimestamp = Timestamp.fromDate(new Date(since));
+    const q = query(
+      collection(db, 'customers').withConverter(customerConverter),
+      where('updatedAt', '>', sinceTimestamp),
+    );
+    const snapshot = await withFirestoreTimeout(getDocs(q));
+    return snapshot.docs.map((d) => d.data());
+  } catch (error) {
+    console.error('[Firestore] Cari çekme hatası:', error);
+    throw new Error(getFirestoreErrorMessage(error));
+  }
+}
+
+export async function pullAllCustomers(): Promise<Customer[]> {
+  const db = getFirestoreDb();
+  if (!db) return [];
+
+  try {
+    const snapshot = await withFirestoreTimeout(
+      getDocs(collection(db, 'customers').withConverter(customerConverter)),
+    );
+    return snapshot.docs.map((d) => d.data());
+  } catch (error) {
+    console.error('[Firestore] Tüm cari çekme hatası:', error);
+    throw new Error(getFirestoreErrorMessage(error));
+  }
 }
 
 export async function pullProductsSince(since: string): Promise<Product[]> {
   const db = getFirestoreDb();
   if (!db) return [];
 
-  const sinceTimestamp = Timestamp.fromDate(new Date(since));
-  const q = query(
-    collection(db, 'products').withConverter(productConverter),
-    where('updatedAt', '>', sinceTimestamp),
-  );
-  const snapshot = await getDocs(q);
-  return snapshot.docs.map((d) => d.data());
+  try {
+    const sinceTimestamp = Timestamp.fromDate(new Date(since));
+    const q = query(
+      collection(db, 'products').withConverter(productConverter),
+      where('updatedAt', '>', sinceTimestamp),
+    );
+    const snapshot = await withFirestoreTimeout(getDocs(q));
+    return snapshot.docs.map((d) => d.data());
+  } catch (error) {
+    console.error('[Firestore] Stok çekme hatası:', error);
+    throw new Error(getFirestoreErrorMessage(error));
+  }
+}
+
+export async function pullAllProducts(): Promise<Product[]> {
+  const db = getFirestoreDb();
+  if (!db) return [];
+
+  try {
+    const snapshot = await withFirestoreTimeout(
+      getDocs(collection(db, 'products').withConverter(productConverter)),
+    );
+    return snapshot.docs.map((d) => d.data());
+  } catch (error) {
+    console.error('[Firestore] Tüm stok çekme hatası:', error);
+    throw new Error(getFirestoreErrorMessage(error));
+  }
 }
 
 export async function saveSyncLog(report: {
   id: string;
   push: { synced: number; failed: number };
-  pull: { customers: number; products: number };
+  pull: { customers: number; products: number; users: number };
   success: boolean;
   errors: { message: string }[];
   startedAt: string;

@@ -11,12 +11,13 @@ import type {
   SyncReport,
   SyncResult,
   SyncTrigger,
+  SyncNowOptions,
 } from './types/sync.types';
 
 export interface ISyncEngine {
   start(): void;
   stop(): void;
-  syncNow(trigger?: SyncTrigger): Promise<SyncResult>;
+  syncNow(trigger?: SyncTrigger, options?: SyncNowOptions): Promise<SyncResult>;
   getPendingCount(): Promise<number>;
 }
 
@@ -50,7 +51,10 @@ export class SyncEngine implements ISyncEngine {
     };
   }
 
-  async syncNow(trigger: SyncTrigger = 'manual'): Promise<SyncResult> {
+  async syncNow(
+    trigger: SyncTrigger = 'manual',
+    options: SyncNowOptions = {},
+  ): Promise<SyncResult> {
     if (this.isSyncing) {
       const latest = await syncReportRepository.getLatest();
       if (latest) {
@@ -61,7 +65,7 @@ export class SyncEngine implements ISyncEngine {
     this.isSyncing = true;
     const startedAt = new Date().toISOString();
     const errors: SyncReport['errors'] = [];
-    let pullStats = { customers: 0, products: 0 };
+    let pullStats = { customers: 0, products: 0, users: 0 };
     let queueRun = {
       total: 0,
       synced: 0,
@@ -70,13 +74,18 @@ export class SyncEngine implements ISyncEngine {
       pending: 0,
     };
 
+    const shouldFullSync =
+      options.full === true ||
+      trigger === 'manual' ||
+      (await pullSync.needsInitialSync());
+
     try {
       if (navigator.onLine) {
         const pushResult = await outboxProcessor.processAll();
         queueRun = pushResult.stats;
         errors.push(...pushResult.errors);
         if (isFirebaseConfigured()) {
-          pullStats = await pullSync.pullAll();
+          pullStats = await pullSync.pullAll({ full: shouldFullSync });
         }
       }
     } catch (err) {

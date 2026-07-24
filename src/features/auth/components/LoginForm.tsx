@@ -6,6 +6,7 @@ import { Input } from '@/shared/components/ui/Input';
 import { APP_NAME } from '@/shared/constants/app';
 import { ROUTES } from '@/shared/constants/routes';
 import { toast } from '@/stores/toastStore';
+import { syncService } from '@/features/sync/services/syncService';
 
 export function LoginForm() {
   const { login, isAuthenticated, isLoading: isAuthLoading } = useAuth();
@@ -27,8 +28,15 @@ export function LoginForm() {
     setIsLoading(true);
 
     void login({ username: userCode, password })
-      .then(() => {
+      .then(async () => {
         toast('Giriş başarılı', 'success');
+        if (navigator.onLine) {
+          try {
+            await syncService.syncNow('auto');
+          } catch (error) {
+            console.error('[Login] Giriş sonrası senkronizasyon hatası:', error);
+          }
+        }
         void navigate(ROUTES.DASHBOARD);
       })
       .catch((err: unknown) => {

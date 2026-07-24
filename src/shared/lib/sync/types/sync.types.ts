@@ -19,6 +19,11 @@ export interface SyncPushStats {
 export interface SyncPullStats {
   customers: number;
   products: number;
+  users: number;
+}
+
+export interface SyncNowOptions {
+  full?: boolean;
 }
 
 export interface SyncOrderStats {

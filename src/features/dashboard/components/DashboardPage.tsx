@@ -1,16 +1,18 @@
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card } from '@/shared/components/ui/Card';
+import { Button } from '@/shared/components/ui/Button';
 import { Icon } from '@/shared/components/ui/Icon';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { usePermissions } from '@/features/auth/hooks/usePermissions';
 import { useOfflineStore } from '@/stores/offlineStore';
 import { useSyncStore } from '@/stores/syncStore';
 import { usePendingSyncCount } from '@/features/sync/hooks/usePendingSyncCount';
+import { useDataStats } from '@/features/sync/hooks/useDataStats';
+import { useSync } from '@/features/sync/hooks/useSync';
 import { formatLastSyncLabel } from '@/features/sync/utils/lastSyncFormat';
+import { DataSourcePanel } from '@/features/sync/components/DataSourcePanel';
 import { useOrders } from '@/features/orders/hooks/useOrders';
-import { useCustomers } from '@/features/customers/hooks/useCustomers';
-import { useProducts } from '@/features/products/hooks/useProducts';
 import { ROUTES } from '@/shared/constants/routes';
 import { USER_ROLE_LABELS } from '@/shared/types/role.types';
 import { cn } from '@/shared/utils/cn';
@@ -131,9 +133,10 @@ export function DashboardPage() {
   const pendingSyncCount = usePendingSyncCount();
   const lastSyncAt = useSyncStore((s) => s.lastSyncAt);
   const hasRemoteUpdates = useSyncStore((s) => s.hasRemoteUpdates);
+  const isInitialSyncing = useSyncStore((s) => s.isInitialSyncing);
+  const { stats } = useDataStats();
+  const { isSyncing, syncNow } = useSync();
   const { orders } = useOrders('all');
-  const { customers } = useCustomers('', 'all');
-  const { products } = useProducts('');
 
   const todayLabel = useMemo(() => formatDashboardDate(new Date()), []);
   const lastSyncLabel = useMemo(() => formatLastSyncLabel(lastSyncAt), [lastSyncAt]);
@@ -183,6 +186,9 @@ export function DashboardPage() {
                 Bekleyen Senkronizasyon : {pendingSyncCount}
               </p>
               <p className="text-white/80">Son Senkronizasyon : {lastSyncLabel}</p>
+              {isInitialSyncing ? (
+                <p className="text-white/75">Firestore verileri indiriliyor...</p>
+              ) : null}
             </div>
           </div>
         </div>
@@ -190,7 +196,7 @@ export function DashboardPage() {
 
       {hasRemoteUpdates ? (
         <div className="mx-4 mt-3 rounded-card border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-          Yeni veri indirildi. Güncel cari ve stok bilgileri kullanılabilir.
+          Yeni veri indirildi. Cari, stok ve kullanıcı sayıları güncellendi.
         </div>
       ) : null}
 
@@ -204,12 +210,52 @@ export function DashboardPage() {
             accent={pendingSyncCount > 0 ? 'warning' : 'default'}
           />
           {can('manageCustomers') ? (
-            <StatCard value={customers.length} label="Toplam Müşteri" icon="customers" />
+            <StatCard
+              value={stats?.customerCount ?? 0}
+              label="Cari Sayısı"
+              icon="customers"
+            />
           ) : null}
           {can('manageProducts') ? (
-            <StatCard value={products.length} label="Toplam Ürün" icon="products" />
+            <StatCard
+              value={stats?.productCount ?? 0}
+              label="Stok Sayısı"
+              icon="products"
+            />
+          ) : null}
+          {can('manageUsers') ? (
+            <StatCard
+              value={stats?.userCount ?? 0}
+              label="Kullanıcı Sayısı"
+              icon="customers"
+            />
           ) : null}
         </div>
+
+        {can('syncManagement') ? (
+          <Card padding="md" className={DASHBOARD_CARD}>
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-base font-semibold tracking-tight text-brand-navy">
+                  Veri Senkronizasyonu
+                </h3>
+                <p className="mt-1 text-xs text-brand-gray-500">
+                  Mac ve iPhone aynı IndexedDB önbelleğini Firestore ile eşler.
+                </p>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                isLoading={isSyncing || isInitialSyncing}
+                disabled={!isOnline}
+                onClick={() => void syncNow('manual')}
+              >
+                Senkronize Et
+              </Button>
+            </div>
+            <DataSourcePanel sources={stats?.sources ?? null} compact />
+          </Card>
+        ) : null}
 
         <Card padding="sm" className={DASHBOARD_CARD}>
           <h3 className="mb-2 text-base font-semibold tracking-tight text-brand-navy">
