@@ -5,6 +5,7 @@ import {
   fetchAllUsersFromFirestore,
   updateUserInFirestore,
 } from '@/shared/lib/firebase/userFirestoreService';
+import { getFirestoreErrorMessage } from '@/shared/lib/firebase/firestoreUtils';
 import { userLocalRepository } from '@/shared/lib/indexeddb/repositories/userRepository';
 import {
   normalizeUserCode,
@@ -18,9 +19,13 @@ import { getDevUsers } from '@/features/auth/services/devUsers';
 class UserManagementService {
   async listUsers(): Promise<AppUserPublic[]> {
     if (navigator.onLine && isFirebaseConfigured()) {
-      const remoteUsers = await fetchAllUsersFromFirestore();
-      await userLocalRepository.upsertMany(remoteUsers);
-      return remoteUsers.map(toPublicUser);
+      try {
+        const remoteUsers = await fetchAllUsersFromFirestore();
+        await userLocalRepository.upsertMany(remoteUsers);
+        return remoteUsers.map(toPublicUser);
+      } catch (error) {
+        console.error('[UserManagement] Firestore kullanıcı listesi alınamadı:', error);
+      }
     }
 
     const cached = await userLocalRepository.findAll();
@@ -34,28 +39,47 @@ class UserManagementService {
 
   async createUser(input: CreateUserInput): Promise<AppUserPublic> {
     const normalizedCode = normalizeUserCode(input.userCode);
-    const existing = await userLocalRepository.findByCode(normalizedCode);
-    if (existing) {
+
+    if (!navigator.onLine) {
+      throw new Error('Kullanıcı oluşturmak için internet bağlantısı gerekir.');
+    }
+
+    if (!isFirebaseConfigured()) {
+      throw new Error('Kullanıcı oluşturmak için Firestore yapılandırması gerekir.');
+    }
+
+    const cached = await userLocalRepository.findByCode(normalizedCode);
+    if (cached) {
       throw new Error('Bu kullanıcı kodu zaten kayıtlı.');
     }
 
-    if (isFirebaseConfigured()) {
+    try {
       const created = await createUserInFirestore(input);
       await userLocalRepository.upsert(created);
       return toPublicUser(created);
+    } catch (error) {
+      console.error('[UserManagement] Kullanıcı oluşturma hatası:', error);
+      throw new Error(getFirestoreErrorMessage(error));
     }
-
-    throw new Error('Kullanıcı oluşturmak için Firestore bağlantısı gerekir.');
   }
 
   async updateUser(userCode: string, input: UpdateUserInput): Promise<AppUserPublic> {
-    if (isFirebaseConfigured()) {
+    if (!navigator.onLine) {
+      throw new Error('Kullanıcı güncellemek için internet bağlantısı gerekir.');
+    }
+
+    if (!isFirebaseConfigured()) {
+      throw new Error('Kullanıcı güncellemek için Firestore yapılandırması gerekir.');
+    }
+
+    try {
       const updated = await updateUserInFirestore(userCode, input);
       await userLocalRepository.upsert(updated);
       return toPublicUser(updated);
+    } catch (error) {
+      console.error('[UserManagement] Kullanıcı güncelleme hatası:', error);
+      throw new Error(getFirestoreErrorMessage(error));
     }
-
-    throw new Error('Kullanıcı güncellemek için Firestore bağlantısı gerekir.');
   }
 
   async setUserActive(userCode: string, active: boolean): Promise<AppUserPublic> {
@@ -63,10 +87,19 @@ class UserManagementService {
   }
 
   async deleteUser(userCode: string): Promise<void> {
-    if (isFirebaseConfigured()) {
-      await deleteUserFromFirestore(userCode);
+    if (!navigator.onLine) {
+      throw new Error('Kullanıcı silmek için internet bağlantısı gerekir.');
     }
-    await userLocalRepository.remove(userCode);
+
+    try {
+      if (isFirebaseConfigured()) {
+        await deleteUserFromFirestore(userCode);
+      }
+      await userLocalRepository.remove(userCode);
+    } catch (error) {
+      console.error('[UserManagement] Kullanıcı silme hatası:', error);
+      throw new Error(getFirestoreErrorMessage(error));
+    }
   }
 }
 

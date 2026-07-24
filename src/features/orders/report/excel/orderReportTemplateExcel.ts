@@ -251,6 +251,10 @@ async function renderReportSheetFromTemplate(
   });
 
   sheet.pageSetup.printArea = `A1:D${String(sheet.rowCount)}`;
+  sheet.headerFooter = {
+    oddFooter: '&C&"Arial"&9BERA Vileda Sipariş Raporu - Sayfa &P / &N',
+    evenFooter: '&C&"Arial"&9BERA Vileda Sipariş Raporu - Sayfa &P / &N',
+  };
 
   return sheet;
 }

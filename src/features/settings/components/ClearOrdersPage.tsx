@@ -19,6 +19,7 @@ export function ClearOrdersPage() {
       toast(`${String(count)} sipariş verisi temizlendi`, 'success');
       setShowConfirm(false);
     } catch (err) {
+      console.error('[ClearOrders] Sipariş temizleme hatası:', err);
       toast(err instanceof Error ? err.message : 'Temizleme başarısız', 'error');
     } finally {
       setIsClearing(false);
@@ -50,7 +51,9 @@ export function ClearOrdersPage() {
 
       <ConfirmDialog
         isOpen={showConfirm}
-        onClose={() => { setShowConfirm(false); }}
+        onClose={() => {
+          if (!isClearing) setShowConfirm(false);
+        }}
         onConfirm={() => void handleClear()}
         title="Sipariş Verilerini Sil"
         message="Tüm sipariş kayıtları ve bekleyen gönderim kuyruğu kalıcı olarak silinecek. Devam etmek istiyor musunuz?"

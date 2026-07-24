@@ -91,18 +91,10 @@ function renderCustomerSection(
   `;
 }
 
-export function buildOrderReportTemplateHtml(model: OrderReportTemplateModel): string {
-  const beraLogo = resolveLogoAssetUrl(ORDER_REPORT_LOGO_PATHS.bera);
-  const viledaLogo = resolveLogoAssetUrl(ORDER_REPORT_LOGO_PATHS.vileda);
+function buildOrderReportStyles(): string {
   const { colors, fonts } = ORDER_REPORT_LAYOUT;
 
-  const customerSections = model.customers
-    .map((customer, index) => renderCustomerSection(customer, index === model.customers.length - 1))
-    .join('');
-
   return `
-    <div class="order-report-root">
-      <style>
         .order-report-root {
           box-sizing: border-box;
           width: 794px;
@@ -155,6 +147,8 @@ export function buildOrderReportTemplateHtml(model: OrderReportTemplateModel): s
 
         .customer-section {
           margin-top: 14px;
+          page-break-inside: avoid;
+          break-inside: avoid-page;
         }
 
         .customer-meta {
@@ -163,6 +157,8 @@ export function buildOrderReportTemplateHtml(model: OrderReportTemplateModel): s
           border: 1px solid ${colors.border};
           margin-bottom: 8px;
           min-height: 112px;
+          page-break-inside: avoid;
+          break-inside: avoid-page;
         }
         .customer-meta-left {
           display: flex;
@@ -262,19 +258,80 @@ export function buildOrderReportTemplateHtml(model: OrderReportTemplateModel): s
           font-weight: 700;
           color: ${colors.navy};
           text-align: center;
+          page-break-inside: avoid;
+          break-inside: avoid-page;
         }
 
         .company-info {
           margin-top: 20px;
           text-align: center;
+          page-break-inside: avoid;
+          break-inside: avoid-page;
         }
         .company-info p {
           margin: 0 0 4px;
           font-size: 11px;
           color: ${colors.navy};
         }
-      </style>
+      `;
+}
 
+function wrapReportSection(content: string): string {
+  return `
+    <div class="order-report-root">
+      <style>${buildOrderReportStyles()}</style>
+      ${content}
+    </div>
+  `;
+}
+
+export function buildOrderReportHeaderHtml(model: OrderReportTemplateModel): string {
+  const beraLogo = resolveLogoAssetUrl(ORDER_REPORT_LOGO_PATHS.bera);
+  const viledaLogo = resolveLogoAssetUrl(ORDER_REPORT_LOGO_PATHS.vileda);
+
+  return wrapReportSection(`
+      <header class="report-header">
+        <div class="report-header-row">
+          <img class="logo-bera" src="${beraLogo}" alt="BERA" crossorigin="anonymous" />
+          <h1 class="report-title">${escapeHtml(model.title)}</h1>
+          <img class="logo-vileda" src="${viledaLogo}" alt="Vileda Professional" crossorigin="anonymous" />
+        </div>
+        <hr class="report-red-line" />
+        <div class="report-meta">
+          <p>${escapeHtml(model.dateText)}</p>
+          <p>${escapeHtml(model.createdByText)}</p>
+        </div>
+      </header>
+  `);
+}
+
+export function buildOrderReportCustomerHtml(
+  customer: OrderReportTemplateModel['customers'][number],
+  isLast: boolean,
+): string {
+  return wrapReportSection(renderCustomerSection(customer, isLast));
+}
+
+export function buildOrderReportFooterHtml(model: OrderReportTemplateModel): string {
+  return wrapReportSection(`
+      <div class="grand-total-box">
+        ${escapeHtml(model.grandTotalLabel)}: ${String(model.grandTotalValue)}
+      </div>
+      <footer class="company-info">
+        ${model.footerLines.map((line) => `<p>${escapeHtml(line)}</p>`).join('')}
+      </footer>
+  `);
+}
+
+export function buildOrderReportTemplateHtml(model: OrderReportTemplateModel): string {
+  const beraLogo = resolveLogoAssetUrl(ORDER_REPORT_LOGO_PATHS.bera);
+  const viledaLogo = resolveLogoAssetUrl(ORDER_REPORT_LOGO_PATHS.vileda);
+
+  const customerSections = model.customers
+    .map((customer, index) => renderCustomerSection(customer, index === model.customers.length - 1))
+    .join('');
+
+  return wrapReportSection(`
       <header class="report-header">
         <div class="report-header-row">
           <img class="logo-bera" src="${beraLogo}" alt="BERA" crossorigin="anonymous" />
@@ -297,8 +354,7 @@ export function buildOrderReportTemplateHtml(model: OrderReportTemplateModel): s
       <footer class="company-info">
         ${model.footerLines.map((line) => `<p>${escapeHtml(line)}</p>`).join('')}
       </footer>
-    </div>
-  `;
+  `);
 }
 
 export function mountOrderReportTemplateHtml(html: string): HTMLElement {

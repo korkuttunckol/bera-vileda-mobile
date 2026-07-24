@@ -25,6 +25,7 @@ export function ResetAllDataPage() {
       setShowConfirm(false);
       void navigate(ROUTES.DASHBOARD, { replace: true });
     } catch (err) {
+      console.error('[ResetAllData] Veri sıfırlama hatası:', err);
       toast(err instanceof Error ? err.message : 'Sıfırlama başarısız', 'error');
     } finally {
       setIsResetting(false);
@@ -59,7 +60,9 @@ export function ResetAllDataPage() {
 
       <ConfirmDialog
         isOpen={showConfirm}
-        onClose={() => { setShowConfirm(false); }}
+        onClose={() => {
+          if (!isResetting) setShowConfirm(false);
+        }}
         onConfirm={() => void handleReset()}
         title="Tüm Verileri Sıfırla"
         message={

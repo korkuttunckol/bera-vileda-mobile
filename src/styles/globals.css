@@ -30,6 +30,7 @@
 
   .page-content {
     @apply space-y-4 p-4 pb-6;
+    padding-bottom: max(1.5rem, calc(env(safe-area-inset-bottom, 0px) + 1.5rem));
   }
 
   .list-stack {

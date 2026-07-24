@@ -24,6 +24,16 @@ const SEND_OPTIONS: BulkSendOption[] = [
   { kind: 'whatsapp', label: 'WhatsApp ile Paylaş' },
 ];
 
+const STAT_ROWS: Array<{
+  label: string;
+  getValue: (stats: BulkOrderSelectionStats) => number;
+}> = [
+  { label: 'Seçilen Sipariş', getValue: (stats) => stats.selectedOrderCount },
+  { label: 'Seçilen Müşteri', getValue: (stats) => stats.selectedCustomerCount },
+  { label: 'Toplam Kalem', getValue: (stats) => stats.totalLines },
+  { label: 'Toplam Adet', getValue: (stats) => stats.totalQuantity },
+];
+
 export function BulkSendPanel({
   stats,
   hasSelection,
@@ -39,22 +49,18 @@ export function BulkSendPanel({
   }, [hasSelection]);
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-20 z-30 px-4">
+    <div className="pointer-events-none fixed inset-x-0 bottom-20 z-30 px-4 pb-[env(safe-area-inset-bottom,0px)]">
       <div className="pointer-events-auto mx-auto max-w-lg overflow-hidden rounded-2xl border border-brand-gray-200 bg-white shadow-[0_-8px_30px_rgba(15,23,42,0.12)]">
-        <div className="flex items-start gap-3 px-4 py-3">
-          <div className="min-w-0 flex-1 space-y-0.5 text-sm">
-            <p className="font-medium text-brand-navy">
-              Seçilen Sipariş : {stats.selectedOrderCount}
-            </p>
-            <p className="text-brand-gray-600">
-              Seçilen Müşteri : {stats.selectedCustomerCount}
-            </p>
-            <p className="text-brand-gray-600">
-              Toplam Kalem : {stats.totalLines}
-            </p>
-            <p className="text-brand-gray-600">
-              Toplam Adet : {stats.totalQuantity}
-            </p>
+        <div className="flex items-center gap-3 px-4 py-3">
+          <div className="min-w-0 flex-1">
+            <div className="space-y-0.5 text-sm leading-snug">
+              {STAT_ROWS.map((row) => (
+                <p key={row.label} className="whitespace-nowrap text-brand-gray-700">
+                  <span className="font-medium text-brand-navy">{row.label} :</span>{' '}
+                  {String(row.getValue(stats))}
+                </p>
+              ))}
+            </div>
           </div>
           <div className="flex shrink-0 flex-col items-end gap-2">
             {isExpanded ? (
@@ -69,7 +75,7 @@ export function BulkSendPanel({
             ) : null}
             <Button
               size="lg"
-              className="px-4"
+              className="whitespace-nowrap px-5"
               disabled={!hasSelection || isProcessing}
               isLoading={isProcessing && !isExpanded}
               onClick={() => {

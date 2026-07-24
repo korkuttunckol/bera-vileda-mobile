@@ -8,6 +8,12 @@ import {
   Timestamp,
 } from 'firebase/firestore';
 import { getFirestoreDb } from './firestore';
+import {
+  assertOnlineForFirestoreWrite,
+  ensureFirestoreOnline,
+  getFirestoreErrorMessage,
+  withFirestoreTimeout,
+} from './firestoreUtils';
 import { hashPassword } from '@/shared/lib/crypto/passwordService';
 import {
   normalizeUserCode,
@@ -49,32 +55,60 @@ function mapFirestoreUser(id: string, data: Record<string, unknown>): AppUser | 
   };
 }
 
+async function runFirestoreWrite<T>(operation: () => Promise<T>): Promise<T> {
+  const db = getFirestoreDb();
+  if (!db) {
+    throw new Error('Firestore bağlantısı kurulamadı.');
+  }
+
+  assertOnlineForFirestoreWrite();
+  await ensureFirestoreOnline(db);
+
+  try {
+    return await withFirestoreTimeout(operation());
+  } catch (error) {
+    console.error('[Firestore] Kullanıcı işlemi başarısız:', error);
+    throw new Error(getFirestoreErrorMessage(error));
+  }
+}
+
 export async function fetchUserByCodeFromFirestore(
   userCode: string,
 ): Promise<AppUser | null> {
   const db = getFirestoreDb();
   if (!db) return null;
 
-  const normalizedCode = normalizeUserCode(userCode);
-  const snapshot = await getDoc(doc(db, USERS_COLLECTION, normalizedCode));
-  if (!snapshot.exists()) return null;
-
-  return mapFirestoreUser(snapshot.id, snapshot.data());
+  try {
+    const normalizedCode = normalizeUserCode(userCode);
+    const snapshot = await withFirestoreTimeout(
+      getDoc(doc(db, USERS_COLLECTION, normalizedCode)),
+    );
+    if (!snapshot.exists()) return null;
+    return mapFirestoreUser(snapshot.id, snapshot.data());
+  } catch (error) {
+    console.error('[Firestore] Kullanıcı okuma hatası:', error);
+    throw new Error(getFirestoreErrorMessage(error));
+  }
 }
 
 export async function fetchAllUsersFromFirestore(): Promise<AppUser[]> {
   const db = getFirestoreDb();
   if (!db) return [];
 
-  const snapshot = await getDocs(collection(db, USERS_COLLECTION));
-  const users: AppUser[] = [];
+  try {
+    const snapshot = await withFirestoreTimeout(getDocs(collection(db, USERS_COLLECTION)));
+    const users: AppUser[] = [];
 
-  snapshot.forEach((item) => {
-    const mapped = mapFirestoreUser(item.id, item.data());
-    if (mapped) users.push(mapped);
-  });
+    snapshot.forEach((item) => {
+      const mapped = mapFirestoreUser(item.id, item.data());
+      if (mapped) users.push(mapped);
+    });
 
-  return users.sort((a, b) => a.userCode.localeCompare(b.userCode, 'tr-TR'));
+    return users.sort((a, b) => a.userCode.localeCompare(b.userCode, 'tr-TR'));
+  } catch (error) {
+    console.error('[Firestore] Kullanıcı listesi okuma hatası:', error);
+    throw new Error(getFirestoreErrorMessage(error));
+  }
 }
 
 export async function createUserInFirestore(input: CreateUserInput): Promise<AppUser> {
@@ -84,6 +118,11 @@ export async function createUserInFirestore(input: CreateUserInput): Promise<App
   }
 
   const userCode = normalizeUserCode(input.userCode);
+  const existing = await fetchUserByCodeFromFirestore(userCode);
+  if (existing) {
+    throw new Error('Bu kullanıcı kodu Firestore üzerinde zaten kayıtlı.');
+  }
+
   const now = Timestamp.now();
   const passwordHash = await hashPassword(input.password);
 
@@ -98,14 +137,16 @@ export async function createUserInFirestore(input: CreateUserInput): Promise<App
     updatedAt: now.toDate().toISOString(),
   };
 
-  await setDoc(doc(db, USERS_COLLECTION, userCode), {
-    userCode,
-    passwordHash,
-    name: user.name,
-    role: user.role,
-    active: user.active,
-    createdAt: now,
-    updatedAt: now,
+  await runFirestoreWrite(async () => {
+    await setDoc(doc(db, USERS_COLLECTION, userCode), {
+      userCode,
+      passwordHash,
+      name: user.name,
+      role: user.role,
+      active: user.active,
+      createdAt: now,
+      updatedAt: now,
+    });
   });
 
   return user;
@@ -122,7 +163,8 @@ export async function updateUserInFirestore(
 
   const normalizedCode = normalizeUserCode(userCode);
   const ref = doc(db, USERS_COLLECTION, normalizedCode);
-  const existing = await getDoc(ref);
+
+  const existing = await withFirestoreTimeout(getDoc(ref));
   if (!existing.exists()) {
     throw new Error('Kullanıcı bulunamadı.');
   }
@@ -146,14 +188,16 @@ export async function updateUserInFirestore(
     updatedAt: now.toDate().toISOString(),
   };
 
-  await setDoc(ref, {
-    userCode: updated.userCode,
-    passwordHash: updated.passwordHash,
-    name: updated.name,
-    role: updated.role,
-    active: updated.active,
-    createdAt: Timestamp.fromDate(new Date(current.createdAt)),
-    updatedAt: now,
+  await runFirestoreWrite(async () => {
+    await setDoc(ref, {
+      userCode: updated.userCode,
+      passwordHash: updated.passwordHash,
+      name: updated.name,
+      role: updated.role,
+      active: updated.active,
+      createdAt: Timestamp.fromDate(new Date(current.createdAt)),
+      updatedAt: now,
+    });
   });
 
   return updated;
@@ -165,5 +209,7 @@ export async function deleteUserFromFirestore(userCode: string): Promise<void> {
     throw new Error('Firestore bağlantısı kurulamadı.');
   }
 
-  await deleteDoc(doc(db, USERS_COLLECTION, normalizeUserCode(userCode)));
+  await runFirestoreWrite(async () => {
+    await deleteDoc(doc(db, USERS_COLLECTION, normalizeUserCode(userCode)));
+  });
 }

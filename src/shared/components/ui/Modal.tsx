@@ -44,7 +44,7 @@ export function Modal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
+    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4">
       <div
         className="absolute inset-0 bg-brand-navy/40"
         onClick={onClose}
@@ -55,20 +55,22 @@ export function Modal({
         aria-modal="true"
         aria-labelledby="modal-title"
         className={cn(
-          'relative z-10 w-full rounded-t-2xl bg-white shadow-modal sm:rounded-2xl',
-          'max-h-[90vh] overflow-y-auto',
+          'relative z-10 flex w-full flex-col',
+          'max-h-[min(90dvh,calc(100dvh-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px)-1rem))]',
+          'rounded-t-2xl bg-white shadow-modal sm:rounded-2xl',
           sizeStyles[size],
-          'mx-4 mb-0 sm:mb-4',
         )}
       >
-        <div className="sticky top-0 border-b border-brand-gray-200 bg-white px-4 py-4 sm:px-6">
+        <div className="shrink-0 border-b border-brand-gray-200 bg-white px-4 pb-4 pt-[max(1rem,env(safe-area-inset-top,0px))] sm:px-6 sm:pt-4">
           <h2 id="modal-title" className="text-lg font-semibold text-brand-navy">
             {title}
           </h2>
         </div>
-        <div className="px-4 py-4 sm:px-6">{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6">
+          {children}
+        </div>
         {footer ? (
-          <div className="sticky bottom-0 border-t border-brand-gray-200 bg-brand-gray-50 px-4 py-3 sm:px-6">
+          <div className="shrink-0 border-t border-brand-gray-200 bg-brand-gray-50 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] sm:px-6">
             {footer}
           </div>
         ) : null}
@@ -100,15 +102,20 @@ export function ConfirmDialog({
   variant = 'primary',
   isLoading = false,
 }: ConfirmDialogProps) {
+  const handleClose = (): void => {
+    if (isLoading) return;
+    onClose();
+  };
+
   return (
     <Modal
       isOpen={isOpen}
-      onClose={onClose}
+      onClose={handleClose}
       title={title}
       size="sm"
       footer={
         <div className="flex gap-3">
-          <Button variant="outline" fullWidth onClick={onClose} disabled={isLoading}>
+          <Button variant="outline" fullWidth onClick={handleClose} disabled={isLoading}>
             {cancelLabel}
           </Button>
           <Button

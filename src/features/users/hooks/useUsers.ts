@@ -11,6 +11,8 @@ export function useUsers() {
     try {
       const next = await userManagementService.listUsers();
       setUsers(next);
+    } catch (error) {
+      console.error('[Users] Kullanıcı listesi yüklenemedi:', error);
     } finally {
       setIsLoading(false);
     }

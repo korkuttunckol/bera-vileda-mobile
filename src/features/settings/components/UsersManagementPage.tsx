@@ -20,6 +20,7 @@ export function UsersManagementPage() {
   const [password, setPassword] = useState('');
   const [role, setRole] = useState<UserRole>(UserRole.MERCH);
   const [isSaving, setIsSaving] = useState(false);
+  const [busyUserCode, setBusyUserCode] = useState<string | null>(null);
 
   const handleCreate = async (): Promise<void> => {
     if (!userCode.trim() || !name.trim() || !password.trim()) {
@@ -43,6 +44,7 @@ export function UsersManagementPage() {
       setIsCreating(false);
       await reload();
     } catch (err) {
+      console.error('[UsersManagement] Kullanıcı oluşturma hatası:', err);
       toast(err instanceof Error ? err.message : 'Kullanıcı oluşturulamadı', 'error');
     } finally {
       setIsSaving(false);
@@ -50,12 +52,16 @@ export function UsersManagementPage() {
   };
 
   const handleToggleActive = async (targetUserCode: string, active: boolean): Promise<void> => {
+    setBusyUserCode(targetUserCode);
     try {
       await userManagementService.setUserActive(targetUserCode, !active);
       toast(active ? 'Kullanıcı pasif yapıldı' : 'Kullanıcı aktif yapıldı', 'success');
       await reload();
     } catch (err) {
+      console.error('[UsersManagement] Kullanıcı durumu güncellenemedi:', err);
       toast(err instanceof Error ? err.message : 'İşlem başarısız', 'error');
+    } finally {
+      setBusyUserCode(null);
     }
   };
 
@@ -64,12 +70,16 @@ export function UsersManagementPage() {
       return;
     }
 
+    setBusyUserCode(targetUserCode);
     try {
       await userManagementService.deleteUser(targetUserCode);
       toast('Kullanıcı silindi', 'success');
       await reload();
     } catch (err) {
+      console.error('[UsersManagement] Kullanıcı silme hatası:', err);
       toast(err instanceof Error ? err.message : 'Kullanıcı silinemedi', 'error');
+    } finally {
+      setBusyUserCode(null);
     }
   };
 
@@ -151,6 +161,8 @@ export function UsersManagementPage() {
                     <Button
                       size="sm"
                       variant="outline"
+                      isLoading={busyUserCode === user.userCode}
+                      disabled={busyUserCode !== null && busyUserCode !== user.userCode}
                       onClick={() => void handleToggleActive(user.userCode, user.active)}
                     >
                       {user.active ? 'Pasif Yap' : 'Aktif Yap'}
@@ -159,7 +171,8 @@ export function UsersManagementPage() {
                       size="sm"
                       variant="outline"
                       className={cn(user.userCode === 'ADMIN' && 'opacity-50')}
-                      disabled={user.userCode === 'ADMIN'}
+                      disabled={user.userCode === 'ADMIN' || (busyUserCode !== null && busyUserCode !== user.userCode)}
+                      isLoading={busyUserCode === user.userCode}
                       onClick={() => void handleDelete(user.userCode)}
                     >
                       Sil
