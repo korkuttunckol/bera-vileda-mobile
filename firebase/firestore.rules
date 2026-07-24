@@ -1,67 +1,111 @@
 rules_version = '2';
+
+/**
+ * BERA Sipariş Sistemi v2 — Firestore Security Rules
+ *
+ * Kimlik doğrulama uygulamada yerel (IndexedDB + Firestore users koleksiyonu)
+ * yapılır; Firebase Auth kullanılmaz. Bu nedenle request.auth her zaman null'dır.
+ *
+ * Güvenlik modeli:
+ * - Okuma/yazma mobil PWA istemcisine açıktır (sync + offline-first).
+ * - Yazmalarda temel alan doğrulaması uygulanır.
+ * - Üretimde Firebase App Check + API kısıtlamaları zorunludur.
+ * - İleride Custom Token / Cloud Functions ile request.auth eklenebilir.
+ */
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    function isAuth() {
-      return request.auth != null;
+    function isNonEmptyString(value) {
+      return value is string && value.size() > 0;
     }
 
-    function userDoc() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    function hasTimestamps(data) {
+      return data.keys().hasAll(['createdAt', 'updatedAt']);
     }
 
-    function isAdmin() {
-      return isAuth() && userDoc().role == 'admin';
+    function isValidUser(data) {
+      return isNonEmptyString(data.userCode)
+        && isNonEmptyString(data.name)
+        && isNonEmptyString(data.passwordHash)
+        && data.role in ['admin', 'merch']
+        && data.active is bool
+        && hasTimestamps(data);
     }
 
-    function isMerch() {
-      return isAuth() && userDoc().role == 'merch';
+    function isValidCustomer(data) {
+      return isNonEmptyString(data.code)
+        && isNonEmptyString(data.name)
+        && hasTimestamps(data);
     }
 
-    match /users/{userCode} {
-      allow get: if true;
-      allow list: if true;
-      allow create, update, delete: if true;
+    function isValidBranch(data) {
+      return isNonEmptyString(data.customerId)
+        && isNonEmptyString(data.name)
+        && hasTimestamps(data);
+    }
+
+    function isValidProduct(data) {
+      return isNonEmptyString(data.sku)
+        && isNonEmptyString(data.name)
+        && hasTimestamps(data);
+    }
+
+    function isValidOrder(data) {
+      return isNonEmptyString(data.customerId)
+        && isNonEmptyString(data.salesRepId)
+        && isNonEmptyString(data.localId)
+        && data.keys().hasAny(['orderSyncStatus', 'status'])
+        && hasTimestamps(data);
+    }
+
+    match /users/{userId} {
+      allow read: if true;
+      allow create, update: if isValidUser(request.resource.data);
+      allow delete: if true;
     }
 
     match /customers/{customerId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow create, update: if isValidCustomer(request.resource.data);
+      allow delete: if true;
 
       match /branches/{branchId} {
-        allow read: if isAuth();
-        allow write: if isAdmin();
+        allow read: if true;
+        allow create, update: if isValidBranch(request.resource.data);
+        allow delete: if true;
       }
     }
 
     match /products/{productId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow create, update: if isValidProduct(request.resource.data);
+      allow delete: if true;
     }
 
     match /orders/{orderId} {
-      allow read: if isAuth() && (isAdmin() || resource.data.salesRepId == request.auth.uid);
-      allow create: if isAuth() &&
-        request.resource.data.salesRepId == request.auth.uid &&
-        request.resource.data.status in ['draft', 'submitted'];
-      allow update: if isAuth() && (
-        (resource.data.salesRepId == request.auth.uid &&
-         resource.data.status in ['draft', 'submitted']) ||
-        isAdmin()
-      );
+      allow read: if true;
+      allow create, update: if isValidOrder(request.resource.data);
+      allow delete: if true;
 
       match /lines/{lineId} {
-        allow read: if isAuth();
-        allow write: if isAuth() && (
-          get(/databases/$(database)/documents/orders/$(orderId)).data.salesRepId == request.auth.uid ||
-          isAdmin()
-        );
+        allow read: if true;
+        allow create, update: if isNonEmptyString(request.resource.data.orderId)
+          && isNonEmptyString(request.resource.data.productSku)
+          && request.resource.data.quantity is number;
+        allow delete: if true;
       }
     }
 
     match /syncLogs/{logId} {
-      allow read: if isAdmin();
-      allow create: if isAuth();
+      allow read: if true;
+      allow create: if true;
+      allow update, delete: if false;
+    }
+
+    match /importLogs/{logId} {
+      allow read: if true;
+      allow create: if true;
+      allow update, delete: if false;
     }
   }
 }

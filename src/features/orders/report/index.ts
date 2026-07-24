@@ -32,7 +32,7 @@ export {
   shareBulkOrderReport,
 } from './orderReportService';
 
-export { shareGeneratedFiles } from './orderReportShareService';
+export { shareGeneratedFiles, exportToLogoGoWings } from './orderReportShareService';
 
 export {
   buildOrderReportTemplateModel,

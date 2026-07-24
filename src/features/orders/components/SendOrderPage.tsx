@@ -56,6 +56,7 @@ export function SendOrderPage() {
   const [sendPdf, setSendPdf] = useState(true);
   const [sendExcel, setSendExcel] = useState(true);
   const [sendWhatsapp, setSendWhatsapp] = useState(true);
+  const [sendLogoWings, setSendLogoWings] = useState(false);
   const [isSending, setIsSending] = useState(false);
 
   const subtitle = useMemo(() => {
@@ -65,7 +66,7 @@ export function SendOrderPage() {
 
   const handleSend = async (): Promise<void> => {
     if (!order || lines.length === 0) return;
-    if (!sendPdf && !sendExcel && !sendWhatsapp) {
+    if (!sendPdf && !sendExcel && !sendWhatsapp && !sendLogoWings) {
       toast('En az bir gönderim seçeneği işaretleyin', 'warning');
       return;
     }
@@ -76,8 +77,14 @@ export function SendOrderPage() {
         pdf: sendPdf,
         excel: sendExcel,
         whatsapp: sendWhatsapp,
+        logoWings: sendLogoWings,
       });
-      toast('Dosyalar hazırlandı', 'success');
+      toast(
+        sendLogoWings && !sendPdf && !sendExcel && !sendWhatsapp
+          ? 'Logo GO Wings aktarım dosyası hazırlandı'
+          : 'Dosyalar hazırlandı',
+        'success',
+      );
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Gönderim başarısız', 'error');
     } finally {
@@ -128,9 +135,9 @@ export function SendOrderPage() {
           <SendOption label="WhatsApp" checked={sendWhatsapp} onChange={setSendWhatsapp} />
           <SendOption
             label="Logo GO Wings"
-            checked={false}
-            disabled
-            hint="İleride eklenecek"
+            checked={sendLogoWings}
+            onChange={setSendLogoWings}
+            hint="Cari Kod, Şube, Barkod, Ürün Kodu, Miktar aktarım Excel'i"
           />
         </div>
 

@@ -4,24 +4,17 @@ import type {
   ErpOrderPayload,
   ErpPort,
 } from '../ports/ErpPort';
-import { isFirebaseConfigured } from '@/config/env';
 
 /**
- * V1 stub adapter — Logo Wings entegrasyonu Faz 7+'da eklenecek.
- * REST veya SOAP fark etmeksizin ErpPort arayüzü üzerinden çalışır.
+ * Geliştirme / no-op stub. Üretimde `LogoWingsFileAdapter` kullanılır
+ * (`src/shared/lib/erp/index.ts`).
  */
 export class NullErpAdapter implements ErpPort {
   exportOrder(payload: ErpOrderPayload): Promise<ErpExportResult> {
-    if (!isFirebaseConfigured()) {
-      return Promise.resolve({
-        success: true,
-        erpReferenceId: `WINGS-DEV-${payload.orderId.slice(0, 8).toUpperCase()}`,
-      });
-    }
-
     return Promise.resolve({
-      success: false,
-      errorMessage: 'Logo Wings entegrasyonu henüz aktif değil.',
+      success: true,
+      deferred: true,
+      erpReferenceId: `WINGS-DEV-${payload.orderId.slice(0, 8).toUpperCase()}`,
     });
   }
 
@@ -49,5 +42,3 @@ export class NullErpAdapter implements ErpPort {
     });
   }
 }
-
-export const erpAdapter: ErpPort = new NullErpAdapter();

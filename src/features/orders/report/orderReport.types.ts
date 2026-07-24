@@ -29,4 +29,4 @@ export interface OrderReportFiles {
   excelFileName: string;
 }
 
-export type OrderReportShareKind = 'pdf' | 'excel' | 'whatsapp';
+export type OrderReportShareKind = 'pdf' | 'excel' | 'whatsapp' | 'logo-wings';

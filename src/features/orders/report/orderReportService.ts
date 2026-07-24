@@ -8,10 +8,14 @@ import {
   buildOrderReportExcelFileName,
 } from './excel/orderReportTemplateExcel';
 import {
+  renderLogoWingsTransferExcel,
+  buildLogoWingsTransferFileName,
+} from './excel/logoWingsTransferExcel';
+import {
   renderOrderReportPdfFromTemplate,
   buildOrderReportPdfFileName,
 } from './pdf/orderReportPdfRenderer';
-import { shareGeneratedFiles } from './orderReportShareService';
+import { exportToLogoGoWings, shareGeneratedFiles } from './orderReportShareService';
 import {
   assertExcelBlobHasContent,
   validateBulkOrderReport,
@@ -23,11 +27,25 @@ import type {
   OrderReportShareKind,
 } from './orderReport.types';
 
+const LOGO_WINGS_MIME =
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
 function prepareTemplate(report: BulkOrderReport) {
   validateBulkOrderReport(report);
   const model = buildOrderReportTemplateModel(report);
   validateOrderReportTemplateModel(model);
   return model;
+}
+
+async function buildLogoWingsFile(report: BulkOrderReport): Promise<File> {
+  const model = prepareTemplate(report);
+  const excelBlob = await renderLogoWingsTransferExcel(model);
+  assertExcelBlobHasContent(excelBlob);
+  return new File(
+    [excelBlob],
+    buildLogoWingsTransferFileName(report.fileNameBase),
+    { type: LOGO_WINGS_MIME },
+  );
 }
 
 export async function buildOrderReportFiles(
@@ -65,6 +83,13 @@ export async function shareOrderReport(
   kind: OrderReportShareKind,
 ): Promise<void> {
   const report = await buildBulkOrderReportFromOrder(order, lines, createdByName);
+
+  if (kind === 'logo-wings') {
+    const file = await buildLogoWingsFile(report);
+    await exportToLogoGoWings([file]);
+    return;
+  }
+
   const model = prepareTemplate(report);
 
   if (kind === 'pdf') {
@@ -82,7 +107,7 @@ export async function shareOrderReport(
     assertExcelBlobHasContent(excelBlob);
     await shareGeneratedFiles([
       new File([excelBlob], buildOrderReportExcelFileName(report.fileNameBase), {
-        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        type: LOGO_WINGS_MIME,
       }),
     ], { whatsapp: false });
     return;
@@ -93,7 +118,7 @@ export async function shareOrderReport(
     [
       new File([files.pdfBlob], files.pdfFileName, { type: 'application/pdf' }),
       new File([files.excelBlob], files.excelFileName, {
-        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        type: LOGO_WINGS_MIME,
       }),
     ],
     { whatsapp: true },
@@ -104,32 +129,44 @@ export async function shareOrderExportFiles(
   order: Order,
   lines: OrderLine[],
   createdByName: string,
-  options: { pdf: boolean; excel: boolean; whatsapp: boolean },
+  options: { pdf: boolean; excel: boolean; whatsapp: boolean; logoWings: boolean },
 ): Promise<void> {
   const report = await buildBulkOrderReportFromOrder(order, lines, createdByName);
-  const model = prepareTemplate(report);
   const files: File[] = [];
 
-  if (options.pdf) {
-    const pdfBlob = await renderOrderReportPdfFromTemplate(model);
-    files.push(
-      new File([pdfBlob], buildOrderReportPdfFileName(report), {
-        type: 'application/pdf',
-      }),
-    );
+  if (options.logoWings) {
+    files.push(await buildLogoWingsFile(report));
   }
 
-  if (options.excel) {
-    const excelBlob = await renderOrderReportExcelFromTemplate(model);
-    assertExcelBlobHasContent(excelBlob);
-    files.push(
-      new File([excelBlob], buildOrderReportExcelFileName(report.fileNameBase), {
-        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      }),
-    );
+  if (options.pdf || options.excel) {
+    const model = prepareTemplate(report);
+
+    if (options.pdf) {
+      const pdfBlob = await renderOrderReportPdfFromTemplate(model);
+      files.push(
+        new File([pdfBlob], buildOrderReportPdfFileName(report), {
+          type: 'application/pdf',
+        }),
+      );
+    }
+
+    if (options.excel) {
+      const excelBlob = await renderOrderReportExcelFromTemplate(model);
+      assertExcelBlobHasContent(excelBlob);
+      files.push(
+        new File([excelBlob], buildOrderReportExcelFileName(report.fileNameBase), {
+          type: LOGO_WINGS_MIME,
+        }),
+      );
+    }
   }
 
   if (files.length === 0) {
+    return;
+  }
+
+  if (options.logoWings && !options.pdf && !options.excel && !options.whatsapp) {
+    await exportToLogoGoWings(files);
     return;
   }
 
@@ -158,6 +195,13 @@ export async function shareBulkOrderReport(
 
   const entries = await loadOrderEntries(orders);
   const report = await buildBulkOrderReportFromOrders(entries, createdByName);
+
+  if (kind === 'logo-wings') {
+    const file = await buildLogoWingsFile(report);
+    await exportToLogoGoWings([file]);
+    return;
+  }
+
   const model = prepareTemplate(report);
 
   if (kind === 'pdf') {
@@ -175,7 +219,7 @@ export async function shareBulkOrderReport(
     assertExcelBlobHasContent(excelBlob);
     await shareGeneratedFiles([
       new File([excelBlob], buildOrderReportExcelFileName(report.fileNameBase), {
-        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        type: LOGO_WINGS_MIME,
       }),
     ], { whatsapp: false });
     return;
@@ -186,7 +230,7 @@ export async function shareBulkOrderReport(
     [
       new File([files.pdfBlob], files.pdfFileName, { type: 'application/pdf' }),
       new File([files.excelBlob], files.excelFileName, {
-        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        type: LOGO_WINGS_MIME,
       }),
     ],
     { whatsapp: true },

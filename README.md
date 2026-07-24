@@ -2,7 +2,7 @@
 
 Saha satış personelinin müşterilerden sipariş toplaması için geliştirilen offline-first PWA uygulaması.
 
-**Sürüm:** 1.0.0
+**Sürüm:** 2.0.0
 
 ## Teknolojiler
 
@@ -60,7 +60,8 @@ src/
 | Faz 5 | ✅ | Offline Sipariş, Geçmiş, Sync Report |
 | Faz 6 | ✅ | Ayarlar, Excel İçe Aktarma, Stok Güncelleme |
 | V1.0 | ✅ | Derleme, lint, PWA doğrulama |
-| Faz 7 | ⏳ | ERP adapter, Firestore rules |
+| Faz 7 | ✅ | Logo GO Wings dosya adapter, Firestore rules v2 |
+| V2.0 | ✅ | Logo aktarım Excel, ERP deferred sync, rules uyumu |
 
 ## Firebase Yapılandırması
 

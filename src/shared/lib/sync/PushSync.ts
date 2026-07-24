@@ -6,7 +6,7 @@ import {
   pushCustomerToFirestore,
   pushBranchToFirestore,
 } from '@/shared/lib/firebase/firestoreService';
-import { erpAdapter } from '@/shared/lib/erp/adapters/NullErpAdapter';
+import { erpAdapter } from '@/shared/lib/erp';
 import { isFirebaseConfigured } from '@/config/env';
 import { idempotencyGuard } from './IdempotencyGuard';
 import type { LocalSyncQueueItem } from '@/shared/lib/indexeddb/db';
@@ -95,15 +95,20 @@ export class PushSync {
       });
 
       const now = new Date().toISOString();
+      const erpSynced =
+        erpResult.success && erpResult.deferred !== true;
+      const erpPending =
+        erpResult.success && erpResult.deferred === true;
+
       await orderLocalRepository.save({
         ...order,
         orderSyncStatus: 'sent',
         syncStatus: 'synced',
         syncError: undefined,
-        erpSyncStatus: erpResult.success ? 'synced' : 'failed',
+        erpSyncStatus: erpSynced ? 'synced' : erpPending ? 'pending' : 'failed',
         erpId: erpResult.erpReferenceId,
         erpSyncError: erpResult.success ? undefined : erpResult.errorMessage,
-        erpSyncedAt: erpResult.success ? now : undefined,
+        erpSyncedAt: erpSynced ? now : undefined,
         updatedAt: now,
       });
     } catch (err) {

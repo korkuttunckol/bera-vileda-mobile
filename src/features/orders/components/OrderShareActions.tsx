@@ -57,6 +57,15 @@ export function OrderShareActions({ order, lines }: OrderShareActionsProps) {
       >
         WhatsApp ile Paylaş
       </Button>
+      <Button
+        fullWidth
+        variant="outline"
+        isLoading={activeAction === 'logo-wings'}
+        disabled={activeAction !== null && activeAction !== 'logo-wings'}
+        onClick={() => void handleShare('logo-wings')}
+      >
+        Logo GO Wings Aktarım
+      </Button>
     </div>
   );
 }

@@ -47,6 +47,14 @@ export function sendByEmail(_files: File[]): void {
   // İleride: e-posta entegrasyonu
 }
 
-export function exportToLogoGoWings(_files: File[]): void {
-  // İleride: Logo GO Wings aktarımı
+/**
+ * Logo GO Wings aktarım dosyasını indirir / paylaşır.
+ * Web Share destekleniyorsa dosyayı paylaşım sayfasına açar; aksi halde indirir.
+ */
+export async function exportToLogoGoWings(files: File[]): Promise<void> {
+  if (files.length === 0) {
+    throw new Error('Logo GO Wings için aktarım dosyası bulunamadı.');
+  }
+
+  await shareGeneratedFiles(files, { whatsapp: false });
 }
