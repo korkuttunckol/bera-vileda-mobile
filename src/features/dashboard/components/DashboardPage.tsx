@@ -11,7 +11,7 @@ import { usePendingSyncCount } from '@/features/sync/hooks/usePendingSyncCount';
 import { useDataStats } from '@/features/sync/hooks/useDataStats';
 import { useSync } from '@/features/sync/hooks/useSync';
 import { formatLastSyncLabel } from '@/features/sync/utils/lastSyncFormat';
-import { DataSourcePanel } from '@/features/sync/components/DataSourcePanel';
+import { SyncStatusPanel } from '@/features/sync/components/SyncStatusPanel';
 import { useOrders } from '@/features/orders/hooks/useOrders';
 import { ROUTES } from '@/shared/constants/routes';
 import { USER_ROLE_LABELS } from '@/shared/types/role.types';
@@ -186,7 +186,7 @@ export function DashboardPage() {
               </p>
               <p className="text-white/80">Son Senkronizasyon : {lastSyncLabel}</p>
               {isInitialSyncing || isSyncing ? (
-                <p className="text-white/75">Firestore verileri indiriliyor...</p>
+                <p className="text-white/75">Senkronize ediliyor...</p>
               ) : null}
             </div>
           </div>
@@ -239,7 +239,7 @@ export function DashboardPage() {
                   Veri Senkronizasyonu
                 </h3>
                 <p className="mt-1 text-xs text-brand-gray-500">
-                  Mac ve iPhone aynı IndexedDB önbelleğini Firestore ile eşler.
+                  Mac ve iPhone aynı güncel verileri kullanır.
                 </p>
               </div>
               <Button
@@ -252,7 +252,12 @@ export function DashboardPage() {
                 Senkronize Et
               </Button>
             </div>
-            <DataSourcePanel sources={stats?.sources ?? null} compact />
+            <SyncStatusPanel
+              compact
+              showUsers={can('manageUsers')}
+              isSyncing={isSyncing}
+              isInitialSyncing={isInitialSyncing}
+            />
           </Card>
         ) : null}
 
