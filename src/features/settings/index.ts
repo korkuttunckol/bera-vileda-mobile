@@ -11,4 +11,5 @@ export { CustomerDisplaySettingsPage } from './components/CustomerDisplaySetting
 export { ProductDisplaySettingsPage } from './components/ProductDisplaySettingsPage';
 export { OrderSettingsPage } from './components/OrderSettingsPage';
 export { SyncSettingsPage } from './components/SyncSettingsPage';
+export { LocalDataFirestoreUploadPage } from './components/LocalDataFirestoreUploadPage';
 export { UsersManagementPage } from './components/UsersManagementPage';

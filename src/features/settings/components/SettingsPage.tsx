@@ -25,7 +25,13 @@ const ADMIN_SETTINGS_SECTIONS: SettingsSection[] = [
   },
   {
     title: 'Senkronizasyon',
-    items: [{ label: 'Senkronizasyon', path: ROUTES.SETTINGS_SYNC }],
+    items: [
+      { label: 'Senkronizasyon', path: ROUTES.SETTINGS_SYNC },
+      {
+        label: "Yerel Verileri Firestore'a Aktar",
+        path: ROUTES.SETTINGS_UPLOAD_LOCAL_FIRESTORE,
+      },
+    ],
   },
   {
     title: 'Görünüm & Tercihler',
