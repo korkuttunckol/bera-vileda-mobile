@@ -63,6 +63,27 @@ export function ImportResultSummary({ report }: ImportResultSummaryProps) {
         {report.notFound > 0 ? (
           <SummaryRow label="Bulunamayan" value={report.notFound} highlight="amber" />
         ) : null}
+        {report.firestore ? (
+          <>
+            <SummaryRow
+              label="Firestore'a Yazılan"
+              value={report.firestore.synced}
+              highlight="green"
+            />
+            <SummaryRow
+              label="Firestore Hatası"
+              value={report.firestore.failed}
+              highlight={report.firestore.failed > 0 ? 'red' : undefined}
+            />
+            {report.firestore.skipped > 0 ? (
+              <SummaryRow
+                label="Firestore Atlanan (çevrimdışı)"
+                value={report.firestore.skipped}
+                highlight="amber"
+              />
+            ) : null}
+          </>
+        ) : null}
       </div>
 
       <p className="text-xs text-brand-gray-400">

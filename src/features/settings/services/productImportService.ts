@@ -8,14 +8,47 @@ import {
   PRODUCT_IMPORT_COLUMNS,
   validateProductImportHeaders,
 } from '@/shared/lib/excel/excelParser';
+import { pushImportedProductsToFirestore } from './importFirestorePushService';
+import type { ImportFirestorePushResult } from './importFirestorePushService';
 import type { Product } from '@/shared/types/product.types';
-import type { ImportReport } from '@/shared/types/import.types';
+import type { ImportReport, ImportReportError } from '@/shared/types/import.types';
+
+interface SavedProductImportRow {
+  row: number;
+  product: Product;
+}
 
 function isEmptyDataRow(row: Record<string, string>): boolean {
   const producerCode = getColumn(row, [...PRODUCT_IMPORT_COLUMNS.producerCode]);
   const barcode = getColumn(row, [...PRODUCT_IMPORT_COLUMNS.barcode]);
   const name = getColumn(row, [...PRODUCT_IMPORT_COLUMNS.name]);
   return !producerCode && !barcode && !name;
+}
+
+async function applyProductFirestoreSyncResults(
+  savedRows: SavedProductImportRow[],
+  firestoreResult: ImportFirestorePushResult,
+): Promise<void> {
+  const failedIds = new Set(
+    firestoreResult.failed.map((failure) => failure.entityId),
+  );
+  const now = new Date().toISOString();
+
+  for (const { product } of savedRows) {
+    let syncStatus: Product['syncStatus'] = 'synced';
+
+    if (firestoreResult.skipped > 0) {
+      syncStatus = 'pending';
+    } else if (failedIds.has(product.id)) {
+      syncStatus = 'failed';
+    }
+
+    await productLocalRepository.save({
+      ...product,
+      syncStatus,
+      updatedAt: now,
+    });
+  }
 }
 
 class ProductImportService {
@@ -26,6 +59,7 @@ class ProductImportService {
     const startedAt = new Date().toISOString();
     const reportId = uuidv4();
     const errors: ImportReport['errors'] = [];
+    const savedRows: SavedProductImportRow[] = [];
     let created = 0;
     let updated = 0;
     let failed = 0;
@@ -92,8 +126,10 @@ class ProductImportService {
         const existing = await productLocalRepository.findBySku(normalizedSku);
         const now = new Date().toISOString();
 
+        let product: Product;
+
         if (existing) {
-          await productLocalRepository.save({
+          product = {
             ...existing,
             sku: normalizedSku,
             name,
@@ -102,11 +138,12 @@ class ProductImportService {
             updatedAt: now,
             updatedBy: userId,
             version: existing.version + 1,
-            syncStatus: 'synced',
-          });
+            syncStatus: 'pending',
+          };
+          await productLocalRepository.save(product);
           updated++;
         } else {
-          const product: Product = {
+          product = {
             id: uuidv4(),
             localId: uuidv4(),
             sku: normalizedSku,
@@ -124,11 +161,13 @@ class ProductImportService {
             createdBy: userId,
             updatedBy: userId,
             version: 1,
-            syncStatus: 'synced',
+            syncStatus: 'pending',
           };
           await productLocalRepository.save(product);
           created++;
         }
+
+        savedRows.push({ row: rowNum, product });
       } catch (err) {
         failed++;
         errors.push({
@@ -141,6 +180,31 @@ class ProductImportService {
         });
       }
     }
+
+    const firestoreErrors: ImportReportError[] = [];
+    const firestoreResult = await pushImportedProductsToFirestore(
+      savedRows.map((entry) => entry.product),
+    );
+
+    for (const failure of firestoreResult.failed) {
+      const saved = savedRows.find((entry) => entry.product.id === failure.entityId);
+      firestoreErrors.push({
+        row: saved?.row ?? 0,
+        category: 'failed',
+        code: saved?.product.sku,
+        name: saved?.product.name,
+        barcode: saved?.product.barcode,
+        message: `Firestore yazımı başarısız: ${failure.message}`,
+      });
+    }
+
+    if (firestoreResult.skipped > 0) {
+      console.warn(
+        `[Import] ${String(firestoreResult.skipped)} ürün kaydı Firestore'a yazılamadı (çevrimdışı veya yapılandırma yok).`,
+      );
+    }
+
+    await applyProductFirestoreSyncResults(savedRows, firestoreResult);
 
     const completedAt = new Date().toISOString();
     const report: ImportReport = {
@@ -156,8 +220,14 @@ class ProductImportService {
       updated,
       failed,
       notFound: 0,
-      errors,
-      success: failed === 0,
+      errors: [...errors, ...firestoreErrors],
+      success: failed === 0 && firestoreResult.failed.length === 0,
+      firestore: {
+        attempted: firestoreResult.attempted,
+        synced: firestoreResult.synced,
+        failed: firestoreResult.failed.length,
+        skipped: firestoreResult.skipped,
+      },
     };
 
     await importLogRepository.save(report);
