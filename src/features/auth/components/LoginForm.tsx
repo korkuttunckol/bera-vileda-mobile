@@ -10,7 +10,7 @@ import { toast } from '@/stores/toastStore';
 export function LoginForm() {
   const { login, isAuthenticated, isLoading: isAuthLoading } = useAuth();
   const navigate = useNavigate();
-  const [username, setUsername] = useState('');
+  const [userCode, setUserCode] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -21,22 +21,24 @@ export function LoginForm() {
     }
   }, [isAuthenticated, isAuthLoading, navigate]);
 
-  const handleSubmit = (e: SubmitEvent<HTMLFormElement>): void => {
-    e.preventDefault();
+  const handleSubmit = (event: SubmitEvent<HTMLFormElement>): void => {
+    event.preventDefault();
     setError('');
     setIsLoading(true);
 
-    try {
-      login({ username, password });
-      toast('Giriş başarılı', 'success');
-      void navigate(ROUTES.DASHBOARD);
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : 'Kullanıcı adı veya şifre hatalı';
-      setError(message);
-    } finally {
-      setIsLoading(false);
-    }
+    void login({ username: userCode, password })
+      .then(() => {
+        toast('Giriş başarılı', 'success');
+        void navigate(ROUTES.DASHBOARD);
+      })
+      .catch((err: unknown) => {
+        const message =
+          err instanceof Error ? err.message : 'Kullanıcı kodu veya şifre hatalı';
+        setError(message);
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
   };
 
   if (isAuthLoading) {
@@ -57,24 +59,24 @@ export function LoginForm() {
 
       <form onSubmit={handleSubmit} noValidate className="space-y-4">
         <Input
-          label="Kullanıcı Adı"
-          name="username"
+          label="Kullanıcı Kodu"
+          name="userCode"
           type="text"
           inputMode="text"
           autoComplete="username"
-          autoCapitalize="none"
+          autoCapitalize="characters"
           autoCorrect="off"
           spellCheck={false}
-          value={username}
-          onChange={(e) => { setUsername(e.target.value); }}
-          placeholder="admin"
+          value={userCode}
+          onChange={(event) => { setUserCode(event.target.value.toUpperCase()); }}
+          placeholder="ADMIN"
         />
         <Input
           label="Şifre"
           type="password"
           autoComplete="current-password"
           value={password}
-          onChange={(e) => { setPassword(e.target.value); }}
+          onChange={(event) => { setPassword(event.target.value); }}
           placeholder="••••••"
           required
         />

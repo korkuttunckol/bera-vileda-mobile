@@ -2,7 +2,7 @@ import type { UserRole } from '@/shared/types/role.types';
 
 export interface AuthUser {
   uid: string;
-  email: string;
+  userCode: string;
   displayName: string;
   role: UserRole;
 }

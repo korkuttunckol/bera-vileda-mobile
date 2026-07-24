@@ -28,6 +28,7 @@ export const ROUTES = {
   SETTINGS_PRODUCT_DISPLAY: '/settings/display/products',
   SETTINGS_ORDER: '/settings/order',
   SETTINGS_APP_INFO: '/settings/app-info',
+  SETTINGS_USERS: '/settings/users',
 } as const;
 
 export type BranchFormReturnTo = 'order';

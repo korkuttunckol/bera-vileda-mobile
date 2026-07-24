@@ -59,7 +59,7 @@ export function OrderHistoryPage() {
     try {
       await sendBulkOrders(
         selectedOrders,
-        user?.displayName ?? user?.email ?? 'Kullanıcı',
+        user?.displayName ?? user?.userCode ?? 'Kullanıcı',
         kind,
       );
       toast('Toplu sipariş raporu hazırlandı', 'success');

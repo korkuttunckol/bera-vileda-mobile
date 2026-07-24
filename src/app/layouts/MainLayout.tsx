@@ -5,10 +5,16 @@ import { ToastContainer } from '@/shared/components/feedback/Toast';
 import { APP_SHORT_NAME } from '@/shared/constants/app';
 import { ROUTES } from '@/shared/constants/routes';
 import { useAuth } from '@/features/auth/hooks/useAuth';
+import { usePermissions } from '@/features/auth/hooks/usePermissions';
 
 export function MainLayout() {
   const { user, logout } = useAuth();
+  const { can } = usePermissions();
   const navigate = useNavigate();
+
+  const handleSettingsClick = (): void => {
+    void navigate(can('systemSettings') ? ROUTES.SETTINGS : ROUTES.SETTINGS_APP_INFO);
+  };
 
   const handleLogout = (): void => {
     logout();
@@ -29,7 +35,7 @@ export function MainLayout() {
           </div>
           <div className="flex items-center gap-1.5">
             <button
-              onClick={() => void navigate(ROUTES.SETTINGS)}
+              onClick={handleSettingsClick}
               className="touch-feedback rounded-xl p-2 text-white/80 hover:bg-white/10 hover:text-white"
               aria-label="Ayarlar"
             >

@@ -16,17 +16,14 @@ import type { CustomerFormValues } from '@/shared/types/customer.schema';
 
 class CustomerService {
   async list(
-    userId: string,
-    role: UserRole,
+    _userId: string,
+    _role: UserRole,
     options: {
       search?: string;
       activeFilter?: CustomerActiveFilter;
     } = {},
   ): Promise<Customer[]> {
-    const all =
-      role === UserRole.ADMIN
-        ? await customerLocalRepository.getAll()
-        : await customerLocalRepository.findBySalesRepId(userId);
+    const all = await customerLocalRepository.getAll();
     return filterCustomers(all, options);
   }
 

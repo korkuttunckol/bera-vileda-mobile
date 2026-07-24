@@ -1,12 +1,5 @@
 import { create } from 'zustand';
-import type { UserRole } from '@/shared/types/role.types';
-
-interface AuthUser {
-  uid: string;
-  email: string;
-  displayName: string;
-  role: UserRole;
-}
+import type { AuthUser } from '@/features/auth/types/auth.types';
 
 interface AuthState {
   user: AuthUser | null;

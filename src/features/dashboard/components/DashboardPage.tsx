@@ -3,8 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { Card } from '@/shared/components/ui/Card';
 import { Icon } from '@/shared/components/ui/Icon';
 import { useAuth } from '@/features/auth/hooks/useAuth';
+import { usePermissions } from '@/features/auth/hooks/usePermissions';
 import { useOfflineStore } from '@/stores/offlineStore';
+import { useSyncStore } from '@/stores/syncStore';
 import { usePendingSyncCount } from '@/features/sync/hooks/usePendingSyncCount';
+import { formatLastSyncLabel } from '@/features/sync/utils/lastSyncFormat';
 import { useOrders } from '@/features/orders/hooks/useOrders';
 import { useCustomers } from '@/features/customers/hooks/useCustomers';
 import { useProducts } from '@/features/products/hooks/useProducts';
@@ -123,13 +126,17 @@ function QuickActionTile({ label, icon, primary, onClick }: QuickActionProps) {
 export function DashboardPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { can } = usePermissions();
   const isOnline = useOfflineStore((s) => s.isOnline);
   const pendingSyncCount = usePendingSyncCount();
+  const lastSyncAt = useSyncStore((s) => s.lastSyncAt);
+  const hasRemoteUpdates = useSyncStore((s) => s.hasRemoteUpdates);
   const { orders } = useOrders('all');
   const { customers } = useCustomers('', 'all');
   const { products } = useProducts('');
 
   const todayLabel = useMemo(() => formatDashboardDate(new Date()), []);
+  const lastSyncLabel = useMemo(() => formatLastSyncLabel(lastSyncAt), [lastSyncAt]);
 
   const todayOrderCount = useMemo(
     () => orders.filter((o) => isToday(o.orderDate)).length,
@@ -175,10 +182,17 @@ export function DashboardPage() {
               <p className="text-white/90">
                 Bekleyen Senkronizasyon : {pendingSyncCount}
               </p>
+              <p className="text-white/80">Son Senkronizasyon : {lastSyncLabel}</p>
             </div>
           </div>
         </div>
       </section>
+
+      {hasRemoteUpdates ? (
+        <div className="mx-4 mt-3 rounded-card border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+          Yeni veri indirildi. Güncel cari ve stok bilgileri kullanılabilir.
+        </div>
+      ) : null}
 
       <div className="relative -mt-4 space-y-3 px-4">
         <div className="grid grid-cols-2 gap-2">
@@ -189,8 +203,12 @@ export function DashboardPage() {
             icon="pending"
             accent={pendingSyncCount > 0 ? 'warning' : 'default'}
           />
-          <StatCard value={customers.length} label="Toplam Müşteri" icon="customers" />
-          <StatCard value={products.length} label="Toplam Ürün" icon="products" />
+          {can('manageCustomers') ? (
+            <StatCard value={customers.length} label="Toplam Müşteri" icon="customers" />
+          ) : null}
+          {can('manageProducts') ? (
+            <StatCard value={products.length} label="Toplam Ürün" icon="products" />
+          ) : null}
         </div>
 
         <Card padding="sm" className={DASHBOARD_CARD}>
@@ -204,16 +222,20 @@ export function DashboardPage() {
               primary
               onClick={() => void navigate(ROUTES.NEW_ORDER)}
             />
-            <QuickActionTile
-              label="Müşteriler"
-              icon="customers"
-              onClick={() => void navigate(ROUTES.CUSTOMERS)}
-            />
-            <QuickActionTile
-              label="Ürünler"
-              icon="products"
-              onClick={() => void navigate(ROUTES.PRODUCTS)}
-            />
+            {can('manageCustomers') ? (
+              <QuickActionTile
+                label="Müşteriler"
+                icon="customers"
+                onClick={() => void navigate(ROUTES.CUSTOMERS)}
+              />
+            ) : null}
+            {can('manageProducts') ? (
+              <QuickActionTile
+                label="Ürünler"
+                icon="products"
+                onClick={() => void navigate(ROUTES.PRODUCTS)}
+              />
+            ) : null}
             <QuickActionTile
               label="Sipariş Geçmişi"
               icon="history"
@@ -224,7 +246,7 @@ export function DashboardPage() {
 
         <footer className="pb-3 pt-1 text-center text-[11px] leading-relaxed text-brand-gray-400">
           <p className="font-medium text-brand-gray-500">BERA Vileda Sipariş Sistemi</p>
-          <p>v1.0.0</p>
+          <p>v1.1.0</p>
           <p>© 2026 Korkut Tunçkol</p>
         </footer>
       </div>

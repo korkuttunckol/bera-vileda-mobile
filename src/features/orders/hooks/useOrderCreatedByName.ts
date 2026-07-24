@@ -8,8 +8,8 @@ export function useOrderCreatedByName(order: Order | undefined): string {
   return useMemo(() => {
     if (!order) return 'Kullanıcı';
     if (user?.uid === order.createdBy) {
-      return user.displayName || user.email || 'Kullanıcı';
+      return user.displayName || user.userCode || 'Kullanıcı';
     }
-    return user?.displayName || user?.email || 'Kullanıcı';
+    return user?.displayName || user?.userCode || 'Kullanıcı';
   }, [order, user]);
 }

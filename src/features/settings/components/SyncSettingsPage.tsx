@@ -5,11 +5,15 @@ import { SyncReportCard } from '@/features/sync/components/SyncReportCard';
 import { useSync } from '@/features/sync/hooks/useSync';
 import { usePendingSyncCount } from '@/features/sync/hooks/usePendingSyncCount';
 import { useOfflineStore } from '@/stores/offlineStore';
+import { useSyncStore } from '@/stores/syncStore';
+import { formatLastSyncLabel } from '@/features/sync/utils/lastSyncFormat';
 import { SettingsBackButton } from './SettingsBackButton';
 
 export function SyncSettingsPage() {
   const isOnline = useOfflineStore((s) => s.isOnline);
   const pendingCount = usePendingSyncCount();
+  const lastSyncAt = useSyncStore((s) => s.lastSyncAt);
+  const hasRemoteUpdates = useSyncStore((s) => s.hasRemoteUpdates);
   const { isSyncing, lastReport, syncNow } = useSync();
 
   return (
@@ -28,8 +32,19 @@ export function SyncSettingsPage() {
             <p className="text-brand-gray-600">
               Bekleyen Senkronizasyon : {pendingCount}
             </p>
+            <p className="text-brand-gray-600">
+              Son Senkronizasyon : {formatLastSyncLabel(lastSyncAt)}
+            </p>
           </div>
         </Card>
+
+        {hasRemoteUpdates ? (
+          <Card padding="md" className="border-emerald-200 bg-emerald-50">
+            <p className="text-sm font-medium text-emerald-800">
+              Yeni veri indirildi. Cari ve stok kartları güncellendi.
+            </p>
+          </Card>
+        ) : null}
 
         <Card padding="md">
           <CardHeader title="Manuel Senkronizasyon" />

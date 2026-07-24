@@ -6,6 +6,7 @@ import {
   countPendingOrders,
 } from '@/shared/lib/indexeddb/repositories/orderRepository';
 import { syncReportRepository } from '@/shared/lib/indexeddb/repositories/syncReportRepository';
+import { getMetaValue, META_KEYS } from '@/shared/lib/indexeddb/db';
 import {
   publishOrderSyncReport,
 } from '@/shared/lib/sync/syncReportBuilder';
@@ -25,6 +26,9 @@ class SyncService {
   }
 
   async loadLastReport(): Promise<void> {
+    const lastSyncAt = await getMetaValue(META_KEYS.LAST_SYNC_AT);
+    useSyncStore.getState().setLastSyncAt(lastSyncAt ?? null);
+
     const existing = await syncReportRepository.getLatest();
     if (existing && !existing.orders) {
       const fresh = await publishOrderSyncReport('auto');
@@ -68,6 +72,11 @@ class SyncService {
     try {
       const result = await syncEngine.syncNow(trigger);
       await this.refreshPendingCount();
+      const lastSyncAt = await getMetaValue(META_KEYS.LAST_SYNC_AT);
+      useSyncStore.getState().setLastSyncAt(lastSyncAt ?? null);
+      if (result.report.pull.customers > 0 || result.report.pull.products > 0) {
+        useSyncStore.getState().setHasRemoteUpdates(true);
+      }
       return result;
     } finally {
       useSyncStore.getState().setSyncing(false);

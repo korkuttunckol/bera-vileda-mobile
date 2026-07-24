@@ -20,6 +20,9 @@ function AppProviders({ children }: AppProvidersProps) {
       void useOrderSettingsStore.getState().load();
       void syncService.refreshPendingCount();
       void syncService.loadLastReport();
+      if (navigator.onLine) {
+        void syncService.syncNow('auto');
+      }
     });
 
     syncEngine.start();

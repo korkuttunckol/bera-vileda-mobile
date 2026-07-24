@@ -2,6 +2,7 @@ import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { MainLayout } from '@/app/layouts/MainLayout';
 import { AuthLayout } from '@/app/layouts/AuthLayout';
 import { ProtectedRoute } from '@/features/auth/components/ProtectedRoute';
+import { AdminRoute } from '@/features/auth/components/AdminRoute';
 import { LoginForm } from '@/features/auth/components/LoginForm';
 import { DashboardPage } from '@/features/dashboard/components/DashboardPage';
 import { NewOrderPage } from '@/features/orders/components/NewOrderPage';
@@ -28,6 +29,7 @@ import {
   DataManagementPage,
   ResetAllDataPage,
   SyncSettingsPage,
+  UsersManagementPage,
 } from '@/features/settings';
 import { OrderDetailPage } from '@/features/orders/components/OrderDetailPage';
 import { SendOrderPage } from '@/features/orders/components/SendOrderPage';
@@ -50,60 +52,185 @@ export const router = createBrowserRouter([
           { path: ROUTES.ORDER_HISTORY, element: <OrderHistoryPage /> },
           { path: ROUTES.ORDER_DETAIL, element: <OrderDetailPage /> },
           { path: ROUTES.ORDER_SEND, element: <SendOrderPage /> },
-          { path: ROUTES.CUSTOMERS, element: <CustomersPage /> },
-          { path: ROUTES.CUSTOMER_NEW, element: <CustomerFormPage /> },
-          { path: ROUTES.CUSTOMER_EDIT, element: <CustomerFormPage /> },
-          { path: ROUTES.CUSTOMER_BRANCHES, element: <BranchListPage /> },
-          { path: ROUTES.CUSTOMER_BRANCH_NEW, element: <BranchFormPage /> },
-          { path: ROUTES.CUSTOMER_BRANCH_EDIT, element: <BranchFormPage /> },
-          { path: ROUTES.PRODUCTS, element: <ProductsPage /> },
-          { path: ROUTES.PRODUCT_NEW, element: <ProductFormPage /> },
-          { path: ROUTES.PRODUCT_EDIT, element: <ProductFormPage /> },
-          { path: ROUTES.SETTINGS, element: <SettingsPage /> },
-          { path: ROUTES.SETTINGS_SYNC, element: <SyncSettingsPage /> },
+          {
+            path: ROUTES.CUSTOMERS,
+            element: (
+              <AdminRoute>
+                <CustomersPage />
+              </AdminRoute>
+            ),
+          },
+          {
+            path: ROUTES.CUSTOMER_NEW,
+            element: (
+              <AdminRoute>
+                <CustomerFormPage />
+              </AdminRoute>
+            ),
+          },
+          {
+            path: ROUTES.CUSTOMER_EDIT,
+            element: (
+              <AdminRoute>
+                <CustomerFormPage />
+              </AdminRoute>
+            ),
+          },
+          {
+            path: ROUTES.CUSTOMER_BRANCHES,
+            element: (
+              <AdminRoute>
+                <BranchListPage />
+              </AdminRoute>
+            ),
+          },
+          {
+            path: ROUTES.CUSTOMER_BRANCH_NEW,
+            element: (
+              <AdminRoute>
+                <BranchFormPage />
+              </AdminRoute>
+            ),
+          },
+          {
+            path: ROUTES.CUSTOMER_BRANCH_EDIT,
+            element: (
+              <AdminRoute>
+                <BranchFormPage />
+              </AdminRoute>
+            ),
+          },
+          {
+            path: ROUTES.PRODUCTS,
+            element: (
+              <AdminRoute>
+                <ProductsPage />
+              </AdminRoute>
+            ),
+          },
+          {
+            path: ROUTES.PRODUCT_NEW,
+            element: (
+              <AdminRoute>
+                <ProductFormPage />
+              </AdminRoute>
+            ),
+          },
+          {
+            path: ROUTES.PRODUCT_EDIT,
+            element: (
+              <AdminRoute>
+                <ProductFormPage />
+              </AdminRoute>
+            ),
+          },
+          {
+            path: ROUTES.SETTINGS,
+            element: (
+              <AdminRoute>
+                <SettingsPage />
+              </AdminRoute>
+            ),
+          },
+          {
+            path: ROUTES.SETTINGS_SYNC,
+            element: (
+              <AdminRoute>
+                <SyncSettingsPage />
+              </AdminRoute>
+            ),
+          },
           {
             path: ROUTES.SETTINGS_IMPORT_PRODUCTS,
-            element: <ImportProductsPage />,
+            element: (
+              <AdminRoute>
+                <ImportProductsPage />
+              </AdminRoute>
+            ),
           },
           {
             path: ROUTES.SETTINGS_IMPORT_CUSTOMERS,
-            element: <ImportCustomersPage />,
+            element: (
+              <AdminRoute>
+                <ImportCustomersPage />
+              </AdminRoute>
+            ),
           },
           {
             path: ROUTES.SETTINGS_STOCK_UPDATE,
-            element: <StockUpdatePage />,
+            element: (
+              <AdminRoute>
+                <StockUpdatePage />
+              </AdminRoute>
+            ),
           },
           {
             path: ROUTES.SETTINGS_IMPORT_REPORTS,
-            element: <ImportReportsPage />,
+            element: (
+              <AdminRoute>
+                <ImportReportsPage />
+              </AdminRoute>
+            ),
           },
           {
             path: ROUTES.SETTINGS_CLEAR_ORDERS,
-            element: <ClearOrdersPage />,
+            element: (
+              <AdminRoute>
+                <ClearOrdersPage />
+              </AdminRoute>
+            ),
           },
           {
             path: ROUTES.SETTINGS_DATA_MANAGEMENT,
-            element: <DataManagementPage />,
+            element: (
+              <AdminRoute>
+                <DataManagementPage />
+              </AdminRoute>
+            ),
           },
           {
             path: ROUTES.SETTINGS_RESET_ALL_DATA,
-            element: <ResetAllDataPage />,
+            element: (
+              <AdminRoute>
+                <ResetAllDataPage />
+              </AdminRoute>
+            ),
           },
           {
             path: ROUTES.SETTINGS_CUSTOMER_DISPLAY,
-            element: <CustomerDisplaySettingsPage />,
+            element: (
+              <AdminRoute>
+                <CustomerDisplaySettingsPage />
+              </AdminRoute>
+            ),
           },
           {
             path: ROUTES.SETTINGS_PRODUCT_DISPLAY,
-            element: <ProductDisplaySettingsPage />,
+            element: (
+              <AdminRoute>
+                <ProductDisplaySettingsPage />
+              </AdminRoute>
+            ),
           },
           {
             path: ROUTES.SETTINGS_ORDER,
-            element: <OrderSettingsPage />,
+            element: (
+              <AdminRoute>
+                <OrderSettingsPage />
+              </AdminRoute>
+            ),
           },
           {
             path: ROUTES.SETTINGS_APP_INFO,
             element: <AppInfoPage />,
+          },
+          {
+            path: ROUTES.SETTINGS_USERS,
+            element: (
+              <AdminRoute>
+                <UsersManagementPage />
+              </AdminRoute>
+            ),
           },
         ],
       },

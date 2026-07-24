@@ -1,7 +1,7 @@
 {
   "name": "bera-vileda-siparis",
   "private": true,
-  "version": "1.0.0-test001",
+  "version": "1.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -13,6 +13,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "bcryptjs": "^3.0.3",
     "dexie": "^4.0.11",
     "exceljs": "^4.4.0",
     "firebase": "^11.6.0",
@@ -27,6 +28,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.24.0",
+    "@types/bcryptjs": "^2.4.6",
     "@types/react": "^19.1.2",
     "@types/react-dom": "^19.1.2",
     "@types/uuid": "^10.0.0",

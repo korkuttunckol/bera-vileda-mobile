@@ -5,6 +5,7 @@ import type { Customer, CustomerBranch } from '@/shared/types/customer.types';
 import type { Product } from '@/shared/types/product.types';
 import type { SyncReport } from '@/shared/lib/sync/types/sync.types';
 import type { ImportReport } from '@/shared/types/import.types';
+import type { AppUser } from '@/shared/types/user.types';
 
 export interface LocalMeta {
   key: string;
@@ -31,10 +32,12 @@ export type LocalBranch = CustomerBranch;
 export type LocalProduct = Product;
 export type LocalSyncReport = SyncReport;
 export type LocalImportReport = ImportReport;
+export type LocalUser = AppUser;
 
 export const META_KEYS = {
   LAST_PULL_CUSTOMERS: 'lastPullSyncAt:customers',
   LAST_PULL_PRODUCTS: 'lastPullSyncAt:products',
+  LAST_SYNC_AT: 'lastSyncAt',
   LAST_SYNC_REPORT_ID: 'lastSyncReportId',
   PROCESSED_PREFIX: 'processed:',
 } as const;
@@ -49,6 +52,7 @@ class BeraViledaDatabase extends Dexie {
   branches!: EntityTable<LocalBranch, 'id'>;
   products!: EntityTable<LocalProduct, 'id'>;
   importLogs!: EntityTable<LocalImportReport, 'id'>;
+  users!: EntityTable<LocalUser, 'id'>;
 
   constructor() {
     super(DB_CONFIG.name);
@@ -105,12 +109,29 @@ class BeraViledaDatabase extends Dexie {
       products: 'id, sku, name, syncStatus, erpId, barcode',
     });
 
+    this.version(5).stores({
+      meta: 'key',
+      syncQueue:
+        'id, entityType, entityId, idempotencyKey, status, createdAt',
+      syncReports: 'id, startedAt, success',
+      importLogs: 'id, type, startedAt, success',
+      orders:
+        'id, localId, customerId, branchId, salesRepId, status, syncStatus, orderSyncStatus, erpId, isDeleted, createdAt',
+      orderLines: 'id, orderId, productId, erpId',
+      customers:
+        'id, code, name, salesRepId, syncStatus, erpId, isActive, isDeleted',
+      branches:
+        'id, customerId, name, isActive, isDeleted, syncStatus, erpId',
+      products: 'id, sku, name, syncStatus, erpId, barcode',
+    });
+
     this.version(DB_CONFIG.version).stores({
       meta: 'key',
       syncQueue:
         'id, entityType, entityId, idempotencyKey, status, createdAt',
       syncReports: 'id, startedAt, success',
       importLogs: 'id, type, startedAt, success',
+      users: 'id, userCode, role, active',
       orders:
         'id, localId, customerId, branchId, salesRepId, status, syncStatus, orderSyncStatus, erpId, isDeleted, createdAt',
       orderLines: 'id, orderId, productId, erpId',

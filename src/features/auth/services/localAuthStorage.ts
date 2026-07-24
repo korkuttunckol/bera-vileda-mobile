@@ -1,27 +1,49 @@
-const STORAGE_KEYS = {
-  isLoggedIn: 'isLoggedIn',
-  username: 'username',
-} as const;
+import type { AuthUser } from '../types/auth.types';
+import { parseUserRole } from '@/shared/types/role.types';
 
-export function saveLocalSession(username: string): void {
-  localStorage.setItem(STORAGE_KEYS.isLoggedIn, 'true');
-  localStorage.setItem(STORAGE_KEYS.username, username);
+const STORAGE_KEY = 'bera-auth-session-v2';
+
+export interface StoredAuthSession {
+  uid: string;
+  userCode: string;
+  displayName: string;
+  role: AuthUser['role'];
+  loggedInAt: string;
 }
 
-export function clearLocalSession(): void {
-  localStorage.removeItem(STORAGE_KEYS.isLoggedIn);
-  localStorage.removeItem(STORAGE_KEYS.username);
+export function saveAuthSession(user: AuthUser): void {
+  const session: StoredAuthSession = {
+    uid: user.uid,
+    userCode: user.userCode,
+    displayName: user.displayName,
+    role: user.role,
+    loggedInAt: new Date().toISOString(),
+  };
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
 }
 
-export function getLocalSession(): { username: string } | null {
-  if (localStorage.getItem(STORAGE_KEYS.isLoggedIn) !== 'true') {
+export function clearAuthSession(): void {
+  localStorage.removeItem(STORAGE_KEY);
+}
+
+export function getAuthSession(): StoredAuthSession | null {
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (!raw) return null;
+
+  try {
+    const parsed = JSON.parse(raw) as Partial<StoredAuthSession>;
+    const role = parseUserRole(parsed.role);
+    if (!parsed.uid || !parsed.userCode || !role) {
+      return null;
+    }
+    return {
+      uid: parsed.uid,
+      userCode: parsed.userCode,
+      displayName: parsed.displayName ?? parsed.userCode,
+      role,
+      loggedInAt: parsed.loggedInAt ?? new Date().toISOString(),
+    };
+  } catch {
     return null;
   }
-
-  const username = localStorage.getItem(STORAGE_KEYS.username);
-  if (!username) {
-    return null;
-  }
-
-  return { username };
 }

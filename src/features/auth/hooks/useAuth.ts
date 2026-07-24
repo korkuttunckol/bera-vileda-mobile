@@ -17,8 +17,8 @@ export function useAuth() {
     return unsubscribe;
   }, [setUser, setLoading]);
 
-  const login = (credentials: LoginCredentials): void => {
-    const authUser = authService.login(credentials);
+  const login = async (credentials: LoginCredentials): Promise<void> => {
+    const authUser = await authService.login(credentials);
     setUser(authUser);
   };
 

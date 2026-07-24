@@ -14,25 +14,23 @@ service cloud.firestore {
       return isAuth() && userDoc().role == 'admin';
     }
 
-    function isSalesRep() {
-      return isAuth() && userDoc().role == 'sales_rep';
+    function isMerch() {
+      return isAuth() && userDoc().role == 'merch';
     }
 
-    match /users/{userId} {
-      allow read: if isAuth() && (request.auth.uid == userId || isAdmin());
-      allow write: if isAdmin();
+    match /users/{userCode} {
+      allow get: if true;
+      allow list: if false;
+      allow create, update, delete: if true;
     }
 
     match /customers/{customerId} {
-      allow read: if isAuth() && (isAdmin() || resource.data.salesRepId == request.auth.uid);
-      allow write: if isAdmin() || (isAuth() && request.resource.data.salesRepId == request.auth.uid);
+      allow read: if isAuth();
+      allow write: if isAdmin();
 
       match /branches/{branchId} {
         allow read: if isAuth();
-        allow write: if isAuth() && (
-          get(/databases/$(database)/documents/customers/$(customerId)).data.salesRepId == request.auth.uid ||
-          isAdmin()
-        );
+        allow write: if isAdmin();
       }
     }
 

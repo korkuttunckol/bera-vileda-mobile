@@ -1,5 +1,6 @@
 import { type ReactElement } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
+import { usePermissions } from '@/features/auth/hooks/usePermissions';
 import { NAV_ITEMS, type NavIcon } from '@/shared/constants/app';
 import { cn } from '@/shared/utils/cn';
 
@@ -66,10 +67,20 @@ function NavIconSvg({ icon, active }: { icon: NavIcon; active: boolean }) {
 
 export function BottomNav() {
   const location = useLocation();
+  const { can } = usePermissions();
 
-  const primaryNav = NAV_ITEMS.filter((item) =>
-    ['/', '/orders/new', '/customers', '/products', '/orders'].includes(item.path),
-  );
+  const primaryNav = NAV_ITEMS.filter((item) => {
+    if (!['/', '/orders/new', '/customers', '/products', '/orders'].includes(item.path)) {
+      return false;
+    }
+    if (item.path === '/customers') {
+      return can('manageCustomers');
+    }
+    if (item.path === '/products') {
+      return can('manageProducts');
+    }
+    return true;
+  });
 
   return (
     <nav className="safe-area-bottom fixed bottom-0 left-0 right-0 z-50 border-t border-brand-gray-200/80 bg-white/95 shadow-nav backdrop-blur-md">

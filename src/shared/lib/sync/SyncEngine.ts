@@ -2,6 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { isFirebaseConfigured } from '@/config/env';
 import { syncQueueRepository } from '@/shared/lib/indexeddb/repositories/syncQueueRepository';
 import { syncReportRepository } from '@/shared/lib/indexeddb/repositories/syncReportRepository';
+import { META_KEYS, setMetaValue } from '@/shared/lib/indexeddb/db';
 import { saveSyncLog } from '@/shared/lib/firebase/firestoreService';
 import { outboxProcessor } from './OutboxProcessor';
 import { pullSync } from './PullSync';
@@ -97,6 +98,10 @@ export class SyncEngine implements ISyncEngine {
     });
 
     await saveAndNotifySyncReport(report);
+
+    if (navigator.onLine && report.success) {
+      await setMetaValue(META_KEYS.LAST_SYNC_AT, report.completedAt);
+    }
 
     if (isFirebaseConfigured()) {
       await saveSyncLog({
