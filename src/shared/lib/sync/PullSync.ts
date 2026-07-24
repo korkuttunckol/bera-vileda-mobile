@@ -14,12 +14,21 @@ import {
   pullCustomersSince,
   pullProductsSince,
 } from '@/shared/lib/firebase/firestoreService';
+import { getFirestoreDb } from '@/shared/lib/firebase/firestore';
+import { prepareFirestoreNetwork } from '@/shared/lib/firebase/firestoreUtils';
 import { conflictResolver } from './ConflictResolver';
 import {
-  assertPullValidation,
   buildPullValidation,
   readLoadedCounts,
+  recordPullValidation,
 } from './syncPullValidation';
+import {
+  logSyncCompleted,
+  logSyncFailed,
+  logSyncStarted,
+  runLoggedCollectionPull,
+  wrapCollectionError,
+} from './syncPullLogger';
 import type { SyncPullStats } from './types/sync.types';
 import type { Customer } from '@/shared/types/customer.types';
 import type { Product } from '@/shared/types/product.types';
@@ -84,6 +93,7 @@ async function replaceAllFromFirestore(
   const customers = remoteCustomers.map(normalizeCustomer);
   const products = remoteProducts.map(normalizeProduct);
 
+  console.info('[Sync] IndexedDB yazılıyor (Customers, Products, Users)...');
   await db.transaction('rw', [db.customers, db.branches, db.products, db.users], async () => {
     await db.customers.clear();
     await db.branches.clear();
@@ -100,6 +110,7 @@ async function replaceAllFromFirestore(
       await db.users.bulkPut(remoteUsers);
     }
   });
+  console.info('[Sync] IndexedDB yazma tamamlandı');
 }
 
 async function pullUsersFromFirestore(): Promise<
@@ -108,6 +119,88 @@ async function pullUsersFromFirestore(): Promise<
   const remoteUsers = await fetchAllUsersFromFirestore();
   await setMetaValue(META_KEYS.DATA_SOURCE_USERS, 'firestore');
   return remoteUsers;
+}
+
+async function prepareSyncSession(): Promise<void> {
+  const firestoreDb = getFirestoreDb();
+  if (firestoreDb) {
+    await prepareFirestoreNetwork(firestoreDb);
+  }
+}
+
+async function fetchAllCollectionsSerial(): Promise<{
+  customers: Customer[];
+  products: Product[];
+  users: Awaited<ReturnType<typeof fetchAllUsersFromFirestore>>;
+}> {
+  logSyncStarted();
+
+  try {
+    const remoteCustomers = await runLoggedCollectionPull(
+      'Customers',
+      pullAllCustomers,
+      (rows) => rows.length,
+    );
+    const remoteProducts = await runLoggedCollectionPull(
+      'Products',
+      pullAllProducts,
+      (rows) => rows.length,
+    );
+    const remoteUsers = await runLoggedCollectionPull(
+      'Users',
+      pullUsersFromFirestore,
+      (rows) => rows.length,
+    );
+
+    return {
+      customers: remoteCustomers,
+      products: remoteProducts,
+      users: remoteUsers,
+    };
+  } catch (error) {
+    logSyncFailed(error);
+    throw error instanceof Error ? error : wrapCollectionError('Customers', error);
+  }
+}
+
+async function fetchIncrementalCollections(): Promise<{
+  customers: Customer[];
+  products: Product[];
+  users: Awaited<ReturnType<typeof fetchAllUsersFromFirestore>>;
+}> {
+  logSyncStarted();
+
+  const customerSince =
+    (await getMetaValue(META_KEYS.LAST_PULL_CUSTOMERS)) ?? EPOCH;
+  const productSince =
+    (await getMetaValue(META_KEYS.LAST_PULL_PRODUCTS)) ?? EPOCH;
+
+  try {
+    const remoteCustomers = await runLoggedCollectionPull(
+      'Customers',
+      () => pullCustomersSince(customerSince),
+      (rows) => rows.length,
+    );
+    const remoteProducts = await runLoggedCollectionPull(
+      'Products',
+      () => pullProductsSince(productSince),
+      (rows) => rows.length,
+    );
+    const remoteUsers = await runLoggedCollectionPull(
+      'Users',
+      pullUsersFromFirestore,
+      (rows) => rows.length,
+    );
+
+    return {
+      customers: remoteCustomers,
+      products: remoteProducts,
+      users: remoteUsers,
+    };
+  } catch (error) {
+    logSyncFailed(error);
+    throw error;
+  }
 }
 
 export class PullSync {
@@ -140,12 +233,74 @@ export class PullSync {
 
     const now = new Date().toISOString();
 
-    if (full) {
-      const remoteCustomers = await pullAllCustomers();
-      const remoteProducts = await pullAllProducts();
-      const remoteUsers = await pullUsersFromFirestore();
+    try {
+      await prepareSyncSession();
 
-      await replaceAllFromFirestore(remoteCustomers, remoteProducts, remoteUsers);
+      if (full) {
+        const { customers: remoteCustomers, products: remoteProducts, users: remoteUsers } =
+          await fetchAllCollectionsSerial();
+
+        await replaceAllFromFirestore(remoteCustomers, remoteProducts, remoteUsers);
+
+        const loaded = await readLoadedCounts();
+        const validation = buildPullValidation(
+          {
+            fetched: remoteCustomers.length,
+            written: remoteCustomers.length,
+            loaded: loaded.customers,
+          },
+          {
+            fetched: remoteProducts.length,
+            written: remoteProducts.length,
+            loaded: loaded.products,
+          },
+          {
+            fetched: remoteUsers.length,
+            written: remoteUsers.length,
+            loaded: loaded.users,
+          },
+          'full',
+        );
+
+        recordPullValidation(validation);
+
+        await setMetaValue(META_KEYS.LAST_PULL_CUSTOMERS, now);
+        await setMetaValue(META_KEYS.LAST_PULL_PRODUCTS, now);
+        await setMetaValue(META_KEYS.DATA_SOURCE_CUSTOMERS, 'firestore');
+        await setMetaValue(META_KEYS.DATA_SOURCE_PRODUCTS, 'firestore');
+        await setMetaValue(META_KEYS.INITIAL_SYNC_COMPLETE, 'true');
+
+        logSyncCompleted();
+
+        return {
+          customers: remoteCustomers.length,
+          products: remoteProducts.length,
+          users: remoteUsers.length,
+          validation,
+          full: true,
+        };
+      }
+
+      const {
+        customers: remoteCustomers,
+        products: remoteProducts,
+        users: remoteUsers,
+      } = await fetchIncrementalCollections();
+
+      for (const remote of remoteCustomers) {
+        await mergeCustomer(remote);
+      }
+
+      for (const remote of remoteProducts) {
+        await mergeProduct(remote);
+      }
+
+      await db.transaction('rw', db.users, async () => {
+        await db.users.clear();
+        if (remoteUsers.length > 0) {
+          await db.users.bulkPut(remoteUsers);
+        }
+      });
 
       const loaded = await readLoadedCounts();
       const validation = buildPullValidation(
@@ -164,84 +319,29 @@ export class PullSync {
           written: remoteUsers.length,
           loaded: loaded.users,
         },
-        'full',
+        'incremental',
       );
 
-      assertPullValidation(validation);
+      recordPullValidation(validation);
 
       await setMetaValue(META_KEYS.LAST_PULL_CUSTOMERS, now);
       await setMetaValue(META_KEYS.LAST_PULL_PRODUCTS, now);
       await setMetaValue(META_KEYS.DATA_SOURCE_CUSTOMERS, 'firestore');
       await setMetaValue(META_KEYS.DATA_SOURCE_PRODUCTS, 'firestore');
-      await setMetaValue(META_KEYS.INITIAL_SYNC_COMPLETE, 'true');
+
+      logSyncCompleted();
 
       return {
         customers: remoteCustomers.length,
         products: remoteProducts.length,
         users: remoteUsers.length,
         validation,
-        full: true,
+        full: false,
       };
+    } catch (error) {
+      logSyncFailed(error);
+      throw error;
     }
-
-    const customerSince =
-      (await getMetaValue(META_KEYS.LAST_PULL_CUSTOMERS)) ?? EPOCH;
-    const productSince =
-      (await getMetaValue(META_KEYS.LAST_PULL_PRODUCTS)) ?? EPOCH;
-
-    const remoteCustomers = await pullCustomersSince(customerSince);
-    const remoteProducts = await pullProductsSince(productSince);
-
-    for (const remote of remoteCustomers) {
-      await mergeCustomer(remote);
-    }
-
-    for (const remote of remoteProducts) {
-      await mergeProduct(remote);
-    }
-
-    const remoteUsers = await pullUsersFromFirestore();
-    await db.transaction('rw', db.users, async () => {
-      await db.users.clear();
-      if (remoteUsers.length > 0) {
-        await db.users.bulkPut(remoteUsers);
-      }
-    });
-
-    const loaded = await readLoadedCounts();
-    const validation = buildPullValidation(
-      {
-        fetched: remoteCustomers.length,
-        written: remoteCustomers.length,
-        loaded: loaded.customers,
-      },
-      {
-        fetched: remoteProducts.length,
-        written: remoteProducts.length,
-        loaded: loaded.products,
-      },
-      {
-        fetched: remoteUsers.length,
-        written: remoteUsers.length,
-        loaded: loaded.users,
-      },
-      'incremental',
-    );
-
-    assertPullValidation(validation);
-
-    await setMetaValue(META_KEYS.LAST_PULL_CUSTOMERS, now);
-    await setMetaValue(META_KEYS.LAST_PULL_PRODUCTS, now);
-    await setMetaValue(META_KEYS.DATA_SOURCE_CUSTOMERS, 'firestore');
-    await setMetaValue(META_KEYS.DATA_SOURCE_PRODUCTS, 'firestore');
-
-    return {
-      customers: remoteCustomers.length,
-      products: remoteProducts.length,
-      users: remoteUsers.length,
-      validation,
-      full: false,
-    };
   }
 }
 

@@ -1,12 +1,10 @@
 import { v4 as uuidv4 } from 'uuid';
 import { isFirebaseConfigured } from '@/config/env';
 import { syncQueueRepository } from '@/shared/lib/indexeddb/repositories/syncQueueRepository';
-import { syncReportRepository } from '@/shared/lib/indexeddb/repositories/syncReportRepository';
 import { META_KEYS, setMetaValue } from '@/shared/lib/indexeddb/db';
 import { saveSyncLog } from '@/shared/lib/firebase/firestoreService';
 import { outboxProcessor } from './OutboxProcessor';
 import { pullSync } from './PullSync';
-import { SyncValidationError } from './syncPullValidation';
 import { buildSyncReport, saveAndNotifySyncReport } from './syncReportBuilder';
 import type {
   SyncReport,
@@ -27,7 +25,7 @@ type SyncListener = (report: SyncReport) => void;
 export class SyncEngine implements ISyncEngine {
   private intervalId: ReturnType<typeof setInterval> | null = null;
   private onlineHandler: (() => void) | null = null;
-  private isSyncing = false;
+  private activeSync: Promise<SyncResult> | null = null;
   private listeners: SyncListener[] = [];
 
   start(): void {
@@ -52,18 +50,26 @@ export class SyncEngine implements ISyncEngine {
     };
   }
 
-  async syncNow(
+  syncNow(
     trigger: SyncTrigger = 'manual',
     options: SyncNowOptions = {},
   ): Promise<SyncResult> {
-    if (this.isSyncing) {
-      const latest = await syncReportRepository.getLatest();
-      if (latest) {
-        return { success: latest.success, report: latest };
-      }
+    if (this.activeSync) {
+      console.info('[SyncEngine] Devam eden senkronizasyon var, aynı işlem bekleniyor...');
+      return this.activeSync;
     }
 
-    this.isSyncing = true;
+    this.activeSync = this.runSyncNow(trigger, options).finally(() => {
+      this.activeSync = null;
+    });
+
+    return this.activeSync;
+  }
+
+  private async runSyncNow(
+    trigger: SyncTrigger,
+    options: SyncNowOptions,
+  ): Promise<SyncResult> {
     const startedAt = new Date().toISOString();
     const errors: SyncReport['errors'] = [];
     let pullStats = { customers: 0, products: 0, users: 0, full: false };
@@ -94,12 +100,7 @@ export class SyncEngine implements ISyncEngine {
     } catch (err) {
       pullSucceeded = false;
       const errorId = uuidv4();
-      const message =
-        err instanceof SyncValidationError
-          ? err.message
-          : err instanceof Error
-            ? err.message
-            : 'Sync hatası';
+      const message = err instanceof Error ? err.message : 'Sync hatası';
 
       errors.push({
         entityType: 'sync',
@@ -108,7 +109,7 @@ export class SyncEngine implements ISyncEngine {
         message,
         timestamp: new Date().toISOString(),
       });
-      console.error('[SyncEngine] Senkronizasyon hatası:', err);
+      console.error('[SyncEngine] Synchronization failed:', message, err);
     }
 
     const report = await buildSyncReport({
@@ -150,8 +151,11 @@ export class SyncEngine implements ISyncEngine {
       });
     }
 
+    if (syncSuccessful) {
+      console.info('[SyncEngine] Synchronization completed');
+    }
+
     this.listeners.forEach((l) => { l(finalReport); });
-    this.isSyncing = false;
 
     return { success: syncSuccessful, report: finalReport };
   }

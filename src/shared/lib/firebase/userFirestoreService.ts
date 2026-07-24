@@ -10,9 +10,8 @@ import {
 import { getFirestoreDb } from './firestore';
 import {
   assertOnlineForFirestoreWrite,
-  ensureFirestoreOnline,
   getFirestoreErrorMessage,
-  withFirestoreTimeout,
+  prepareFirestoreNetwork,
 } from './firestoreUtils';
 import { hashPassword } from '@/shared/lib/crypto/passwordService';
 import {
@@ -55,21 +54,12 @@ function mapFirestoreUser(id: string, data: Record<string, unknown>): AppUser | 
   };
 }
 
-async function runFirestoreWrite<T>(operation: () => Promise<T>): Promise<T> {
+async function ensureFirestoreReady(): Promise<void> {
   const db = getFirestoreDb();
   if (!db) {
     throw new Error('Firestore bağlantısı kurulamadı.');
   }
-
-  assertOnlineForFirestoreWrite();
-  await ensureFirestoreOnline(db);
-
-  try {
-    return await withFirestoreTimeout(operation());
-  } catch (error) {
-    console.error('[Firestore] Kullanıcı işlemi başarısız:', error);
-    throw new Error(getFirestoreErrorMessage(error));
-  }
+  await prepareFirestoreNetwork(db);
 }
 
 export async function fetchUserByCodeFromFirestore(
@@ -80,9 +70,7 @@ export async function fetchUserByCodeFromFirestore(
 
   try {
     const normalizedCode = normalizeUserCode(userCode);
-    const snapshot = await withFirestoreTimeout(
-      getDoc(doc(db, USERS_COLLECTION, normalizedCode)),
-    );
+    const snapshot = await getDoc(doc(db, USERS_COLLECTION, normalizedCode));
     if (!snapshot.exists()) return null;
     return mapFirestoreUser(snapshot.id, snapshot.data());
   } catch (error) {
@@ -96,7 +84,7 @@ export async function fetchAllUsersFromFirestore(): Promise<AppUser[]> {
   if (!db) return [];
 
   try {
-    const snapshot = await withFirestoreTimeout(getDocs(collection(db, USERS_COLLECTION)));
+    const snapshot = await getDocs(collection(db, USERS_COLLECTION));
     const users: AppUser[] = [];
 
     snapshot.forEach((item) => {
@@ -116,6 +104,9 @@ export async function createUserInFirestore(input: CreateUserInput): Promise<App
   if (!db) {
     throw new Error('Firestore bağlantısı kurulamadı.');
   }
+
+  assertOnlineForFirestoreWrite();
+  await ensureFirestoreReady();
 
   const userCode = normalizeUserCode(input.userCode);
   const existing = await fetchUserByCodeFromFirestore(userCode);
@@ -137,7 +128,7 @@ export async function createUserInFirestore(input: CreateUserInput): Promise<App
     updatedAt: now.toDate().toISOString(),
   };
 
-  await runFirestoreWrite(async () => {
+  try {
     await setDoc(doc(db, USERS_COLLECTION, userCode), {
       userCode,
       passwordHash,
@@ -147,7 +138,10 @@ export async function createUserInFirestore(input: CreateUserInput): Promise<App
       createdAt: now,
       updatedAt: now,
     });
-  });
+  } catch (error) {
+    console.error('[Firestore] Kullanıcı oluşturma hatası:', error);
+    throw new Error(getFirestoreErrorMessage(error));
+  }
 
   return user;
 }
@@ -161,10 +155,13 @@ export async function updateUserInFirestore(
     throw new Error('Firestore bağlantısı kurulamadı.');
   }
 
+  assertOnlineForFirestoreWrite();
+  await ensureFirestoreReady();
+
   const normalizedCode = normalizeUserCode(userCode);
   const ref = doc(db, USERS_COLLECTION, normalizedCode);
 
-  const existing = await withFirestoreTimeout(getDoc(ref));
+  const existing = await getDoc(ref);
   if (!existing.exists()) {
     throw new Error('Kullanıcı bulunamadı.');
   }
@@ -188,7 +185,7 @@ export async function updateUserInFirestore(
     updatedAt: now.toDate().toISOString(),
   };
 
-  await runFirestoreWrite(async () => {
+  try {
     await setDoc(ref, {
       userCode: updated.userCode,
       passwordHash: updated.passwordHash,
@@ -198,7 +195,10 @@ export async function updateUserInFirestore(
       createdAt: Timestamp.fromDate(new Date(current.createdAt)),
       updatedAt: now,
     });
-  });
+  } catch (error) {
+    console.error('[Firestore] Kullanıcı güncelleme hatası:', error);
+    throw new Error(getFirestoreErrorMessage(error));
+  }
 
   return updated;
 }
@@ -209,7 +209,13 @@ export async function deleteUserFromFirestore(userCode: string): Promise<void> {
     throw new Error('Firestore bağlantısı kurulamadı.');
   }
 
-  await runFirestoreWrite(async () => {
+  assertOnlineForFirestoreWrite();
+  await ensureFirestoreReady();
+
+  try {
     await deleteDoc(doc(db, USERS_COLLECTION, normalizeUserCode(userCode)));
-  });
+  } catch (error) {
+    console.error('[Firestore] Kullanıcı silme hatası:', error);
+    throw new Error(getFirestoreErrorMessage(error));
+  }
 }

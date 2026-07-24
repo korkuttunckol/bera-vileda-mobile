@@ -9,7 +9,7 @@ import {
   Timestamp,
 } from 'firebase/firestore';
 import { getFirestoreDb } from './firestore';
-import { withFirestoreTimeout, getFirestoreErrorMessage } from './firestoreUtils';
+import { getFirestoreErrorMessage } from './firestoreUtils';
 import {
   orderConverter,
   orderLineConverter,
@@ -96,7 +96,7 @@ export async function pullCustomersSince(
       collection(db, 'customers').withConverter(customerConverter),
       where('updatedAt', '>', sinceTimestamp),
     );
-    const snapshot = await withFirestoreTimeout(getDocs(q));
+    const snapshot = await getDocs(q);
     return snapshot.docs.map((d) => d.data());
   } catch (error) {
     console.error('[Firestore] Cari çekme hatası:', error);
@@ -109,8 +109,8 @@ export async function pullAllCustomers(): Promise<Customer[]> {
   if (!db) return [];
 
   try {
-    const snapshot = await withFirestoreTimeout(
-      getDocs(collection(db, 'customers').withConverter(customerConverter)),
+    const snapshot = await getDocs(
+      collection(db, 'customers').withConverter(customerConverter),
     );
     return snapshot.docs.map((d) => d.data());
   } catch (error) {
@@ -129,7 +129,7 @@ export async function pullProductsSince(since: string): Promise<Product[]> {
       collection(db, 'products').withConverter(productConverter),
       where('updatedAt', '>', sinceTimestamp),
     );
-    const snapshot = await withFirestoreTimeout(getDocs(q));
+    const snapshot = await getDocs(q);
     return snapshot.docs.map((d) => d.data());
   } catch (error) {
     console.error('[Firestore] Stok çekme hatası:', error);
@@ -142,8 +142,8 @@ export async function pullAllProducts(): Promise<Product[]> {
   if (!db) return [];
 
   try {
-    const snapshot = await withFirestoreTimeout(
-      getDocs(collection(db, 'products').withConverter(productConverter)),
+    const snapshot = await getDocs(
+      collection(db, 'products').withConverter(productConverter),
     );
     return snapshot.docs.map((d) => d.data());
   } catch (error) {
@@ -164,10 +164,14 @@ export async function saveSyncLog(report: {
   const db = getFirestoreDb();
   if (!db) return;
 
-  await setDoc(doc(db, 'syncLogs', report.id), {
-    ...report,
-    syncedAt: report.completedAt,
-    entityType: 'sync_report',
-    status: report.success ? 'success' : 'failed',
-  });
+  try {
+    await setDoc(doc(db, 'syncLogs', report.id), {
+      ...report,
+      syncedAt: report.completedAt,
+      entityType: 'sync_report',
+      status: report.success ? 'success' : 'failed',
+    });
+  } catch (error) {
+    console.warn('[Sync] Sync log yazılamadı:', error);
+  }
 }

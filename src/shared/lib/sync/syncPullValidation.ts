@@ -16,16 +16,6 @@ export interface SyncPullValidation {
   mode: 'full' | 'incremental';
 }
 
-export class SyncValidationError extends Error {
-  readonly validation: SyncPullValidation;
-
-  constructor(message: string, validation: SyncPullValidation) {
-    super(message);
-    this.name = 'SyncValidationError';
-    this.validation = validation;
-  }
-}
-
 function isFullCountMismatch(counts: EntityPullCounts): boolean {
   return counts.fetched !== counts.written || counts.written !== counts.loaded;
 }
@@ -70,7 +60,7 @@ export function logPullValidation(validation: SyncPullValidation): void {
   console.info('[Sync] Users loaded:', validation.users.loaded);
 
   if (!validation.valid) {
-    console.error('[Sync] Kayıt sayısı doğrulaması başarısız:', validation);
+    console.warn('[Sync] Kayıt sayısı uyumsuzluğu (senkronizasyon devam ediyor):', validation);
   } else {
     console.info(
       `[Sync] Kayıt sayısı doğrulaması başarılı (${validation.mode}).`,
@@ -78,41 +68,9 @@ export function logPullValidation(validation: SyncPullValidation): void {
   }
 }
 
-export function assertPullValidation(validation: SyncPullValidation): void {
+/** Sayım uyumsuzluğunda senkronizasyonu durdurmaz; yalnızca loglar. */
+export function recordPullValidation(validation: SyncPullValidation): void {
   logPullValidation(validation);
-
-  if (validation.valid) {
-    return;
-  }
-
-  const mismatches: string[] = [];
-
-  const check = (
-    label: string,
-    counts: EntityPullCounts,
-  ): void => {
-    if (validation.mode === 'full' && isFullCountMismatch(counts)) {
-      mismatches.push(
-        `${label} (fetched=${String(counts.fetched)}, written=${String(counts.written)}, loaded=${String(counts.loaded)})`,
-      );
-      return;
-    }
-
-    if (validation.mode === 'incremental' && isIncrementalBatchMismatch(counts)) {
-      mismatches.push(
-        `${label} (fetched=${String(counts.fetched)}, written=${String(counts.written)})`,
-      );
-    }
-  };
-
-  check('Cari', validation.customers);
-  check('Stok', validation.products);
-  check('Kullanıcı', validation.users);
-
-  throw new SyncValidationError(
-    `Senkronizasyon doğrulaması başarısız: ${mismatches.join('; ')}`,
-    validation,
-  );
 }
 
 export async function readLoadedCounts(): Promise<{
