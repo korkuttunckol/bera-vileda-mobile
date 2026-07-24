@@ -44,6 +44,7 @@ class DataCleanupService {
         db.customers,
         db.branches,
         db.products,
+        db.users,
       ],
       async () => {
         await Promise.all([
@@ -55,6 +56,7 @@ class DataCleanupService {
           db.customers.clear(),
           db.branches.clear(),
           db.products.clear(),
+          db.users.clear(),
           db.meta.clear(),
         ]);
       },

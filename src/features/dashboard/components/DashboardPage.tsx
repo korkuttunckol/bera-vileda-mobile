@@ -133,9 +133,8 @@ export function DashboardPage() {
   const pendingSyncCount = usePendingSyncCount();
   const lastSyncAt = useSyncStore((s) => s.lastSyncAt);
   const hasRemoteUpdates = useSyncStore((s) => s.hasRemoteUpdates);
-  const isInitialSyncing = useSyncStore((s) => s.isInitialSyncing);
   const { stats } = useDataStats();
-  const { isSyncing, syncNow } = useSync();
+  const { isSyncing, isInitialSyncing, syncNow } = useSync();
   const { orders } = useOrders('all');
 
   const todayLabel = useMemo(() => formatDashboardDate(new Date()), []);
@@ -186,7 +185,7 @@ export function DashboardPage() {
                 Bekleyen Senkronizasyon : {pendingSyncCount}
               </p>
               <p className="text-white/80">Son Senkronizasyon : {lastSyncLabel}</p>
-              {isInitialSyncing ? (
+              {isInitialSyncing || isSyncing ? (
                 <p className="text-white/75">Firestore verileri indiriliyor...</p>
               ) : null}
             </div>

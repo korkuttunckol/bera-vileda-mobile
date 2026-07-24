@@ -27,16 +27,20 @@ export function useSync() {
       }
 
       try {
-        const result = await syncService.syncNow(trigger);
+        const result = await syncService.syncNow(trigger, {
+          showDownloadMessage: trigger === 'manual',
+        });
         const { pull } = result.report;
 
         if (result.success) {
           toast(
-            `Senkronizasyon tamamlandı · ${String(pull.customers)} cari, ${String(pull.products)} stok, ${String(pull.users)} kullanıcı güncellendi`,
+            `Senkronizasyon tamamlandı · ${String(pull.customers)} cari, ${String(pull.products)} stok, ${String(pull.users)} kullanıcı`,
             'success',
           );
         } else {
-          toast('Senkronizasyon hatalarla tamamlandı', 'error');
+          const errorMessage =
+            result.report.errors[0]?.message ?? 'Senkronizasyon hatalarla tamamlandı';
+          toast(errorMessage, 'error');
         }
 
         return result;
@@ -49,5 +53,35 @@ export function useSync() {
     [isOnline],
   );
 
-  return { isSyncing, isInitialSyncing, lastReport, pendingCount, syncNow };
+  const clearAndResync = useCallback(async () => {
+    if (!isOnline) {
+      toast('Bu işlem için internet bağlantısı gerekir.', 'warning');
+      return null;
+    }
+
+    try {
+      const result = await syncService.clearLocalMasterDataAndResync();
+      if (result.success) {
+        toast('Yerel veriler temizlendi ve Firestore\'dan yeniden indirildi.', 'success');
+      } else {
+        const errorMessage =
+          result.report.errors[0]?.message ?? 'Yeniden senkronizasyon başarısız';
+        toast(errorMessage, 'error');
+      }
+      return result;
+    } catch (error) {
+      console.error('[Sync] Temizle ve yeniden senkronize hatası:', error);
+      toast(error instanceof Error ? error.message : 'Yeniden senkronizasyon başarısız', 'error');
+      return null;
+    }
+  }, [isOnline]);
+
+  return {
+    isSyncing,
+    isInitialSyncing,
+    lastReport,
+    pendingCount,
+    syncNow,
+    clearAndResync,
+  };
 }

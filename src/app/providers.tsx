@@ -24,13 +24,10 @@ function AppProviders({ children }: AppProvidersProps) {
       await syncService.refreshDataStats();
 
       if (navigator.onLine) {
-        useSyncStore.getState().setInitialSyncing(true);
         try {
-          await syncService.syncNow('auto');
+          await syncService.syncNow('auto', { showDownloadMessage: true });
         } catch (error) {
           console.error('[App] Başlangıç senkronizasyonu başarısız:', error);
-        } finally {
-          useSyncStore.getState().setInitialSyncing(false);
         }
       }
     });

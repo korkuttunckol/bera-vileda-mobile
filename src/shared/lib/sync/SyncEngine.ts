@@ -6,6 +6,7 @@ import { META_KEYS, setMetaValue } from '@/shared/lib/indexeddb/db';
 import { saveSyncLog } from '@/shared/lib/firebase/firestoreService';
 import { outboxProcessor } from './OutboxProcessor';
 import { pullSync } from './PullSync';
+import { SyncValidationError } from './syncPullValidation';
 import { buildSyncReport, saveAndNotifySyncReport } from './syncReportBuilder';
 import type {
   SyncReport,
@@ -65,7 +66,8 @@ export class SyncEngine implements ISyncEngine {
     this.isSyncing = true;
     const startedAt = new Date().toISOString();
     const errors: SyncReport['errors'] = [];
-    let pullStats = { customers: 0, products: 0, users: 0 };
+    let pullStats = { customers: 0, products: 0, users: 0, full: false };
+    let pullSucceeded = true;
     let queueRun = {
       total: 0,
       synced: 0,
@@ -75,6 +77,7 @@ export class SyncEngine implements ISyncEngine {
     };
 
     const shouldFullSync =
+      options.forceFull === true ||
       options.full === true ||
       trigger === 'manual' ||
       (await pullSync.needsInitialSync());
@@ -89,14 +92,23 @@ export class SyncEngine implements ISyncEngine {
         }
       }
     } catch (err) {
+      pullSucceeded = false;
       const errorId = uuidv4();
+      const message =
+        err instanceof SyncValidationError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : 'Sync hatası';
+
       errors.push({
         entityType: 'sync',
         entityId: errorId,
         idempotencyKey: errorId,
-        message: err instanceof Error ? err.message : 'Sync hatası',
+        message,
         timestamp: new Date().toISOString(),
       });
+      console.error('[SyncEngine] Senkronizasyon hatası:', err);
     }
 
     const report = await buildSyncReport({
@@ -106,28 +118,42 @@ export class SyncEngine implements ISyncEngine {
       startedAt,
     });
 
-    await saveAndNotifySyncReport(report);
+    const syncSuccessful =
+      pullSucceeded &&
+      errors.length === 0 &&
+      (report.orders?.failed ?? 0) === 0;
 
-    if (navigator.onLine && report.success) {
-      await setMetaValue(META_KEYS.LAST_SYNC_AT, report.completedAt);
+    const finalReport: SyncReport = {
+      ...report,
+      success: syncSuccessful,
+    };
+
+    await saveAndNotifySyncReport(finalReport);
+
+    if (navigator.onLine && syncSuccessful) {
+      await setMetaValue(META_KEYS.LAST_SYNC_AT, finalReport.completedAt);
     }
 
     if (isFirebaseConfigured()) {
       await saveSyncLog({
-        id: report.id,
+        id: finalReport.id,
         push: { synced: queueRun.synced, failed: queueRun.failed },
-        pull: pullStats,
-        success: report.success,
+        pull: {
+          customers: pullStats.customers,
+          products: pullStats.products,
+          users: pullStats.users,
+        },
+        success: syncSuccessful,
         errors,
         startedAt,
-        completedAt: report.completedAt,
+        completedAt: finalReport.completedAt,
       });
     }
 
-    this.listeners.forEach((l) => { l(report); });
+    this.listeners.forEach((l) => { l(finalReport); });
     this.isSyncing = false;
 
-    return { success: report.success, report };
+    return { success: syncSuccessful, report: finalReport };
   }
 
   async getPendingCount(): Promise<number> {

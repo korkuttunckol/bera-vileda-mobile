@@ -16,14 +16,19 @@ export interface SyncPushStats {
   pending: number;
 }
 
+import type { SyncPullValidation } from '../syncPullValidation';
+
 export interface SyncPullStats {
   customers: number;
   products: number;
   users: number;
+  validation?: SyncPullValidation;
+  full: boolean;
 }
 
 export interface SyncNowOptions {
   full?: boolean;
+  forceFull?: boolean;
 }
 
 export interface SyncOrderStats {

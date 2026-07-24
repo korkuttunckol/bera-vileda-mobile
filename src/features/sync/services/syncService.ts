@@ -1,4 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
+import { isFirebaseConfigured } from '@/config/env';
 import { syncEngine } from '@/shared/lib/sync/SyncEngine';
 import { pullSync } from '@/shared/lib/sync/PullSync';
 import { outboxProcessor } from '@/shared/lib/sync/OutboxProcessor';
@@ -7,7 +8,7 @@ import {
   countPendingOrders,
 } from '@/shared/lib/indexeddb/repositories/orderRepository';
 import { syncReportRepository } from '@/shared/lib/indexeddb/repositories/syncReportRepository';
-import { getMetaValue, META_KEYS, setMetaValue } from '@/shared/lib/indexeddb/db';
+import { getMetaValue, META_KEYS, setMetaValue, db } from '@/shared/lib/indexeddb/db';
 import {
   publishOrderSyncReport,
 } from '@/shared/lib/sync/syncReportBuilder';
@@ -18,6 +19,11 @@ import { dataStatsService } from '@/features/sync/services/dataStatsService';
 import type { Order, OrderLine } from '@/shared/types/order.types';
 import type { SyncTrigger, SyncResult } from '@/shared/lib/sync/types/sync.types';
 import type { EntityDataSource } from '@/shared/lib/sync/dataSource.types';
+
+interface SyncNowServiceOptions {
+  forceFull?: boolean;
+  showDownloadMessage?: boolean;
+}
 
 class SyncService {
   async refreshPendingCount(): Promise<number> {
@@ -80,28 +86,79 @@ class SyncService {
     useSyncStore.getState().setLastReport(report);
   }
 
-  async syncNow(trigger: SyncTrigger = 'manual'): Promise<SyncResult> {
+  async clearMasterDataForResync(): Promise<void> {
+    await db.transaction(
+      'rw',
+      [db.customers, db.branches, db.products, db.users],
+      async () => {
+        await db.customers.clear();
+        await db.branches.clear();
+        await db.products.clear();
+        await db.users.clear();
+      },
+    );
+
+    await Promise.all([
+      setMetaValue(META_KEYS.INITIAL_SYNC_COMPLETE, 'false'),
+      setMetaValue(META_KEYS.LAST_PULL_CUSTOMERS, '1970-01-01T00:00:00.000Z'),
+      setMetaValue(META_KEYS.LAST_PULL_PRODUCTS, '1970-01-01T00:00:00.000Z'),
+      setMetaValue(META_KEYS.DATA_SOURCE_CUSTOMERS, 'indexeddb'),
+      setMetaValue(META_KEYS.DATA_SOURCE_PRODUCTS, 'indexeddb'),
+      setMetaValue(META_KEYS.DATA_SOURCE_USERS, 'indexeddb'),
+    ]);
+
+    useSyncStore.getState().setHasRemoteUpdates(false);
+    await this.refreshDataStats();
+  }
+
+  async clearLocalMasterDataAndResync(): Promise<SyncResult> {
+    await this.clearMasterDataForResync();
+    return this.syncNow('manual', { forceFull: true, showDownloadMessage: true });
+  }
+
+  async syncNow(
+    trigger: SyncTrigger = 'manual',
+    options: SyncNowServiceOptions = {},
+  ): Promise<SyncResult> {
+    const needsFull =
+      options.forceFull === true ||
+      trigger === 'manual' ||
+      (await pullSync.needsInitialSync());
+
+    const showDownloadMessage =
+      options.showDownloadMessage ??
+      (needsFull && navigator.onLine && isFirebaseConfigured());
+
+    if (showDownloadMessage) {
+      useSyncStore.getState().setInitialSyncing(true);
+    }
     useSyncStore.getState().setSyncing(true);
+
     try {
-      const needsFull = trigger === 'manual' || (await pullSync.needsInitialSync());
-      const result = await syncEngine.syncNow(trigger, { full: needsFull });
+      const result = await syncEngine.syncNow(trigger, {
+        full: needsFull,
+        forceFull: options.forceFull,
+      });
+
       await this.refreshPendingCount();
       await this.refreshDataStats();
 
       const lastSyncAt = await getMetaValue(META_KEYS.LAST_SYNC_AT);
       useSyncStore.getState().setLastSyncAt(lastSyncAt ?? null);
 
-      const pulledTotal =
-        result.report.pull.customers +
-        result.report.pull.products +
-        result.report.pull.users;
+      if (result.success) {
+        const pulledTotal =
+          result.report.pull.customers +
+          result.report.pull.products +
+          result.report.pull.users;
 
-      if (result.success && pulledTotal > 0) {
-        useSyncStore.getState().setHasRemoteUpdates(true);
-      }
+        if (pulledTotal > 0 || result.report.pull.full) {
+          useSyncStore.getState().setHasRemoteUpdates(true);
+        }
 
-      if (result.success && navigator.onLine) {
-        await this.markIndexedDbSourcesFromFirestore();
+        if (navigator.onLine) {
+          await this.markIndexedDbSourcesFromFirestore();
+        }
       } else if (!navigator.onLine) {
         await this.markOfflineSources();
       }
@@ -109,6 +166,9 @@ class SyncService {
       return result;
     } finally {
       useSyncStore.getState().setSyncing(false);
+      if (showDownloadMessage) {
+        useSyncStore.getState().setInitialSyncing(false);
+      }
     }
   }
 
