@@ -75,6 +75,9 @@ export async function fetchAllUsersFromFirestore(): Promise<AppUser[]> {
   const db = getFirestoreDb();
   if (!db) return [];
 
+  console.info('[Firestore] getDocs users (tüm koleksiyon) başladı');
+  const startedAt = Date.now();
+
   try {
     const snapshot = await getDocs(collection(db, USERS_COLLECTION));
     const users: AppUser[] = [];
@@ -84,8 +87,15 @@ export async function fetchAllUsersFromFirestore(): Promise<AppUser[]> {
       if (mapped) users.push(mapped);
     });
 
+    console.info(
+      `[Firestore] getDocs users bitti (${String(Date.now() - startedAt)} ms, ${String(users.length)} kayıt)`,
+    );
     return users.sort((a, b) => a.userCode.localeCompare(b.userCode, 'tr-TR'));
   } catch (error) {
+    console.error(
+      `[Firestore] getDocs users hata (${String(Date.now() - startedAt)} ms):`,
+      error,
+    );
     logFirestoreError('Kullanıcı listesi okuma hatası', error);
     throw new Error(getFirestoreErrorMessage(error));
   }

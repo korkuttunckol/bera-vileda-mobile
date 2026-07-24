@@ -6,6 +6,7 @@ import { saveSyncLog } from '@/shared/lib/firebase/firestoreService';
 import { outboxProcessor } from './OutboxProcessor';
 import { pullSync } from './PullSync';
 import { buildSyncReport, saveAndNotifySyncReport } from './syncReportBuilder';
+import { beginSyncStep, logSyncCompleted } from './syncPullLogger';
 import type {
   SyncReport,
   SyncResult,
@@ -70,6 +71,10 @@ export class SyncEngine implements ISyncEngine {
     trigger: SyncTrigger,
     options: SyncNowOptions,
   ): Promise<SyncResult> {
+    const syncStartedAt = Date.now();
+    const finishSync = beginSyncStep('Sync');
+    console.info(`[Sync] Sync started (trigger=${trigger})`);
+
     const startedAt = new Date().toISOString();
     const errors: SyncReport['errors'] = [];
     let pullStats = { customers: 0, products: 0, users: 0, full: false };
@@ -82,20 +87,33 @@ export class SyncEngine implements ISyncEngine {
       pending: 0,
     };
 
+    const finishInitialCheck = beginSyncStep('Initial sync check');
     const shouldFullSync =
       options.forceFull === true ||
       options.full === true ||
       trigger === 'manual' ||
       (await pullSync.needsInitialSync());
+    finishInitialCheck(`full=${String(shouldFullSync)}`);
 
     try {
       if (navigator.onLine) {
+        if (isFirebaseConfigured()) {
+          const finishPull = beginSyncStep('Pull');
+          pullStats = await pullSync.pullAll({ full: shouldFullSync });
+          finishPull(
+            `${String(pullStats.customers)} cari, ${String(pullStats.products)} stok, ${String(pullStats.users)} kullanıcı`,
+          );
+        }
+
+        const finishOutbox = beginSyncStep('Outbox push');
         const pushResult = await outboxProcessor.processAll();
         queueRun = pushResult.stats;
         errors.push(...pushResult.errors);
-        if (isFirebaseConfigured()) {
-          pullStats = await pullSync.pullAll({ full: shouldFullSync });
-        }
+        finishOutbox(
+          `${String(queueRun.total)} öğe · synced=${String(queueRun.synced)} failed=${String(queueRun.failed)}`,
+        );
+      } else {
+        console.info('[Sync] Çevrimdışı — Firestore adımları atlandı');
       }
     } catch (err) {
       pullSucceeded = false;
@@ -112,12 +130,14 @@ export class SyncEngine implements ISyncEngine {
       console.error('[SyncEngine] Synchronization failed:', message, err);
     }
 
+    const finishReportBuild = beginSyncStep('Report build');
     const report = await buildSyncReport({
       trigger,
       pull: pullStats,
       errors,
       startedAt,
     });
+    finishReportBuild();
 
     const syncSuccessful =
       pullSucceeded &&
@@ -129,14 +149,19 @@ export class SyncEngine implements ISyncEngine {
       success: syncSuccessful,
     };
 
+    const finishReportSave = beginSyncStep('Report save (IndexedDB)');
     await saveAndNotifySyncReport(finalReport);
+    finishReportSave();
 
     if (navigator.onLine && syncSuccessful) {
+      const finishMeta = beginSyncStep('Meta update (lastSyncAt)');
       await setMetaValue(META_KEYS.LAST_SYNC_AT, finalReport.completedAt);
+      finishMeta();
     }
 
     if (isFirebaseConfigured()) {
-      await saveSyncLog({
+      console.info('[Sync] Sync log write started (Firestore, arka planda)');
+      void saveSyncLog({
         id: finalReport.id,
         push: { synced: queueRun.synced, failed: queueRun.failed },
         pull: {
@@ -148,14 +173,17 @@ export class SyncEngine implements ISyncEngine {
         errors,
         startedAt,
         completedAt: finalReport.completedAt,
+      }).then(() => {
+        console.info('[Sync] Sync log write finished');
+      }).catch((error: unknown) => {
+        console.warn('[Sync] Sync log write failed:', error);
       });
     }
 
-    if (syncSuccessful) {
-      console.info('[SyncEngine] Synchronization completed');
-    }
-
     this.listeners.forEach((l) => { l(finalReport); });
+
+    finishSync(`success=${String(syncSuccessful)}`);
+    logSyncCompleted(Date.now() - syncStartedAt);
 
     return { success: syncSuccessful, report: finalReport };
   }

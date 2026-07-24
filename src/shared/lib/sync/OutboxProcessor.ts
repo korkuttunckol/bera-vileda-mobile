@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { syncQueueRepository } from '@/shared/lib/indexeddb/repositories/syncQueueRepository';
 import { pushSync } from './PushSync';
-import { retryPolicy } from './RetryPolicy';
+import { beginSyncStep } from './syncPullLogger';
 import { buildIdempotencyKey } from './IdempotencyGuard';
 import type { LocalSyncQueueItem } from '@/shared/lib/indexeddb/db';
 import type {
@@ -20,6 +20,7 @@ export class OutboxProcessor {
     stats: SyncPushStats;
     errors: SyncReportError[];
   }> {
+    const finishOutbox = beginSyncStep('Outbox processAll');
     const stats: SyncPushStats = {
       total: 0,
       synced: 0,
@@ -35,11 +36,16 @@ export class OutboxProcessor {
     stats.total = items.length;
 
     for (const item of items) {
+      const finishItem = beginSyncStep(
+        `Outbox item ${item.entityType}/${item.entityId}`,
+      );
       const result = await this.processItem(item);
+      finishItem(result.outcome);
       stats[result.outcome]++;
       if (result.error) errors.push(result.error);
     }
 
+    finishOutbox(`${String(stats.total)} öğe işlendi`);
     return { stats, errors };
   }
 
@@ -81,12 +87,9 @@ export class OutboxProcessor {
     }
 
     const newRetryCount = item.retryCount + 1;
-    if (retryPolicy.shouldRetry(newRetryCount)) {
-      await retryPolicy.wait(newRetryCount);
-      await syncQueueRepository.resetToPending(item.id, newRetryCount);
-    } else {
-      await syncQueueRepository.markFailed(item.id, newRetryCount);
-    }
+    // Teşhis: outbox retry geçici kapalı — başarısız öğe hemen failed olarak işaretlenir.
+    // Retry'ı açmak için retryPolicy.shouldRetry bloğunu geri ekleyin.
+    await syncQueueRepository.markFailed(item.id, newRetryCount);
 
     return { outcome: 'failed', error: result.error };
   }

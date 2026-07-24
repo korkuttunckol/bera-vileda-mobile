@@ -108,13 +108,22 @@ export async function pullAllCustomers(): Promise<Customer[]> {
   const db = getFirestoreDb();
   if (!db) return [];
 
+  console.info('[Firestore] getDocs customers (tüm koleksiyon) başladı');
+  const startedAt = Date.now();
+
   try {
     const snapshot = await getDocs(
       collection(db, 'customers').withConverter(customerConverter),
     );
+    console.info(
+      `[Firestore] getDocs customers bitti (${String(Date.now() - startedAt)} ms, ${String(snapshot.size)} kayıt)`,
+    );
     return snapshot.docs.map((d) => d.data());
   } catch (error) {
-    console.error('[Firestore] Tüm cari çekme hatası:', error);
+    console.error(
+      `[Firestore] getDocs customers hata (${String(Date.now() - startedAt)} ms):`,
+      error,
+    );
     throw new Error(getFirestoreErrorMessage(error));
   }
 }
@@ -141,13 +150,22 @@ export async function pullAllProducts(): Promise<Product[]> {
   const db = getFirestoreDb();
   if (!db) return [];
 
+  console.info('[Firestore] getDocs products (tüm koleksiyon) başladı');
+  const startedAt = Date.now();
+
   try {
     const snapshot = await getDocs(
       collection(db, 'products').withConverter(productConverter),
     );
+    console.info(
+      `[Firestore] getDocs products bitti (${String(Date.now() - startedAt)} ms, ${String(snapshot.size)} kayıt)`,
+    );
     return snapshot.docs.map((d) => d.data());
   } catch (error) {
-    console.error('[Firestore] Tüm stok çekme hatası:', error);
+    console.error(
+      `[Firestore] getDocs products hata (${String(Date.now() - startedAt)} ms):`,
+      error,
+    );
     throw new Error(getFirestoreErrorMessage(error));
   }
 }

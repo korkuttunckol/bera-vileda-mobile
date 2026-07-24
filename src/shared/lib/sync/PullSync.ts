@@ -21,6 +21,7 @@ import {
   recordPullValidation,
 } from './syncPullValidation';
 import {
+  beginSyncStep,
   logSyncCompleted,
   logSyncFailed,
   logSyncStarted,
@@ -51,36 +52,62 @@ function normalizeProduct(remote: Product): Product {
   };
 }
 
-async function mergeCustomer(remote: Customer): Promise<void> {
-  const normalized = normalizeCustomer(remote);
-  const local = await customerLocalRepository.getById(remote.id);
-  if (local) {
-    const { resolved } = conflictResolver.resolve(local, normalized);
-    await customerLocalRepository.save(resolved);
-  } else {
-    await customerLocalRepository.save(normalized);
-  }
-}
+async function mergeCustomersBatch(remotes: Customer[]): Promise<void> {
+  if (remotes.length === 0) return;
 
-async function mergeProduct(remote: Product): Promise<void> {
-  const normalized = normalizeProduct(remote);
-  const localById = await productLocalRepository.getById(remote.id);
-  if (localById) {
-    const { resolved } = conflictResolver.resolve(localById, normalized);
-    await productLocalRepository.save(resolved);
-  } else {
-    const localBySku = await productLocalRepository.findBySku(remote.sku);
-    if (localBySku) {
-      const { resolved } = conflictResolver.resolve(localBySku, {
-        ...normalized,
-        id: localBySku.id,
-        localId: localBySku.localId,
-      });
-      await productLocalRepository.save(resolved);
+  const finishMerge = beginSyncStep('Customers IndexedDB merge');
+  const locals = await customerLocalRepository.getAll();
+  const localById = new Map(locals.map((customer) => [customer.id, customer]));
+  const toSave: Customer[] = [];
+
+  for (const remote of remotes) {
+    const normalized = normalizeCustomer(remote);
+    const local = localById.get(remote.id);
+    if (local) {
+      toSave.push(conflictResolver.resolve(local, normalized).resolved);
     } else {
-      await productLocalRepository.save(normalized);
+      toSave.push(normalized);
     }
   }
+
+  await customerLocalRepository.saveMany(toSave);
+  finishMerge(`${String(toSave.length)} kayıt`);
+}
+
+async function mergeProductsBatch(remotes: Product[]): Promise<void> {
+  if (remotes.length === 0) return;
+
+  const finishMerge = beginSyncStep('Products IndexedDB merge');
+  const locals = await productLocalRepository.getAll();
+  const localById = new Map(locals.map((product) => [product.id, product]));
+  const localBySku = new Map(locals.map((product) => [product.sku, product]));
+  const toSave: Product[] = [];
+
+  for (const remote of remotes) {
+    const normalized = normalizeProduct(remote);
+    const localByIdMatch = localById.get(remote.id);
+    if (localByIdMatch) {
+      toSave.push(conflictResolver.resolve(localByIdMatch, normalized).resolved);
+      continue;
+    }
+
+    const localBySkuMatch = localBySku.get(remote.sku);
+    if (localBySkuMatch) {
+      toSave.push(
+        conflictResolver.resolve(localBySkuMatch, {
+          ...normalized,
+          id: localBySkuMatch.id,
+          localId: localBySkuMatch.localId,
+        }).resolved,
+      );
+      continue;
+    }
+
+    toSave.push(normalized);
+  }
+
+  await productLocalRepository.saveMany(toSave);
+  finishMerge(`${String(toSave.length)} kayıt`);
 }
 
 async function replaceAllFromFirestore(
@@ -91,7 +118,7 @@ async function replaceAllFromFirestore(
   const customers = remoteCustomers.map(normalizeCustomer);
   const products = remoteProducts.map(normalizeProduct);
 
-  console.info('[Sync] IndexedDB yazılıyor (Customers, Products, Users)...');
+  const finishWrite = beginSyncStep('IndexedDB write');
   await db.transaction('rw', [db.customers, db.branches, db.products, db.users], async () => {
     await db.customers.clear();
     await db.branches.clear();
@@ -108,7 +135,9 @@ async function replaceAllFromFirestore(
       await db.users.bulkPut(remoteUsers);
     }
   });
-  console.info('[Sync] IndexedDB yazma tamamlandı');
+  finishWrite(
+    `${String(customers.length)} cari, ${String(products.length)} stok, ${String(remoteUsers.length)} kullanıcı`,
+  );
 }
 
 async function pullUsersFromFirestore(): Promise<
@@ -124,8 +153,6 @@ async function fetchAllCollectionsSerial(): Promise<{
   products: Product[];
   users: Awaited<ReturnType<typeof fetchAllUsersFromFirestore>>;
 }> {
-  logSyncStarted();
-
   try {
     const remoteCustomers = await runLoggedCollectionPull(
       'Customers',
@@ -159,12 +186,12 @@ async function fetchIncrementalCollections(): Promise<{
   products: Product[];
   users: Awaited<ReturnType<typeof fetchAllUsersFromFirestore>>;
 }> {
-  logSyncStarted();
-
+  const finishSinceRead = beginSyncStep('Incremental since meta read');
   const customerSince =
     (await getMetaValue(META_KEYS.LAST_PULL_CUSTOMERS)) ?? EPOCH;
   const productSince =
     (await getMetaValue(META_KEYS.LAST_PULL_PRODUCTS)) ?? EPOCH;
+  finishSinceRead();
 
   try {
     const remoteCustomers = await runLoggedCollectionPull(
@@ -222,15 +249,20 @@ export class PullSync {
       return emptyStats;
     }
 
+    const pullStartedAt = Date.now();
+    logSyncStarted(full ? 'full' : 'incremental');
     const now = new Date().toISOString();
 
     try {
       if (full) {
+        const finishFetch = beginSyncStep('Firestore fetch (full)');
         const { customers: remoteCustomers, products: remoteProducts, users: remoteUsers } =
           await fetchAllCollectionsSerial();
+        finishFetch();
 
         await replaceAllFromFirestore(remoteCustomers, remoteProducts, remoteUsers);
 
+        const finishValidation = beginSyncStep('Validation');
         const loaded = await readLoadedCounts();
         const validation = buildPullValidation(
           {
@@ -250,16 +282,18 @@ export class PullSync {
           },
           'full',
         );
-
         recordPullValidation(validation);
+        finishValidation();
 
+        const finishMeta = beginSyncStep('Meta update (full)');
         await setMetaValue(META_KEYS.LAST_PULL_CUSTOMERS, now);
         await setMetaValue(META_KEYS.LAST_PULL_PRODUCTS, now);
         await setMetaValue(META_KEYS.DATA_SOURCE_CUSTOMERS, 'firestore');
         await setMetaValue(META_KEYS.DATA_SOURCE_PRODUCTS, 'firestore');
         await setMetaValue(META_KEYS.INITIAL_SYNC_COMPLETE, 'true');
+        finishMeta();
 
-        logSyncCompleted();
+        logSyncCompleted(Date.now() - pullStartedAt);
 
         return {
           customers: remoteCustomers.length,
@@ -270,27 +304,27 @@ export class PullSync {
         };
       }
 
+      const finishFetch = beginSyncStep('Firestore fetch (incremental)');
       const {
         customers: remoteCustomers,
         products: remoteProducts,
         users: remoteUsers,
       } = await fetchIncrementalCollections();
+      finishFetch();
 
-      for (const remote of remoteCustomers) {
-        await mergeCustomer(remote);
-      }
+      await mergeCustomersBatch(remoteCustomers);
+      await mergeProductsBatch(remoteProducts);
 
-      for (const remote of remoteProducts) {
-        await mergeProduct(remote);
-      }
-
+      const finishUsersWrite = beginSyncStep('Users IndexedDB write');
       await db.transaction('rw', db.users, async () => {
         await db.users.clear();
         if (remoteUsers.length > 0) {
           await db.users.bulkPut(remoteUsers);
         }
       });
+      finishUsersWrite(`${String(remoteUsers.length)} kullanıcı`);
 
+      const finishValidation = beginSyncStep('Validation');
       const loaded = await readLoadedCounts();
       const validation = buildPullValidation(
         {
@@ -310,15 +344,17 @@ export class PullSync {
         },
         'incremental',
       );
-
       recordPullValidation(validation);
+      finishValidation();
 
+      const finishMeta = beginSyncStep('Meta update (incremental)');
       await setMetaValue(META_KEYS.LAST_PULL_CUSTOMERS, now);
       await setMetaValue(META_KEYS.LAST_PULL_PRODUCTS, now);
       await setMetaValue(META_KEYS.DATA_SOURCE_CUSTOMERS, 'firestore');
       await setMetaValue(META_KEYS.DATA_SOURCE_PRODUCTS, 'firestore');
+      finishMeta();
 
-      logSyncCompleted();
+      logSyncCompleted(Date.now() - pullStartedAt);
 
       return {
         customers: remoteCustomers.length,

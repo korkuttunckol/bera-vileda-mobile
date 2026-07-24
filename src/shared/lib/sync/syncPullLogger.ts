@@ -7,12 +7,23 @@ function formatError(error: unknown): string {
   return String(error);
 }
 
-export function logSyncStarted(): void {
-  console.info('[Sync] Synchronization started');
+export function beginSyncStep(step: string): (detail?: string) => void {
+  const startedAt = Date.now();
+  console.info(`[Sync] ${step} started`);
+
+  return (detail = '') => {
+    const durationMs = Date.now() - startedAt;
+    const suffix = detail ? ` · ${detail}` : '';
+    console.info(`[Sync] ${step} finished (${String(durationMs)} ms)${suffix}`);
+  };
+}
+
+export function logSyncStarted(mode: 'full' | 'incremental'): void {
+  console.info(`[Sync] Sync started (${mode}, getDocs — onSnapshot kullanılmıyor)`);
 }
 
 export function logSyncCollectionStarted(collection: SyncCollection): void {
-  console.info(`[Sync] ${collection} started`);
+  console.info(`[Sync] ${collection} fetch started`);
 }
 
 export function logSyncCollectionCompleted(
@@ -21,7 +32,7 @@ export function logSyncCollectionCompleted(
   durationMs: number,
 ): void {
   console.info(
-    `[Sync] ${collection} completed (${String(count)} kayıt, ${String(durationMs)} ms)`,
+    `[Sync] ${collection} fetch finished (${String(durationMs)} ms) · ${String(count)} kayıt`,
   );
 }
 
@@ -31,17 +42,21 @@ export function logSyncCollectionFailed(
   durationMs: number,
 ): void {
   console.error(
-    `[Sync] ${collection} failed (${String(durationMs)} ms):`,
+    `[Sync] ${collection} fetch failed (${String(durationMs)} ms):`,
     formatError(error),
   );
 }
 
-export function logSyncCompleted(): void {
-  console.info('[Sync] Synchronization completed');
+export function logSyncCompleted(totalMs?: number): void {
+  if (totalMs !== undefined) {
+    console.info(`[Sync] Sync completed (toplam ${String(totalMs)} ms)`);
+    return;
+  }
+  console.info('[Sync] Sync completed');
 }
 
 export function logSyncFailed(error: unknown): void {
-  console.error('[Sync] Synchronization failed:', formatError(error));
+  console.error('[Sync] Sync failed:', formatError(error));
 }
 
 export async function runLoggedCollectionPull<T>(
