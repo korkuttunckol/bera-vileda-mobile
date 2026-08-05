@@ -124,9 +124,10 @@ async function replaceAllFromFirestore(
   logIndexedDbWriteStart();
   const startedAt = Date.now();
 
-  await db.transaction('rw', [db.customers, db.branches, db.products, db.users], async () => {
+  // Full replace only refreshes customers/products/users. Branches stay local until a
+  // dedicated branch pull exists — clearing them here wiped offline branch data.
+  await db.transaction('rw', [db.customers, db.products, db.users], async () => {
     await db.customers.clear();
-    await db.branches.clear();
     await db.products.clear();
     await db.users.clear();
 

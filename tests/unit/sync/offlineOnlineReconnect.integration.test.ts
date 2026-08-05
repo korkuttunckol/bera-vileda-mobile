@@ -1,14 +1,26 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { LocalSyncQueueItem } from '@/shared/lib/indexeddb/db';
 import type { Order, OrderLine } from '@/shared/types/order.types';
+import type { SyncReport } from '@/shared/lib/sync/types/sync.types';
 
 const queueStore = new Map<string, LocalSyncQueueItem>();
 const processedKeys = new Set<string>();
 const orders = new Map<string, Order>();
 const orderLines = new Map<string, OrderLine[]>();
+const meta = new Map<string, string>();
 
 const pushOrderToFirestore = vi.fn(async () => undefined);
-const findOrderByLocalId = vi.fn(async () => null);
+const findOrderByLocalId = vi.fn(async (): Promise<Order | null> => null);
+const saveSyncLog = vi.fn(async () => undefined);
+const pullAll = vi.fn(async () => ({
+  customers: 0,
+  products: 0,
+  users: 0,
+  full: false,
+}));
+const needsInitialSync = vi.fn(async () => false);
+
+let lastSavedReport: SyncReport | null = null;
 
 vi.mock('@/config/env', () => ({
   isFirebaseConfigured: () => true,
@@ -29,7 +41,15 @@ vi.mock('@/shared/lib/indexeddb/db', () => ({
   markIdempotencyKeyProcessed: async (key: string) => {
     processedKeys.add(key);
   },
-  META_KEYS: { PROCESSED_PREFIX: 'processed:' },
+  getMetaValue: async (key: string) => meta.get(key),
+  setMetaValue: async (key: string, value: string) => {
+    meta.set(key, value);
+  },
+  META_KEYS: {
+    PROCESSED_PREFIX: 'processed:',
+    LAST_SYNC_AT: 'lastSyncAt',
+    LAST_SYNC_REPORT_ID: 'lastSyncReportId',
+  },
 }));
 
 vi.mock('@/shared/lib/firebase/firestoreService', () => ({
@@ -38,6 +58,29 @@ vi.mock('@/shared/lib/firebase/firestoreService', () => ({
   findOrderByLocalId: (localId: string) => findOrderByLocalId(localId),
   pushCustomerToFirestore: vi.fn(),
   pushBranchToFirestore: vi.fn(),
+  saveSyncLog: (payload: unknown) => saveSyncLog(payload),
+}));
+
+vi.mock('@/shared/lib/sync/PullSync', () => ({
+  pullSync: {
+    pullAll: (...args: [{ full?: boolean }?]) => pullAll(...args),
+    needsInitialSync: () => needsInitialSync(),
+  },
+}));
+
+vi.mock('@/shared/lib/sync/syncPullLogger', () => ({
+  logSyncFailed: vi.fn(),
+}));
+
+vi.mock('@/shared/lib/indexeddb/repositories/syncReportRepository', () => ({
+  syncReportRepository: {
+    async save(report: SyncReport) {
+      lastSavedReport = report;
+    },
+    async getLatest() {
+      return lastSavedReport;
+    },
+  },
 }));
 
 vi.mock('@/shared/lib/indexeddb/repositories/syncQueueRepository', () => ({
@@ -108,6 +151,11 @@ vi.mock('@/shared/lib/indexeddb/repositories/syncQueueRepository', () => ({
     async remove(id: string) {
       queueStore.delete(id);
     },
+    async countPending() {
+      return [...queueStore.values()].filter((row) =>
+        row.status === 'pending' || row.status === 'failed',
+      ).length;
+    },
     async findByIdempotencyKey(key: string) {
       return [...queueStore.values()].find((row) => row.idempotencyKey === key);
     },
@@ -129,6 +177,9 @@ vi.mock('@/shared/lib/indexeddb/repositories/syncQueueRepository', () => ({
 
 vi.mock('@/shared/lib/indexeddb/repositories/orderRepository', () => ({
   orderLocalRepository: {
+    async getAll() {
+      return [...orders.values()];
+    },
     async getById(id: string) {
       return orders.get(id);
     },
@@ -171,7 +222,7 @@ vi.mock('@/shared/lib/indexeddb/repositories/branchRepository', () => ({
   },
 }));
 
-function seedPendingOrder(orderId: string): Order {
+function seedOfflineOrder(orderId: string): Order {
   const now = new Date().toISOString();
   const order: Order = {
     id: orderId,
@@ -189,7 +240,7 @@ function seedPendingOrder(orderId: string): Order {
     grandTotal: 120,
     lineCount: 1,
     itemCount: 2,
-    createdOffline: false,
+    createdOffline: true,
     isDeleted: false,
     createdAt: now,
     updatedAt: now,
@@ -220,24 +271,42 @@ function seedPendingOrder(orderId: string): Order {
   return order;
 }
 
-describe('Outbox / Idempotency self-skip fix', () => {
+function setNavigatorOnline(online: boolean): void {
+  Object.defineProperty(navigator, 'onLine', {
+    configurable: true,
+    get: () => online,
+  });
+}
+
+describe('Integration: offline order → online_reconnect → Firestore', () => {
   beforeEach(() => {
     queueStore.clear();
     processedKeys.clear();
     orders.clear();
     orderLines.clear();
+    meta.clear();
+    lastSavedReport = null;
     pushOrderToFirestore.mockClear();
     findOrderByLocalId.mockClear();
     findOrderByLocalId.mockResolvedValue(null);
+    saveSyncLog.mockClear();
+    pullAll.mockClear();
+    needsInitialSync.mockClear();
+    needsInitialSync.mockResolvedValue(false);
+    setNavigatorOnline(true);
+    vi.resetModules();
   });
 
-  it('enqueue → process → pushOrderToFirestore exactly once → local sent → queue removed', async () => {
+  it('offline create → online_reconnect → pushOrderToFirestore → queue empty → order sent', async () => {
+    setNavigatorOnline(false);
+
     const { outboxProcessor } = await import(
       '@/shared/lib/sync/OutboxProcessor'
     );
+    const { syncEngine } = await import('@/shared/lib/sync/SyncEngine');
 
-    const orderId = 'order-1';
-    seedPendingOrder(orderId);
+    const orderId = 'order-offline-1';
+    seedOfflineOrder(orderId);
 
     await outboxProcessor.enqueue({
       entityType: 'order',
@@ -247,10 +316,17 @@ describe('Outbox / Idempotency self-skip fix', () => {
     });
 
     expect(queueStore.size).toBe(1);
-    const queued = [...queueStore.values()][0];
-    expect(queued.status).toBe('pending');
+    expect(orders.get(orderId)?.orderSyncStatus).toBe('pending_offline');
 
-    const result = await outboxProcessor.processAll();
+    // Offline iken sync Firestore adımlarını atlar; kuyruk beklemeye devam eder.
+    const offlineResult = await syncEngine.syncNow('auto');
+    expect(pushOrderToFirestore).not.toHaveBeenCalled();
+    expect(queueStore.size).toBe(1);
+    expect(offlineResult.report.trigger).toBe('auto');
+
+    setNavigatorOnline(true);
+
+    const onlineResult = await syncEngine.syncNow('online_reconnect');
 
     expect(pushOrderToFirestore).toHaveBeenCalledTimes(1);
     expect(pushOrderToFirestore).toHaveBeenCalledWith(
@@ -260,26 +336,30 @@ describe('Outbox / Idempotency self-skip fix', () => {
       ]),
     );
 
-    const local = orders.get(orderId);
-    expect(local?.orderSyncStatus).toBe('sent');
-    expect(local?.syncStatus).toBe('synced');
-
     expect(queueStore.size).toBe(0);
-    expect(result.stats.synced).toBe(1);
-    expect(result.stats.skipped).toBe(0);
-    expect(result.stats.failed).toBe(0);
+    expect(orders.get(orderId)?.orderSyncStatus).toBe('sent');
+    expect(orders.get(orderId)?.syncStatus).toBe('synced');
+
+    expect(onlineResult.report.trigger).toBe('online_reconnect');
+    expect(lastSavedReport).not.toBeNull();
+    expect(lastSavedReport?.trigger).toBe('online_reconnect');
+    const reconnectLogCall = saveSyncLog.mock.calls.at(-1)?.[0] as {
+      push: { synced: number; failed: number };
+    };
+    expect(reconnectLogCall.push.synced).toBe(1);
+    expect(reconnectLogCall.push.failed).toBe(0);
   });
 
-  it('does not mark order sent when skipped due to already-processed key', async () => {
+  it('auto sync awaits processAll so queueRun is reported before completion', async () => {
+    setNavigatorOnline(true);
+
     const { outboxProcessor } = await import(
       '@/shared/lib/sync/OutboxProcessor'
     );
-    const { buildIdempotencyKey } = await import(
-      '@/shared/lib/sync/IdempotencyGuard'
-    );
+    const { syncEngine } = await import('@/shared/lib/sync/SyncEngine');
 
-    const orderId = 'order-2';
-    seedPendingOrder(orderId);
+    const orderId = 'order-auto-1';
+    seedOfflineOrder(orderId);
 
     await outboxProcessor.enqueue({
       entityType: 'order',
@@ -288,14 +368,20 @@ describe('Outbox / Idempotency self-skip fix', () => {
       data: { orderId, localId: `local-${orderId}` },
     });
 
-    processedKeys.add(buildIdempotencyKey('order', orderId, 'create'));
+    const result = await syncEngine.syncNow('auto');
 
-    const result = await outboxProcessor.processAll();
-
-    expect(pushOrderToFirestore).not.toHaveBeenCalled();
-    expect(orders.get(orderId)?.orderSyncStatus).toBe('pending_offline');
-    expect(orders.get(orderId)?.syncStatus).toBe('pending');
+    expect(pushOrderToFirestore).toHaveBeenCalledTimes(1);
     expect(queueStore.size).toBe(0);
-    expect(result.stats.skipped).toBe(1);
+    expect(orders.get(orderId)?.orderSyncStatus).toBe('sent');
+    expect(result.report.trigger).toBe('auto');
+    expect(lastSavedReport).not.toBeNull();
+    // Eski fire-and-forget yolda queueRun hep 0 kalırdı; await sonrası gerçek push stats yazılır.
+    const autoLog = saveSyncLog.mock.calls.at(-1)?.[0] as {
+      push: { synced: number; failed: number };
+      success: boolean;
+    };
+    expect(autoLog.push.synced).toBe(1);
+    expect(autoLog.push.failed).toBe(0);
+    expect(autoLog.success).toBe(true);
   });
 });

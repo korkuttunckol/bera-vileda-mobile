@@ -14,6 +14,9 @@ import type {
   SyncNowOptions,
 } from './types/sync.types';
 
+/** Online flapping'de çoklu sync engeli (ms). */
+export const ONLINE_RECONNECT_DEBOUNCE_MS = 1_500;
+
 export interface ISyncEngine {
   start(): void;
   stop(): void;
@@ -26,14 +29,29 @@ type SyncListener = (report: SyncReport) => void;
 export class SyncEngine implements ISyncEngine {
   private intervalId: ReturnType<typeof setInterval> | null = null;
   private onlineHandler: (() => void) | null = null;
+  private onlineReconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private activeSync: Promise<SyncResult> | null = null;
   private listeners: SyncListener[] = [];
 
   start(): void {
-    // Arka plan senkronizasyonu AppProviders üzerinden syncService ile yönetilir.
+    if (typeof window === 'undefined') {
+      return;
+    }
+    if (this.onlineHandler) {
+      return;
+    }
+
+    this.onlineHandler = () => {
+      this.scheduleOnlineReconnect();
+    };
+    window.addEventListener('online', this.onlineHandler);
   }
 
   stop(): void {
+    if (this.onlineReconnectTimer !== null) {
+      clearTimeout(this.onlineReconnectTimer);
+      this.onlineReconnectTimer = null;
+    }
     if (this.onlineHandler) {
       window.removeEventListener('online', this.onlineHandler);
       this.onlineHandler = null;
@@ -42,6 +60,16 @@ export class SyncEngine implements ISyncEngine {
       clearInterval(this.intervalId);
       this.intervalId = null;
     }
+  }
+
+  private scheduleOnlineReconnect(): void {
+    if (this.onlineReconnectTimer !== null) {
+      clearTimeout(this.onlineReconnectTimer);
+    }
+    this.onlineReconnectTimer = setTimeout(() => {
+      this.onlineReconnectTimer = null;
+      void this.syncNow('online_reconnect');
+    }, ONLINE_RECONNECT_DEBOUNCE_MS);
   }
 
   onReport(listener: SyncListener): () => void {
@@ -99,27 +127,15 @@ export class SyncEngine implements ISyncEngine {
           pullStats = await pullSync.pullAll({ full: shouldFullSync });
         }
 
-        if (trigger === 'auto') {
-          console.info('[Sync] OUTBOX PUSH START (arka plan, auto sync beklemiyor)');
-          void outboxProcessor.processAll()
-            .then((pushResult) => {
-              console.info(
-                `[Sync] OUTBOX PUSH END · synced=${String(pushResult.stats.synced)} failed=${String(pushResult.stats.failed)}`,
-              );
-            })
-            .catch((error: unknown) => {
-              console.warn('[Sync] OUTBOX PUSH FAILED (arka plan):', error);
-            });
-        } else {
-          console.info('[Sync] OUTBOX PUSH START');
-          const outboxStartedAt = Date.now();
-          const pushResult = await outboxProcessor.processAll();
-          queueRun = pushResult.stats;
-          errors.push(...pushResult.errors);
-          console.info(
-            `[Sync] OUTBOX PUSH END (${String(Date.now() - outboxStartedAt)} ms) · synced=${String(queueRun.synced)} failed=${String(queueRun.failed)}`,
-          );
-        }
+        // Tüm trigger'larda (auto dahil) outbox bitmeden report/activeSync tamamlanmaz.
+        console.info('[Sync] OUTBOX PUSH START');
+        const outboxStartedAt = Date.now();
+        const pushResult = await outboxProcessor.processAll();
+        queueRun = pushResult.stats;
+        errors.push(...pushResult.errors);
+        console.info(
+          `[Sync] OUTBOX PUSH END (${String(Date.now() - outboxStartedAt)} ms) · synced=${String(queueRun.synced)} failed=${String(queueRun.failed)}`,
+        );
       } else {
         console.info('[Sync] Çevrimdışı — Firestore adımları atlandı');
       }
