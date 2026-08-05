@@ -99,27 +99,15 @@ export class SyncEngine implements ISyncEngine {
           pullStats = await pullSync.pullAll({ full: shouldFullSync });
         }
 
-        if (trigger === 'auto') {
-          console.info('[Sync] OUTBOX PUSH START (arka plan, auto sync beklemiyor)');
-          void outboxProcessor.processAll()
-            .then((pushResult) => {
-              console.info(
-                `[Sync] OUTBOX PUSH END · synced=${String(pushResult.stats.synced)} failed=${String(pushResult.stats.failed)}`,
-              );
-            })
-            .catch((error: unknown) => {
-              console.warn('[Sync] OUTBOX PUSH FAILED (arka plan):', error);
-            });
-        } else {
-          console.info('[Sync] OUTBOX PUSH START');
-          const outboxStartedAt = Date.now();
-          const pushResult = await outboxProcessor.processAll();
-          queueRun = pushResult.stats;
-          errors.push(...pushResult.errors);
-          console.info(
-            `[Sync] OUTBOX PUSH END (${String(Date.now() - outboxStartedAt)} ms) · synced=${String(queueRun.synced)} failed=${String(queueRun.failed)}`,
-          );
-        }
+        // Tüm trigger'larda (auto dahil) outbox bitmeden report/activeSync tamamlanmaz.
+        console.info('[Sync] OUTBOX PUSH START');
+        const outboxStartedAt = Date.now();
+        const pushResult = await outboxProcessor.processAll();
+        queueRun = pushResult.stats;
+        errors.push(...pushResult.errors);
+        console.info(
+          `[Sync] OUTBOX PUSH END (${String(Date.now() - outboxStartedAt)} ms) · synced=${String(queueRun.synced)} failed=${String(queueRun.failed)}`,
+        );
       } else {
         console.info('[Sync] Çevrimdışı — Firestore adımları atlandı');
       }
