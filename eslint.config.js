@@ -14,7 +14,11 @@ export default tseslint.config(
       ecmaVersion: 2022,
       globals: globals.browser,
       parserOptions: {
-        project: ['./tsconfig.app.json', './tsconfig.node.json'],
+        project: [
+          './tsconfig.app.json',
+          './tsconfig.node.json',
+          './tsconfig.vitest.json',
+        ],
         tsconfigRootDir: import.meta.dirname,
       },
     },
@@ -32,6 +36,13 @@ export default tseslint.config(
         'error',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
       ],
+    },
+  },
+  {
+    files: ['tests/**/*.{ts,tsx}'],
+    rules: {
+      // In-memory mocks mirror async repository APIs without real I/O.
+      '@typescript-eslint/require-await': 'off',
     },
   },
   eslintConfigPrettier,

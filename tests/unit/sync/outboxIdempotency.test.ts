@@ -33,8 +33,9 @@ vi.mock('@/shared/lib/indexeddb/db', () => ({
 }));
 
 vi.mock('@/shared/lib/firebase/firestoreService', () => ({
-  pushOrderToFirestore: (...args: unknown[]) => pushOrderToFirestore(...args),
-  findOrderByLocalId: (...args: unknown[]) => findOrderByLocalId(...args),
+  pushOrderToFirestore: (order: Order, lines: OrderLine[]) =>
+    pushOrderToFirestore(order, lines),
+  findOrderByLocalId: (localId: string) => findOrderByLocalId(localId),
   pushCustomerToFirestore: vi.fn(),
   pushBranchToFirestore: vi.fn(),
 }));
