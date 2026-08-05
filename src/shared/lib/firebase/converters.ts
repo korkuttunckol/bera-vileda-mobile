@@ -22,9 +22,38 @@ function toTimestamp(value: string): Timestamp {
   return Timestamp.fromDate(new Date(value));
 }
 
+/**
+ * Firestore rejects `undefined` field values. Strip them recursively while
+ * preserving `null` (used for cleared timestamps) and non-plain values
+ * (Timestamp, Date, etc.).
+ */
+export function omitUndefinedDeep<T>(value: T): T {
+  if (value === undefined || value === null || typeof value !== 'object') {
+    return value;
+  }
+  if (value instanceof Timestamp || value instanceof Date) {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    const cleaned: unknown[] = [];
+    for (const item of value) {
+      if (item === undefined) continue;
+      cleaned.push(omitUndefinedDeep(item));
+    }
+    return cleaned as T;
+  }
+
+  const result: Record<string, unknown> = {};
+  for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+    if (entry === undefined) continue;
+    result[key] = omitUndefinedDeep(entry);
+  }
+  return result as T;
+}
+
 export const orderConverter: FirestoreDataConverter<Order> = {
   toFirestore(order: Order) {
-    return {
+    return omitUndefinedDeep({
       ...order,
       createdAt: toTimestamp(order.createdAt),
       updatedAt: toTimestamp(order.updatedAt),
@@ -34,7 +63,7 @@ export const orderConverter: FirestoreDataConverter<Order> = {
         : null,
       deletedAt: order.deletedAt ? toTimestamp(order.deletedAt) : null,
       erpSyncedAt: order.erpSyncedAt ? toTimestamp(order.erpSyncedAt) : null,
-    };
+    });
   },
   fromFirestore(
     snapshot: QueryDocumentSnapshot,
@@ -61,7 +90,7 @@ export const orderConverter: FirestoreDataConverter<Order> = {
 
 export const orderLineConverter: FirestoreDataConverter<OrderLine> = {
   toFirestore(line: OrderLine) {
-    return { ...line };
+    return omitUndefinedDeep({ ...line });
   },
   fromFirestore(
     snapshot: QueryDocumentSnapshot,
@@ -74,12 +103,12 @@ export const orderLineConverter: FirestoreDataConverter<OrderLine> = {
 
 export const customerConverter: FirestoreDataConverter<Customer> = {
   toFirestore(customer: Customer) {
-    return {
+    return omitUndefinedDeep({
       ...customer,
       createdAt: toTimestamp(customer.createdAt),
       updatedAt: toTimestamp(customer.updatedAt),
       deletedAt: customer.deletedAt ? toTimestamp(customer.deletedAt) : null,
-    };
+    });
   },
   fromFirestore(
     snapshot: QueryDocumentSnapshot,
@@ -101,7 +130,7 @@ export const customerConverter: FirestoreDataConverter<Customer> = {
 
 export const branchConverter: FirestoreDataConverter<CustomerBranch> = {
   toFirestore(branch: CustomerBranch) {
-    return { ...branch };
+    return omitUndefinedDeep({ ...branch });
   },
   fromFirestore(
     snapshot: QueryDocumentSnapshot,
@@ -124,12 +153,12 @@ export const branchConverter: FirestoreDataConverter<CustomerBranch> = {
 
 export const productConverter: FirestoreDataConverter<Product> = {
   toFirestore(product: Product) {
-    return {
+    return omitUndefinedDeep({
       ...product,
       createdAt: toTimestamp(product.createdAt),
       updatedAt: toTimestamp(product.updatedAt),
       deletedAt: product.deletedAt ? toTimestamp(product.deletedAt) : null,
-    };
+    });
   },
   fromFirestore(
     snapshot: QueryDocumentSnapshot,

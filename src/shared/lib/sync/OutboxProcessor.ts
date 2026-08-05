@@ -39,7 +39,14 @@ export class OutboxProcessor {
     const retryableFailed = failed.filter((item) =>
       retryPolicy.isFailedRetryEligible(item, nowMs),
     );
-    const items = [...pending, ...retryableFailed];
+    // Outbox is order-only. Drop legacy master-data queue rows (customer/branch/product).
+    const combined = [...pending, ...retryableFailed];
+    for (const item of combined) {
+      if (item.entityType !== 'order') {
+        await syncQueueRepository.remove(item.id);
+      }
+    }
+    const items = combined.filter((item) => item.entityType === 'order');
     stats.total = items.length;
 
     for (const item of items) {
@@ -57,6 +64,13 @@ export class OutboxProcessor {
   }
 
   async enqueue(payload: SyncQueuePayload): Promise<void> {
+    if (payload.entityType !== 'order') {
+      throw new Error(
+        `Outbox yalnızca siparişler içindir (entityType=${payload.entityType}). ` +
+          'Master data için Yerel Verileri Firestore\'a Aktar kullanın.',
+      );
+    }
+
     const idempotencyKey = buildIdempotencyKey(
       payload.entityType,
       payload.entityId,

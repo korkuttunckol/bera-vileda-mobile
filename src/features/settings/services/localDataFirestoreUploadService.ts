@@ -125,22 +125,51 @@ async function commitProductChunk(
   }
 }
 
+async function markCustomersSynced(customers: Customer[]): Promise<void> {
+  if (customers.length === 0) return;
+  const now = new Date().toISOString();
+  await customerLocalRepository.saveMany(
+    customers.map((customer) => ({
+      ...customer,
+      syncStatus: 'synced' as const,
+      updatedAt: now,
+    })),
+  );
+}
+
+async function markProductsSynced(products: Product[]): Promise<void> {
+  if (products.length === 0) return;
+  const now = new Date().toISOString();
+  await productLocalRepository.saveMany(
+    products.map((product) => ({
+      ...product,
+      syncStatus: 'synced' as const,
+      updatedAt: now,
+    })),
+  );
+}
+
 async function uploadCustomers(
   customers: Customer[],
 ): Promise<FirestoreUploadEntityResult> {
   const failures: FirestoreUploadFailure[] = [];
-  let written = 0;
+  const writtenCustomers: Customer[] = [];
 
   for (let index = 0; index < customers.length; index += FIRESTORE_BATCH_SIZE) {
     const chunk = customers.slice(index, index + FIRESTORE_BATCH_SIZE);
     const chunkFailures = await commitCustomerChunk(chunk);
     failures.push(...chunkFailures);
-    written += chunk.length - chunkFailures.length;
+    const failedIds = new Set(chunkFailures.map((failure) => failure.id));
+    writtenCustomers.push(
+      ...chunk.filter((customer) => !failedIds.has(customer.id)),
+    );
   }
+
+  await markCustomersSynced(writtenCustomers);
 
   return {
     total: customers.length,
-    written,
+    written: writtenCustomers.length,
     failed: failures.length,
     failures,
   };
@@ -150,18 +179,23 @@ async function uploadProducts(
   products: Product[],
 ): Promise<FirestoreUploadEntityResult> {
   const failures: FirestoreUploadFailure[] = [];
-  let written = 0;
+  const writtenProducts: Product[] = [];
 
   for (let index = 0; index < products.length; index += FIRESTORE_BATCH_SIZE) {
     const chunk = products.slice(index, index + FIRESTORE_BATCH_SIZE);
     const chunkFailures = await commitProductChunk(chunk);
     failures.push(...chunkFailures);
-    written += chunk.length - chunkFailures.length;
+    const failedIds = new Set(chunkFailures.map((failure) => failure.id));
+    writtenProducts.push(
+      ...chunk.filter((product) => !failedIds.has(product.id)),
+    );
   }
+
+  await markProductsSynced(writtenProducts);
 
   return {
     total: products.length,
-    written,
+    written: writtenProducts.length,
     failed: failures.length,
     failures,
   };

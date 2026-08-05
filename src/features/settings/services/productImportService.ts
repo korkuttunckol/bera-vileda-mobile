@@ -102,7 +102,8 @@ class ProductImportService {
             updatedAt: now,
             updatedBy: userId,
             version: existing.version + 1,
-            syncStatus: 'synced',
+            // Master data reaches Firestore only via the upload tool — not outbox.
+            syncStatus: 'pending',
           });
           updated++;
         } else {
@@ -124,7 +125,8 @@ class ProductImportService {
             createdBy: userId,
             updatedBy: userId,
             version: 1,
-            syncStatus: 'synced',
+            // Master data reaches Firestore only via the upload tool — not outbox.
+            syncStatus: 'pending',
           };
           await productLocalRepository.save(product);
           created++;

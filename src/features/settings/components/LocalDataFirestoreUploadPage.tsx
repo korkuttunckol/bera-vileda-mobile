@@ -124,9 +124,10 @@ export function LocalDataFirestoreUploadPage() {
       <div className="page-content space-y-4">
         <Card padding="md" className="space-y-4">
           <p className="text-sm text-brand-gray-600">
-            Bu araç yalnızca cihazınızdaki IndexedDB verilerini Firestore
-            koleksiyonlarına yazar. Excel içe aktarma ve otomatik senkronizasyon
-            akışından bağımsızdır.
+            Bu araç IndexedDB&apos;deki cari/stok kartlarını Firestore&apos;a
+            yazar. Excel import outbox kullanmaz; master data yalnızca bu araçla
+            buluta çıkar. Başarılı yazılan kayıtlar yerel olarak &quot;synced&quot;
+            işaretlenir.
           </p>
           <p className="text-xs text-brand-gray-500">
             Kayıtlar 500&apos;lük batch grupları halinde gönderilir. Çevrimdışı

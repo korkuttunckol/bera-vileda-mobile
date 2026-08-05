@@ -105,7 +105,8 @@ class CustomerImportService {
             updatedAt: now,
             updatedBy: userId,
             version: existing.version + 1,
-            syncStatus: 'synced',
+            // Master data reaches Firestore only via the upload tool — not outbox.
+            syncStatus: 'pending',
           });
           updated++;
         } else {
@@ -124,7 +125,8 @@ class CustomerImportService {
             createdBy: userId,
             updatedBy: userId,
             version: 1,
-            syncStatus: 'synced',
+            // Master data reaches Firestore only via the upload tool — not outbox.
+            syncStatus: 'pending',
           };
           await customerLocalRepository.save(customer);
           created++;

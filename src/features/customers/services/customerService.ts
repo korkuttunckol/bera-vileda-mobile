@@ -5,8 +5,6 @@ import {
   filterCustomers,
   type CustomerActiveFilter,
 } from '@/shared/lib/indexeddb/repositories/customerRepository';
-import { outboxProcessor } from '@/shared/lib/sync/OutboxProcessor';
-import { syncService } from '@/features/sync/services/syncService';
 import type {
   Customer,
   CustomerFormData,
@@ -55,8 +53,8 @@ class CustomerService {
       isDeleted: false,
     });
 
+    // Master data sync uses Settings → Yerel Verileri Firestore'a Aktar (not outbox).
     await customerLocalRepository.save(customer);
-    await this.enqueueSync(customer, 'create');
     return customer;
   }
 
@@ -81,8 +79,8 @@ class CustomerService {
       version: existing.version + 1,
     });
 
+    // Master data sync uses Settings → Yerel Verileri Firestore'a Aktar (not outbox).
     await customerLocalRepository.save(customer);
-    await this.enqueueSync(customer, 'update');
     return customer;
   }
 
@@ -103,8 +101,8 @@ class CustomerService {
       syncStatus: 'pending',
     };
 
+    // Master data sync uses Settings → Yerel Verileri Firestore'a Aktar (not outbox).
     await customerLocalRepository.save(customer);
-    await this.enqueueSync(customer, 'delete');
   }
 
   async importFromExcel(
@@ -186,18 +184,6 @@ class CustomerService {
     };
   }
 
-  private async enqueueSync(
-    customer: Customer,
-    operation: 'create' | 'update' | 'delete',
-  ): Promise<void> {
-    await outboxProcessor.enqueue({
-      entityType: 'customer',
-      entityId: customer.id,
-      operation,
-      data: { customerId: customer.id, localId: customer.localId },
-    });
-    await syncService.refreshPendingCount();
-  }
 }
 
 export const customerService = new CustomerService();

@@ -300,10 +300,12 @@ describe('Outbox stuck processing reclaim', () => {
     );
 
     const { outboxProcessor } = await import('@/shared/lib/sync/OutboxProcessor');
-    // pushBranch will fail (no branch mock entity) → failed queue
+    // Outbox is order-only: legacy master-data rows are dropped, not pushed.
     await outboxProcessor.processAll();
 
     expect(orders.get('order-unrelated')?.orderSyncStatus).toBe('sending');
+    expect(queueStore.has('queue-branch-1')).toBe(false);
+    expect(updateSyncStatusCalls).toHaveLength(0);
   });
 
   it('does not heal order that is already sent', async () => {

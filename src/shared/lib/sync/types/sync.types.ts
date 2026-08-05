@@ -24,6 +24,8 @@ export interface SyncPullStats {
   users: number;
   validation?: SyncPullValidation;
   full: boolean;
+  /** Full replace skipped because Firestore master data was empty while local had rows. */
+  skippedEmptyRemote?: boolean;
 }
 
 export interface SyncNowOptions {

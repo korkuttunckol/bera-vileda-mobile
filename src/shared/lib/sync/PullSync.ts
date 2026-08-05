@@ -117,7 +117,44 @@ async function replaceAllFromFirestore(
   remoteCustomers: Customer[],
   remoteProducts: Product[],
   remoteUsers: Awaited<ReturnType<typeof fetchAllUsersFromFirestore>>,
-): Promise<void> {
+): Promise<{ skippedEmptyRemote: boolean }> {
+  const localCounts = await readLoadedCounts();
+  const remoteMasterEmpty =
+    remoteCustomers.length === 0 && remoteProducts.length === 0;
+  const localMasterHasData =
+    localCounts.customers > 0 || localCounts.products > 0;
+
+  // Never wipe local master data with an empty Firestore snapshot (Excel import
+  // lives only in IndexedDB until the upload tool seeds the cloud).
+  if (remoteMasterEmpty && localMasterHasData) {
+    console.warn(
+      `[Sync] Empty Firestore master data — preserving local ` +
+        `${String(localCounts.customers)} cari / ${String(localCounts.products)} stok`,
+    );
+
+    logIndexedDbWriteStart();
+    const startedAt = Date.now();
+
+    // Users: only replace when remote has rows; otherwise keep local users too.
+    if (remoteUsers.length > 0) {
+      await db.transaction('rw', db.users, async () => {
+        await db.users.clear();
+        await db.users.bulkPut(remoteUsers);
+      });
+      logIndexedDbWriteEnd(
+        Date.now() - startedAt,
+        `master korundu · ${String(remoteUsers.length)} kullanıcı güncellendi`,
+      );
+    } else {
+      console.warn(
+        `[Sync] Empty Firestore users — preserving local ${String(localCounts.users)} kullanıcı`,
+      );
+      logIndexedDbWriteEnd(Date.now() - startedAt, 'master + users korundu (remote boş)');
+    }
+
+    return { skippedEmptyRemote: true };
+  }
+
   const customers = remoteCustomers.map(normalizeCustomer);
   const products = remoteProducts.map(normalizeProduct);
 
@@ -146,6 +183,8 @@ async function replaceAllFromFirestore(
     Date.now() - startedAt,
     `${String(customers.length)} cari, ${String(products.length)} stok, ${String(remoteUsers.length)} kullanıcı`,
   );
+
+  return { skippedEmptyRemote: false };
 }
 
 async function pullUsersFromFirestore(): Promise<
@@ -259,43 +298,74 @@ export class PullSync {
         const { customers: remoteCustomers, products: remoteProducts, users: remoteUsers } =
           await fetchAllCollectionsSerial();
 
-        await replaceAllFromFirestore(remoteCustomers, remoteProducts, remoteUsers);
+        const { skippedEmptyRemote } = await replaceAllFromFirestore(
+          remoteCustomers,
+          remoteProducts,
+          remoteUsers,
+        );
 
         const loaded = await readLoadedCounts();
-        const validation = buildPullValidation(
-          {
-            fetched: remoteCustomers.length,
-            written: remoteCustomers.length,
-            loaded: loaded.customers,
-          },
-          {
-            fetched: remoteProducts.length,
-            written: remoteProducts.length,
-            loaded: loaded.products,
-          },
-          {
-            fetched: remoteUsers.length,
-            written: remoteUsers.length,
-            loaded: loaded.users,
-          },
-          'full',
-        );
+        const validation = skippedEmptyRemote
+          ? {
+              customers: {
+                fetched: remoteCustomers.length,
+                written: 0,
+                loaded: loaded.customers,
+              },
+              products: {
+                fetched: remoteProducts.length,
+                written: 0,
+                loaded: loaded.products,
+              },
+              users: {
+                fetched: remoteUsers.length,
+                written: remoteUsers.length > 0 ? remoteUsers.length : 0,
+                loaded: loaded.users,
+              },
+              valid: true,
+              mode: 'full' as const,
+            }
+          : buildPullValidation(
+              {
+                fetched: remoteCustomers.length,
+                written: remoteCustomers.length,
+                loaded: loaded.customers,
+              },
+              {
+                fetched: remoteProducts.length,
+                written: remoteProducts.length,
+                loaded: loaded.products,
+              },
+              {
+                fetched: remoteUsers.length,
+                written: remoteUsers.length,
+                loaded: loaded.users,
+              },
+              'full',
+            );
         recordPullValidation(validation);
 
         await setMetaValue(META_KEYS.LAST_PULL_CUSTOMERS, now);
         await setMetaValue(META_KEYS.LAST_PULL_PRODUCTS, now);
-        await setMetaValue(META_KEYS.DATA_SOURCE_CUSTOMERS, 'firestore');
-        await setMetaValue(META_KEYS.DATA_SOURCE_PRODUCTS, 'firestore');
+        if (!skippedEmptyRemote) {
+          await setMetaValue(META_KEYS.DATA_SOURCE_CUSTOMERS, 'firestore');
+          await setMetaValue(META_KEYS.DATA_SOURCE_PRODUCTS, 'firestore');
+        }
         await setMetaValue(META_KEYS.INITIAL_SYNC_COMPLETE, 'true');
 
         logSyncComplete();
 
         return {
-          customers: remoteCustomers.length,
-          products: remoteProducts.length,
-          users: remoteUsers.length,
+          customers: skippedEmptyRemote
+            ? loaded.customers
+            : remoteCustomers.length,
+          products: skippedEmptyRemote
+            ? loaded.products
+            : remoteProducts.length,
+          users: skippedEmptyRemote ? loaded.users : remoteUsers.length,
           validation,
           full: true,
+          skippedEmptyRemote,
         };
       }
 

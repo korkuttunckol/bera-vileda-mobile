@@ -3,9 +3,11 @@ import { useDataStats } from '@/features/sync/hooks/useDataStats';
 import { useSyncStore } from '@/stores/syncStore';
 import { useOfflineStore } from '@/stores/offlineStore';
 import { formatLastSyncLabel } from '@/features/sync/utils/lastSyncFormat';
+import {
+  resolveSyncStatus,
+  type SyncRowStatus,
+} from '@/features/sync/utils/resolveSyncStatus';
 import { cn } from '@/shared/utils/cn';
-
-type SyncRowStatus = 'syncing' | 'success' | 'failed' | 'offline' | 'pending';
 
 interface SyncStatusPanelProps {
   compact?: boolean;
@@ -15,9 +17,10 @@ interface SyncStatusPanelProps {
 }
 
 interface SyncRowConfig {
-  key: string;
+  key: 'customers' | 'products' | 'users';
   label: string;
   count: number;
+  warnWhenEmpty: boolean;
 }
 
 const STATUS_LABELS: Record<SyncRowStatus, string> = {
@@ -26,6 +29,7 @@ const STATUS_LABELS: Record<SyncRowStatus, string> = {
   failed: 'Senkronizasyon başarısız',
   offline: 'Çevrimdışı',
   pending: 'Henüz senkronize edilmedi',
+  empty: 'Veri yok',
 };
 
 const STATUS_ICON: Record<SyncRowStatus, string> = {
@@ -34,6 +38,7 @@ const STATUS_ICON: Record<SyncRowStatus, string> = {
   failed: '🔴',
   offline: '🔴',
   pending: '🟡',
+  empty: '🟠',
 };
 
 const STATUS_TONE: Record<SyncRowStatus, string> = {
@@ -42,29 +47,8 @@ const STATUS_TONE: Record<SyncRowStatus, string> = {
   failed: 'text-red-700',
   offline: 'text-brand-gray-600',
   pending: 'text-brand-gray-500',
+  empty: 'text-amber-700',
 };
-
-function resolveSyncStatus(input: {
-  isOnline: boolean;
-  isSyncing: boolean;
-  isInitialSyncing: boolean;
-  lastSyncAt: string | null;
-  lastReportSuccess: boolean | null;
-}): SyncRowStatus {
-  if (input.isSyncing || input.isInitialSyncing) {
-    return 'syncing';
-  }
-  if (!input.isOnline) {
-    return 'offline';
-  }
-  if (input.lastReportSuccess === false) {
-    return 'failed';
-  }
-  if (input.lastSyncAt) {
-    return 'success';
-  }
-  return 'pending';
-}
 
 function SyncStatusRow({
   label,
@@ -82,7 +66,9 @@ function SyncStatusRow({
   const detail =
     status === 'syncing'
       ? 'Veriler güncelleniyor...'
-      : `${lastSyncLabel} · ${String(count)} kayıt`;
+      : status === 'empty'
+        ? `${lastSyncLabel} · 0 kayıt — Excel import / Firestore aktarım gerekli`
+        : `${lastSyncLabel} · ${String(count)} kayıt`;
 
   return (
     <div
@@ -130,35 +116,42 @@ export function SyncStatusPanel({
   const syncing = isSyncing || isInitialSyncing || storeSyncing || storeInitialSyncing;
   const lastSyncLabel = useMemo(() => formatLastSyncLabel(lastSyncAt), [lastSyncAt]);
 
-  const status = resolveSyncStatus({
-    isOnline,
-    isSyncing: syncing,
-    isInitialSyncing: false,
-    lastSyncAt,
-    lastReportSuccess: lastReport ? lastReport.success : null,
-  });
-
   const rows: SyncRowConfig[] = useMemo(() => {
     if (!stats) {
       return showUsers
         ? [
-            { key: 'customers', label: 'Cari Kartları', count: 0 },
-            { key: 'products', label: 'Stok Kartları', count: 0 },
-            { key: 'users', label: 'Kullanıcılar', count: 0 },
+            { key: 'customers', label: 'Cari Kartları', count: 0, warnWhenEmpty: true },
+            { key: 'products', label: 'Stok Kartları', count: 0, warnWhenEmpty: true },
+            { key: 'users', label: 'Kullanıcılar', count: 0, warnWhenEmpty: false },
           ]
         : [
-            { key: 'customers', label: 'Cari Kartları', count: 0 },
-            { key: 'products', label: 'Stok Kartları', count: 0 },
+            { key: 'customers', label: 'Cari Kartları', count: 0, warnWhenEmpty: true },
+            { key: 'products', label: 'Stok Kartları', count: 0, warnWhenEmpty: true },
           ];
     }
 
     const base: SyncRowConfig[] = [
-      { key: 'customers', label: 'Cari Kartları', count: stats.customerCount },
-      { key: 'products', label: 'Stok Kartları', count: stats.productCount },
+      {
+        key: 'customers',
+        label: 'Cari Kartları',
+        count: stats.customerCount,
+        warnWhenEmpty: true,
+      },
+      {
+        key: 'products',
+        label: 'Stok Kartları',
+        count: stats.productCount,
+        warnWhenEmpty: true,
+      },
     ];
 
     if (showUsers) {
-      base.push({ key: 'users', label: 'Kullanıcılar', count: stats.userCount });
+      base.push({
+        key: 'users',
+        label: 'Kullanıcılar',
+        count: stats.userCount,
+        warnWhenEmpty: false,
+      });
     }
 
     return base;
@@ -174,16 +167,28 @@ export function SyncStatusPanel({
 
   return (
     <div className={compact ? 'space-y-2' : 'space-y-2.5'}>
-      {rows.map((row) => (
-        <SyncStatusRow
-          key={row.key}
-          label={row.label}
-          count={row.count}
-          status={status}
-          lastSyncLabel={lastSyncLabel}
-          compact={compact}
-        />
-      ))}
+      {rows.map((row) => {
+        const status = resolveSyncStatus({
+          isOnline,
+          isSyncing: syncing,
+          isInitialSyncing: false,
+          lastSyncAt,
+          lastReportSuccess: lastReport ? lastReport.success : null,
+          count: row.count,
+          warnWhenEmpty: row.warnWhenEmpty,
+        });
+
+        return (
+          <SyncStatusRow
+            key={row.key}
+            label={row.label}
+            count={row.count}
+            status={status}
+            lastSyncLabel={lastSyncLabel}
+            compact={compact}
+          />
+        );
+      })}
     </div>
   );
 }
