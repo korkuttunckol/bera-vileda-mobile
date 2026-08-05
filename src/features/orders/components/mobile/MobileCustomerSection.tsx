@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { SearchInput } from '@/shared/components/form/SearchInput';
 import { EmptyState } from '@/shared/components/feedback/EmptyState';
 import { LoadingSpinner } from '@/shared/components/feedback/LoadingSpinner';
@@ -7,26 +7,37 @@ import {
   getRecentCustomers,
   type RecentCustomerPref,
 } from '@/features/orders/hooks/orderPrefs';
-import type { Customer } from '@/shared/types/customer.types';
+import { branchService } from '@/features/customers/services/branchService';
+import type { Customer, CustomerBranch } from '@/shared/types/customer.types';
 import { cn } from '@/shared/utils/cn';
+
+const CENTER_BRANCH = { id: 'main', name: 'Merkez' } as const;
 
 interface MobileCustomerSectionProps {
   selectedCustomerId?: string;
   selectedCustomerName?: string;
+  selectedBranchId?: string;
   selectedBranchName?: string;
   onSelectCustomer: (customer: Customer) => void;
+  onSelectBranch: (branchId: string, branchName: string) => void;
   onChangeCustomer: () => void;
 }
 
 export function MobileCustomerSection({
   selectedCustomerId,
   selectedCustomerName,
+  selectedBranchId,
   selectedBranchName,
   onSelectCustomer,
+  onSelectBranch,
   onChangeCustomer,
 }: MobileCustomerSectionProps) {
   const [search, setSearch] = useState('');
   const [pickerOpen, setPickerOpen] = useState(!selectedCustomerId);
+  const [branchPickerOpen, setBranchPickerOpen] = useState(false);
+  const [branches, setBranches] = useState<CustomerBranch[]>([]);
+  const [branchesLoading, setBranchesLoading] = useState(false);
+
   const { customers, allCustomers, isInitialLoading } =
     useCachedCustomers(search);
 
@@ -41,30 +52,111 @@ export function MobileCustomerSection({
       );
   }, [allCustomers]);
 
+  useEffect(() => {
+    if (!selectedCustomerId || !branchPickerOpen) return;
+    let cancelled = false;
+    setBranchesLoading(true);
+    void branchService
+      .listByCustomer(selectedCustomerId)
+      .then((rows) => {
+        if (!cancelled) {
+          setBranches(rows.filter((b) => b.isActive && !b.isDeleted));
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setBranchesLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedCustomerId, branchPickerOpen]);
+
   if (selectedCustomerId && !pickerOpen) {
     return (
-      <div className="rounded-2xl border border-brand-gray-200 bg-white p-3 shadow-sm">
+      <div className="space-y-2 rounded-2xl border border-brand-gray-200 bg-white p-3 shadow-sm">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-xs font-medium text-brand-gray-500">Müşteri</p>
             <p className="truncate text-base font-semibold text-brand-navy">
               {selectedCustomerName}
             </p>
-            <p className="mt-1 text-xs text-brand-gray-500">
-              Şube: {selectedBranchName ?? 'Merkez'}
-            </p>
           </div>
           <button
             type="button"
             onClick={() => {
               setPickerOpen(true);
+              setBranchPickerOpen(false);
               onChangeCustomer();
             }}
-            className="min-h-11 shrink-0 rounded-xl px-3 text-sm font-semibold text-brand-navy active:bg-brand-gray-100"
+            className="min-h-12 shrink-0 rounded-xl px-3 text-sm font-semibold text-brand-navy active:bg-brand-gray-100"
           >
             Değiştir
           </button>
         </div>
+
+        <button
+          type="button"
+          onClick={() => {
+            setBranchPickerOpen((open) => !open);
+          }}
+          className="flex min-h-12 w-full items-center justify-between rounded-xl bg-brand-gray-50 px-3 text-left active:bg-brand-gray-100"
+        >
+          <div className="min-w-0">
+            <p className="text-[11px] font-medium uppercase tracking-wide text-brand-gray-500">
+              Şube
+            </p>
+            <p className="truncate text-sm font-semibold text-brand-navy">
+              {selectedBranchName ?? 'Merkez'}
+            </p>
+          </div>
+          <span className="text-xs font-semibold text-brand-navy">
+            {branchPickerOpen ? 'Kapat' : 'Değiştir'}
+          </span>
+        </button>
+
+        {branchPickerOpen ? (
+          <div className="space-y-1 rounded-xl border border-brand-gray-100 p-1">
+            {branchesLoading ? (
+              <LoadingSpinner label="Şubeler..." />
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onSelectBranch(CENTER_BRANCH.id, CENTER_BRANCH.name);
+                    setBranchPickerOpen(false);
+                  }}
+                  className={cn(
+                    'flex min-h-12 w-full items-center rounded-xl px-3 text-left text-sm font-medium',
+                    selectedBranchId === CENTER_BRANCH.id
+                      ? 'bg-brand-navy text-white'
+                      : 'text-brand-navy active:bg-brand-gray-50',
+                  )}
+                >
+                  Merkez
+                </button>
+                {branches.map((branch) => (
+                  <button
+                    key={branch.id}
+                    type="button"
+                    onClick={() => {
+                      onSelectBranch(branch.id, branch.name);
+                      setBranchPickerOpen(false);
+                    }}
+                    className={cn(
+                      'flex min-h-12 w-full items-center rounded-xl px-3 text-left text-sm font-medium',
+                      selectedBranchId === branch.id
+                        ? 'bg-brand-navy text-white'
+                        : 'text-brand-navy active:bg-brand-gray-50',
+                    )}
+                  >
+                    {branch.name}
+                  </button>
+                ))}
+              </>
+            )}
+          </div>
+        ) : null}
       </div>
     );
   }
@@ -76,7 +168,7 @@ export function MobileCustomerSection({
         {selectedCustomerId ? (
           <button
             type="button"
-            className="min-h-11 px-2 text-sm font-medium text-brand-gray-500"
+            className="min-h-12 px-2 text-sm font-medium text-brand-gray-500"
             onClick={() => {
               setPickerOpen(false);
             }}
@@ -102,7 +194,7 @@ export function MobileCustomerSection({
                   setSearch('');
                 }}
                 className={cn(
-                  'min-h-11 shrink-0 rounded-full border px-4 text-sm font-medium',
+                  'min-h-12 shrink-0 rounded-full border px-4 text-sm font-medium',
                   selectedCustomerId === customer.id
                     ? 'border-brand-navy bg-brand-navy text-white'
                     : 'border-brand-gray-200 bg-brand-gray-50 text-brand-navy',

@@ -1,10 +1,13 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/shared/components/ui/Button';
 import { Input } from '@/shared/components/ui/Input';
 import { branchService } from '@/features/customers/services/branchService';
 import { orderService } from '@/features/orders/services/orderService';
-import { useOrderDraftPersist, clearPersistedOrderDraft } from '@/features/orders/hooks/useOrderDraftPersist';
+import {
+  useOrderDraftPersist,
+  clearPersistedOrderDraft,
+} from '@/features/orders/hooks/useOrderDraftPersist';
 import {
   rememberLastBranch,
   rememberRecentCustomer,
@@ -15,12 +18,12 @@ import { useOrderDraftStore } from '@/stores/orderDraftStore';
 import { useAuthStore } from '@/stores/authStore';
 import { toast } from '@/stores/toastStore';
 import { ROUTES } from '@/shared/constants/routes';
-import { formatCurrency } from '@/shared/utils/cn';
 import type { Customer } from '@/shared/types/customer.types';
 import type { Product } from '@/shared/types/product.types';
 import { MobileCustomerSection } from './MobileCustomerSection';
 import { MobileProductSection } from './MobileProductSection';
 import { MobileStickyCartBar } from './MobileStickyCartBar';
+import { MobileQtyStepper } from './MobileQtyStepper';
 
 const CENTER_BRANCH = { id: 'main', name: 'Merkez' } as const;
 
@@ -68,7 +71,6 @@ export function MobileOrderScreen() {
       return;
     }
 
-    // Unlock products immediately with Merkez; refine if exactly one active branch.
     selectBranch(CENTER_BRANCH.id, CENTER_BRANCH.name);
     rememberLastBranch(customer.id, {
       branchId: CENTER_BRANCH.id,
@@ -101,10 +103,37 @@ export function MobileOrderScreen() {
     setLastSavedOrderId(null);
   };
 
-  const handleAddProduct = (product: Product): void => {
-    addToCart(product, 1);
-    rememberRecentProduct(product.id);
+  const handleSelectBranch = (nextBranchId: string, nextBranchName: string): void => {
+    selectBranch(nextBranchId, nextBranchName);
+    if (customerId) {
+      rememberLastBranch(customerId, {
+        branchId: nextBranchId,
+        branchName: nextBranchName,
+      });
+    }
   };
+
+  const handleQuantityChange = useCallback(
+    (product: Product, quantity: number): void => {
+      const current = useOrderDraftStore
+        .getState()
+        .lines.find((line) => line.productId === product.id)?.quantity ?? 0;
+
+      if (quantity < 1) {
+        if (current > 0) removeLine(product.id);
+        return;
+      }
+
+      if (current === 0) {
+        addToCart(product, quantity);
+        rememberRecentProduct(product.id);
+        return;
+      }
+
+      updateLineQuantity(product.id, quantity);
+    },
+    [addToCart, removeLine, updateLineQuantity],
+  );
 
   const handleSave = async (): Promise<void> => {
     if (!user) return;
@@ -150,12 +179,14 @@ export function MobileOrderScreen() {
 
   return (
     <div className="pb-44">
-      <div className="space-y-4 p-4">
+      <div className="space-y-3 p-3">
         <MobileCustomerSection
           selectedCustomerId={customerId}
           selectedCustomerName={customerName}
+          selectedBranchId={branchId}
           selectedBranchName={branchName}
           onSelectCustomer={handleSelectCustomer}
+          onSelectBranch={handleSelectBranch}
           onChangeCustomer={() => {
             setShowCartLines(false);
           }}
@@ -164,7 +195,7 @@ export function MobileOrderScreen() {
         <MobileProductSection
           enabled={Boolean(customerId && branchId)}
           cartQtyByProductId={cartQtyByProductId}
-          onAddProduct={handleAddProduct}
+          onQuantityChange={handleQuantityChange}
         />
 
         {showCartLines && lines.length > 0 ? (
@@ -173,7 +204,7 @@ export function MobileOrderScreen() {
               <p className="text-sm font-semibold text-brand-navy">Sepet</p>
               <button
                 type="button"
-                className="min-h-11 px-2 text-sm text-brand-gray-500"
+                className="min-h-12 px-2 text-sm text-brand-gray-500"
                 onClick={() => {
                   setShowCartLines(false);
                 }}
@@ -181,49 +212,27 @@ export function MobileOrderScreen() {
                 Kapat
               </button>
             </div>
-            <ul className="space-y-2">
+            <ul className="space-y-1">
               {lines.map((line) => (
                 <li
                   key={line.productId}
-                  className="flex items-center gap-2 border-b border-brand-gray-100 py-2"
+                  className="flex items-center gap-2 border-b border-brand-gray-100 py-1.5"
                 >
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold text-brand-navy">
                       {line.productName}
                     </p>
-                    <p className="text-xs text-brand-gray-500">
-                      {formatCurrency(line.lineTotal)}
+                    <p className="truncate text-xs text-brand-gray-500">
+                      {line.productSku}
                     </p>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-gray-100 text-lg font-bold text-brand-navy active:bg-brand-gray-200"
-                      onClick={() => {
-                        if (line.quantity <= 1) {
-                          removeLine(line.productId);
-                        } else {
-                          updateLineQuantity(line.productId, line.quantity - 1);
-                        }
-                      }}
-                      aria-label="Azalt"
-                    >
-                      −
-                    </button>
-                    <span className="min-w-8 text-center text-base font-bold text-brand-navy">
-                      {line.quantity}
-                    </span>
-                    <button
-                      type="button"
-                      className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-gray-100 text-lg font-bold text-brand-navy active:bg-brand-gray-200"
-                      onClick={() => {
-                        updateLineQuantity(line.productId, line.quantity + 1);
-                      }}
-                      aria-label="Artır"
-                    >
-                      +
-                    </button>
-                  </div>
+                  <MobileQtyStepper
+                    value={line.quantity}
+                    min={1}
+                    onChange={(qty) => {
+                      updateLineQuantity(line.productId, qty);
+                    }}
+                  />
                 </li>
               ))}
             </ul>
@@ -245,7 +254,7 @@ export function MobileOrderScreen() {
             </p>
             <Button
               variant="outline"
-              className="mt-2 min-h-11 w-full"
+              className="mt-2 min-h-12 w-full"
               onClick={handleShare}
             >
               Paylaş

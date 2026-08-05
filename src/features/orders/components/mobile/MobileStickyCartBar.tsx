@@ -1,5 +1,4 @@
 import { Button } from '@/shared/components/ui/Button';
-import { formatCurrency } from '@/shared/utils/cn';
 import { useOrderTotals } from '@/features/orders/hooks/useOrderTotals';
 import { useOrderDraftStore } from '@/stores/orderDraftStore';
 
@@ -25,34 +24,31 @@ export function MobileStickyCartBar({
   const canSave = Boolean(customerId) && lineCount > 0 && !isSaving;
 
   return (
-    <div className="fixed bottom-16 left-0 right-0 z-30 border-t border-brand-gray-200 bg-white px-3 py-3 shadow-lg safe-area-bottom">
+    <div className="fixed bottom-16 left-0 right-0 z-30 border-t border-brand-gray-200 bg-white px-3 py-2.5 shadow-lg safe-area-bottom">
       <div className="app-shell space-y-2">
         <button
           type="button"
           onClick={onOpenCartLines}
-          className="flex min-h-11 w-full items-center justify-between rounded-xl bg-brand-gray-50 px-3 text-left active:bg-brand-gray-100"
+          className="flex min-h-12 w-full items-center justify-center gap-4 rounded-xl bg-brand-gray-50 px-3 text-sm font-semibold text-brand-navy active:bg-brand-gray-100 disabled:opacity-50"
           disabled={lineCount === 0}
         >
-          <span className="text-sm font-semibold text-brand-navy">
-            {totals.itemCount} adet · {totals.lineCount} kalem
-          </span>
-          <span className="text-sm font-bold text-brand-navy">
-            {formatCurrency(totals.grandTotal)}
-          </span>
+          <span>{totals.lineCount} Kalem</span>
+          <span className="text-brand-gray-300">·</span>
+          <span>{totals.itemCount} Adet</span>
         </button>
 
         <div className="flex gap-2">
           {lastSavedOrderId ? (
             <Button
               variant="outline"
-              className="min-h-11 flex-1"
+              className="min-h-12 flex-1"
               onClick={onShare}
             >
               Paylaş
             </Button>
           ) : null}
           <Button
-            className="min-h-11 flex-[2]"
+            className="min-h-12 flex-[2] uppercase tracking-wide"
             size="lg"
             isLoading={isSaving}
             disabled={!canSave}

@@ -1,49 +1,44 @@
-import { formatCurrency } from '@/shared/utils/cn';
 import { cn } from '@/shared/utils/cn';
 import type { Product } from '@/shared/types/product.types';
+import { MobileQtyStepper } from './MobileQtyStepper';
 
 interface MobileProductRowProps {
   product: Product;
-  inCartQty: number;
-  onAddOne: () => void;
+  quantity: number;
+  onQuantityChange: (quantity: number) => void;
+  /** Tighter row for favorites strip. */
+  compact?: boolean;
 }
 
 export function MobileProductRow({
   product,
-  inCartQty,
-  onAddOne,
+  quantity,
+  onQuantityChange,
+  compact = false,
 }: MobileProductRowProps) {
   return (
-    <div className="flex min-h-[72px] items-center gap-3 border-b border-brand-gray-100 py-3">
+    <div
+      className={cn(
+        'flex items-center gap-2 border-b border-brand-gray-100',
+        compact ? 'min-h-12 py-1.5' : 'min-h-14 py-2',
+      )}
+    >
       <div className="min-w-0 flex-1">
-        <p className="truncate text-[15px] font-semibold text-brand-navy">
+        <p
+          className={cn(
+            'truncate font-semibold text-brand-navy',
+            compact ? 'text-sm' : 'text-[15px]',
+          )}
+        >
           {product.name}
         </p>
-        <p className="mt-0.5 truncate text-xs text-brand-gray-500">
+        <p className="truncate text-xs text-brand-gray-500">
           {product.sku}
-          {product.barcode ? ` · ${product.barcode}` : ''}
-        </p>
-        <p className="mt-1 text-sm font-medium text-brand-navy">
-          {formatCurrency(product.listPrice)}
-          {inCartQty > 0 ? (
-            <span className="ml-2 text-xs font-semibold text-emerald-700">
-              Sepette {inCartQty}
-            </span>
-          ) : null}
+          <span className="text-brand-gray-400"> · </span>
+          Stok:{product.stockQuantity}
         </p>
       </div>
-      <button
-        type="button"
-        onClick={onAddOne}
-        className={cn(
-          'flex h-11 min-w-11 shrink-0 items-center justify-center rounded-xl',
-          'bg-brand-navy text-lg font-bold text-white',
-          'active:scale-95 active:bg-brand-navy-dark',
-        )}
-        aria-label={`${product.name} sepete ekle`}
-      >
-        +
-      </button>
+      <MobileQtyStepper value={quantity} onChange={onQuantityChange} min={0} />
     </div>
   );
 }
