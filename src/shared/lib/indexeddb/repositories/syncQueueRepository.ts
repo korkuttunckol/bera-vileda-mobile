@@ -70,6 +70,25 @@ class SyncQueueRepository {
     return db.syncQueue.where('idempotencyKey').equals(key).first();
   }
 
+  /**
+   * Aynı idempotencyKey ile processing durumunda olan BAŞKA bir kuyruk kaydı var mı?
+   * Mevcut item kendi kendini "processing" diye skip etmesin diye excludeItemId hariç tutulur.
+   */
+  async findOtherProcessingByIdempotencyKey(
+    key: string,
+    excludeItemId: string,
+  ): Promise<LocalSyncQueueItem | undefined> {
+    const item = await this.findByIdempotencyKey(key);
+    if (
+      item &&
+      item.status === 'processing' &&
+      item.id !== excludeItemId
+    ) {
+      return item;
+    }
+    return undefined;
+  }
+
   async findByEntityId(
     entityId: string,
   ): Promise<LocalSyncQueueItem | undefined> {

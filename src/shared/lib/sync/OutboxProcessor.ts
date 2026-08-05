@@ -70,6 +70,8 @@ export class OutboxProcessor {
   }
 
   private async processItem(item: LocalSyncQueueItem): Promise<ProcessItemResult> {
+    // Kilit: item processing olur. IdempotencyGuard currentQueueItemId ile
+    // bu kaydı self-skip etmez; yalnızca başka processing çakışmasında skip eder.
     await syncQueueRepository.markProcessing(item.id);
 
     const result = await pushSync.pushItem(item);

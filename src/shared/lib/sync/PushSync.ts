@@ -22,15 +22,12 @@ export class PushSync {
     const shouldSkip = await idempotencyGuard.shouldSkip(
       item.idempotencyKey,
       item.entityId,
+      { currentQueueItemId: item.id },
     );
     if (shouldSkip) {
-      if (item.entityType === 'order') {
-        await orderLocalRepository.updateSyncStatus(
-          item.entityId,
-          'sent',
-          'synced',
-        );
-      }
+      // Gerçek Firestore yazımı olmadan order'ı sent/synced yapma.
+      // Meşru skip'lerde (processed key, zaten sent, remote reconcile)
+      // yerel durum ya zaten doğru ya da IdempotencyGuard.reconcileLocalOrder günceller.
       return { status: 'skipped' };
     }
 
