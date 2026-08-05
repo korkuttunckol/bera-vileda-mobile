@@ -3,6 +3,7 @@ import { ORDER_REPORT_LAYOUT, ORDER_REPORT_TABLE_COLUMNS } from '../orderReportL
 import { loadOrderReportLogoAssets } from '../orderReportAssets';
 import type { OrderReportTemplateModel } from '../orderReportTemplateModel';
 import type ExcelJS from 'exceljs';
+import { buildLogoWingsTransferSheet } from './logoWingsTransferExcel';
 
 const { colors, excel, fonts } = ORDER_REPORT_LAYOUT;
 
@@ -259,41 +260,6 @@ async function renderReportSheetFromTemplate(
   return sheet;
 }
 
-function buildLogoTransferSheet(
-  workbook: ExcelJS.Workbook,
-  model: OrderReportTemplateModel,
-): ExcelJS.Worksheet {
-  const sheet = workbook.addWorksheet(ORDER_REPORT_LABELS.logoSheetName, {
-    views: [{ showGridLines: true }],
-  });
-
-  sheet.columns = [
-    { width: 14 },
-    { width: 24 },
-    { width: 18 },
-    { width: 16 },
-    { width: 10 },
-  ];
-
-  const headerRow = sheet.addRow([...ORDER_REPORT_LABELS.logoColumns]);
-  styleTableHeaderRow(headerRow);
-
-  model.customers.forEach((customer) => {
-    customer.tableRows.forEach((line) => {
-      const row = sheet.addRow([
-        customer.customerCode === '-' ? '' : customer.customerCode,
-        customer.branchName,
-        line.barcode === '-' ? '' : line.barcode,
-        line.productSku,
-        line.quantity,
-      ]);
-      styleTableBodyRow(row);
-    });
-  });
-
-  return sheet;
-}
-
 export async function renderOrderReportExcelFromTemplate(
   model: OrderReportTemplateModel,
 ): Promise<Blob> {
@@ -303,7 +269,7 @@ export async function renderOrderReportExcelFromTemplate(
   workbook.created = new Date();
 
   await renderReportSheetFromTemplate(workbook, model);
-  buildLogoTransferSheet(workbook, model);
+  buildLogoWingsTransferSheet(workbook, model);
 
   const buffer = await workbook.xlsx.writeBuffer();
   return new Blob([buffer], {

@@ -1,7 +1,7 @@
 export const APP_CONFIG = {
   name: 'BERA VİLEDA SİPARİŞ SİSTEMİ',
   shortName: 'BERA VİLEDA',
-  version: '1.1.0',
+  version: '2.0.0',
   description: 'Saha satış sipariş yönetim sistemi',
   locale: 'tr-TR',
   currency: 'TRY',

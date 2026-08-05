@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { Button } from '@/shared/components/ui/Button';
-import { cn } from '@/shared/utils/cn';
 import type { BulkOrderSelectionStats } from '../hooks/useBulkOrderSelection';
 import type { BulkOrderSendKind } from '../services/bulkOrderSendService';
 
@@ -22,6 +21,10 @@ const SEND_OPTIONS: BulkSendOption[] = [
   { kind: 'pdf', label: 'PDF Oluştur' },
   { kind: 'excel', label: 'Excel Oluştur' },
   { kind: 'whatsapp', label: 'WhatsApp ile Paylaş' },
+  {
+    kind: 'logo-wings',
+    label: 'Logo GO Wings Aktarım',
+  },
 ];
 
 const STAT_ROWS: Array<{
@@ -96,23 +99,12 @@ export function BulkSendPanel({
                 fullWidth
                 variant="outline"
                 isLoading={isProcessing}
-                disabled={isProcessing}
+                disabled={isProcessing || option.disabled}
                 onClick={() => void onSend(option.kind)}
               >
                 {option.label}
               </Button>
             ))}
-            <button
-              type="button"
-              disabled
-              className={cn(
-                'flex w-full items-center justify-between rounded-xl border border-brand-gray-200',
-                'bg-brand-gray-50 px-4 py-3 text-left text-sm text-brand-gray-400',
-              )}
-            >
-              <span>Logo GO Wings</span>
-              <span className="text-xs">İleride</span>
-            </button>
           </div>
         ) : null}
       </div>

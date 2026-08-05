@@ -6,6 +6,32 @@ Format [Keep a Changelog](https://keepachangelog.com/) standardına uygundur.
 
 ---
 
+## [2.0.0] - 2026-07-24
+
+### BERA Sipariş Sistemi v2 — Logo GO Wings & Firestore Rules
+
+#### Eklenen
+- **Logo GO Wings dosya adapter'ı** (`LogoWingsFileAdapter`) — `ErpPort` üzerinden manuel aktarım
+- **Logo Aktarım Excel** (`logoWingsTransferExcel.ts`) — Cari Kod | Şube | Barkod | Ürün Kodu | Miktar
+- Gönder ekranında **Logo GO Wings** seçeneği (tek sipariş)
+- Toplu gönderimde **Logo GO Wings Aktarım**
+- Sipariş detayında **Logo GO Wings Aktarım** paylaşımı
+- `exportToLogoGoWings` — aktarım dosyasını indirir / paylaşır
+- ERP factory (`src/shared/lib/erp/index.ts`)
+
+#### Değiştirilen
+- Firestore security rules: yerel login mimarisine uyumlu v2 kurallar (alan doğrulama)
+- Sync sonrası ERP durumu: Logo aktarımı beklerken `erpSyncStatus: pending` (artık `failed` değil)
+- NullErpAdapter: sync'i bozmayan deferred başarı modeli
+- Uygulama sürümü: **2.0.0**
+- `html2canvas` doğrudan bağımlılık olarak eklendi
+
+#### Korunan
+- Offline-first sipariş akışı, PDF/Excel/WhatsApp paylaşımı
+- Mevcut Excel içe aktarma (Ayarlar) Logo Wings formatı ile çalışmaya devam eder
+
+---
+
 ---
 
 ## [1.0.0-rc.4] - 2026-07-24

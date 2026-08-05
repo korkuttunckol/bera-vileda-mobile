@@ -2,6 +2,11 @@ export interface ErpExportResult {
   success: boolean;
   erpReferenceId?: string;
   errorMessage?: string;
+  /**
+   * true ise sipariş Firestore'a gitti; Logo GO Wings aktarımı
+   * kullanıcı tarafından manuel dosya ile tamamlanacak.
+   */
+  deferred?: boolean;
 }
 
 export interface ErpImportResult {

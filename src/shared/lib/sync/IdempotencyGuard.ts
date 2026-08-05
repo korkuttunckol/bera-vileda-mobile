@@ -7,15 +7,29 @@ import { orderLocalRepository } from '@/shared/lib/indexeddb/repositories/orderR
 import { findOrderByLocalId } from '@/shared/lib/firebase/firestoreService';
 import type { Order } from '@/shared/types/order.types';
 
+export interface IdempotencySkipOptions {
+  /** İşlenmekte olan kuyruk kaydının id'si — self-skip engeli için zorunlu */
+  currentQueueItemId: string;
+}
+
 export class IdempotencyGuard {
-  async shouldSkip(idempotencyKey: string, entityId: string): Promise<boolean> {
+  async shouldSkip(
+    idempotencyKey: string,
+    entityId: string,
+    options: IdempotencySkipOptions,
+  ): Promise<boolean> {
     if (await isIdempotencyKeyProcessed(idempotencyKey)) {
       return true;
     }
 
-    const queueItem =
-      await syncQueueRepository.findByIdempotencyKey(idempotencyKey);
-    if (queueItem?.status === 'processing') {
+    // Yalnızca BAŞKA bir kuyruk öğesi processing ise skip et.
+    // OutboxProcessor kendi item'ını processing yaptıktan sonra push ettiği için
+    // aynı id ile processing görünmesi self-skip sayılmaz (idempotency korunur).
+    const conflicting = await syncQueueRepository.findOtherProcessingByIdempotencyKey(
+      idempotencyKey,
+      options.currentQueueItemId,
+    );
+    if (conflicting) {
       return true;
     }
 

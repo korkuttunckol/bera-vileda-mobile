@@ -33,7 +33,8 @@ Bu dosya projenin **değişmeyecek** temel kurallarını tanımlar. Tüm gelişt
 
 - Doğrudan ERP API çağrısı yapılmaz.
 - Tüm ERP işlemleri `ErpPort` arayüzü üzerinden geçer.
-- REST veya SOAP fark etmeksizin adapter değiştirilebilir olmalıdır.
+- REST, SOAP veya dosya (Excel) fark etmeksizin adapter değiştirilebilir olmalıdır.
+- V2 varsayılan: `LogoWingsFileAdapter` (manuel Logo Aktarım Excel).
 
 ## 6. Excel İçe Aktarma — Rapor Zorunluluğu
 

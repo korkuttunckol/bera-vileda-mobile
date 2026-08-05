@@ -9,7 +9,7 @@ import { outboxProcessor } from '@/shared/lib/sync/OutboxProcessor';
 import { syncService } from '@/features/sync/services/syncService';
 import { calculateOrderTotals } from '@/features/orders/utils/orderCalculations';
 import { isFirebaseConfigured } from '@/config/env';
-import { erpAdapter } from '@/shared/lib/erp/adapters/NullErpAdapter';
+import { erpAdapter } from '@/shared/lib/erp';
 import type { Order, OrderLine, OrderHistoryFilter } from '@/shared/types/order.types';
 import type { OrderDraft } from '@/features/orders/types/orderFlow.types';
 import { UserRole } from '@/shared/types/role.types';
@@ -103,19 +103,23 @@ class OrderService {
       });
 
       const now = new Date().toISOString();
+      const erpSynced = erpResult.success && erpResult.deferred !== true;
+      const erpPending = erpResult.success && erpResult.deferred === true;
+      const nextErpStatus = erpSynced ? 'synced' : erpPending ? 'pending' : 'failed';
+
       await orderLocalRepository.save({
         ...order,
         orderSyncStatus: 'sent',
         syncStatus: 'synced',
-        erpSyncStatus: erpResult.success ? 'synced' : 'failed',
+        erpSyncStatus: nextErpStatus,
         erpId: erpResult.erpReferenceId,
         erpSyncError: erpResult.success ? undefined : erpResult.errorMessage,
-        erpSyncedAt: erpResult.success ? now : undefined,
+        erpSyncedAt: erpSynced ? now : undefined,
         updatedAt: now,
       });
       order.orderSyncStatus = 'sent';
       order.syncStatus = 'synced';
-      order.erpSyncStatus = erpResult.success ? 'synced' : 'failed';
+      order.erpSyncStatus = nextErpStatus;
     }
 
     syncService.notifyDataChanged();
