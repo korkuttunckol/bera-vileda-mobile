@@ -33,6 +33,27 @@ class SyncQueueRepository {
     return db.syncQueue.where('status').equals('failed').toArray();
   }
 
+  /**
+   * `processing` rows whose lastAttemptAt is older than leaseMs (stuck / crash).
+   * Items without lastAttemptAt are treated as stuck.
+   */
+  async findStuckProcessing(
+    leaseMs: number,
+    nowMs: number = Date.now(),
+  ): Promise<LocalSyncQueueItem[]> {
+    const processing = await db.syncQueue
+      .where('status')
+      .equals('processing')
+      .toArray();
+
+    return processing.filter((item) => {
+      if (!item.lastAttemptAt) return true;
+      const attemptedAt = Date.parse(item.lastAttemptAt);
+      if (Number.isNaN(attemptedAt)) return true;
+      return nowMs - attemptedAt >= leaseMs;
+    });
+  }
+
   async markProcessing(id: string): Promise<void> {
     await db.syncQueue.update(id, {
       status: 'processing',

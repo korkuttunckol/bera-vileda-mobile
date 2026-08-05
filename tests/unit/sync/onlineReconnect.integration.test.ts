@@ -96,6 +96,15 @@ vi.mock('@/shared/lib/indexeddb/repositories/syncQueueRepository', () => ({
     async getFailed() {
       return [...queueStore.values()].filter((row) => row.status === 'failed');
     },
+    async findStuckProcessing(leaseMs: number, nowMs: number = Date.now()) {
+      return [...queueStore.values()].filter((row) => {
+        if (row.status !== 'processing') return false;
+        if (!row.lastAttemptAt) return true;
+        const attemptedAt = Date.parse(row.lastAttemptAt);
+        if (Number.isNaN(attemptedAt)) return true;
+        return nowMs - attemptedAt >= leaseMs;
+      });
+    },
     async markProcessing(id: string) {
       const item = queueStore.get(id);
       if (!item) return;
@@ -111,6 +120,16 @@ vi.mock('@/shared/lib/indexeddb/repositories/syncQueueRepository', () => ({
       queueStore.set(id, {
         ...item,
         status: 'failed',
+        retryCount,
+        lastAttemptAt: new Date().toISOString(),
+      });
+    },
+    async resetToPending(id: string, retryCount: number) {
+      const item = queueStore.get(id);
+      if (!item) return;
+      queueStore.set(id, {
+        ...item,
+        status: 'pending',
         retryCount,
         lastAttemptAt: new Date().toISOString(),
       });

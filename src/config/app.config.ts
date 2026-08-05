@@ -15,5 +15,7 @@ export const DB_CONFIG = {
 export const SYNC_CONFIG = {
   maxRetries: 5,
   retryDelayMs: 3000,
+  /** Stuck `processing` lease — reclaim only after this age. */
+  processingLeaseMs: 120_000,
   autoSyncIntervalMs: 30_000,
 } as const;
