@@ -14,6 +14,9 @@ import type {
   SyncNowOptions,
 } from './types/sync.types';
 
+/** Online flapping'de çoklu sync engeli (ms). */
+export const ONLINE_RECONNECT_DEBOUNCE_MS = 1_500;
+
 export interface ISyncEngine {
   start(): void;
   stop(): void;
@@ -26,14 +29,29 @@ type SyncListener = (report: SyncReport) => void;
 export class SyncEngine implements ISyncEngine {
   private intervalId: ReturnType<typeof setInterval> | null = null;
   private onlineHandler: (() => void) | null = null;
+  private onlineReconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private activeSync: Promise<SyncResult> | null = null;
   private listeners: SyncListener[] = [];
 
   start(): void {
-    // Arka plan senkronizasyonu AppProviders üzerinden syncService ile yönetilir.
+    if (typeof window === 'undefined') {
+      return;
+    }
+    if (this.onlineHandler) {
+      return;
+    }
+
+    this.onlineHandler = () => {
+      this.scheduleOnlineReconnect();
+    };
+    window.addEventListener('online', this.onlineHandler);
   }
 
   stop(): void {
+    if (this.onlineReconnectTimer !== null) {
+      clearTimeout(this.onlineReconnectTimer);
+      this.onlineReconnectTimer = null;
+    }
     if (this.onlineHandler) {
       window.removeEventListener('online', this.onlineHandler);
       this.onlineHandler = null;
@@ -42,6 +60,16 @@ export class SyncEngine implements ISyncEngine {
       clearInterval(this.intervalId);
       this.intervalId = null;
     }
+  }
+
+  private scheduleOnlineReconnect(): void {
+    if (this.onlineReconnectTimer !== null) {
+      clearTimeout(this.onlineReconnectTimer);
+    }
+    this.onlineReconnectTimer = setTimeout(() => {
+      this.onlineReconnectTimer = null;
+      void this.syncNow('online_reconnect');
+    }, ONLINE_RECONNECT_DEBOUNCE_MS);
   }
 
   onReport(listener: SyncListener): () => void {
