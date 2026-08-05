@@ -1,8 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { branchLocalRepository } from '@/shared/lib/indexeddb/repositories/branchRepository';
 import { customerLocalRepository } from '@/shared/lib/indexeddb/repositories/customerRepository';
-import { outboxProcessor } from '@/shared/lib/sync/OutboxProcessor';
-import { syncService } from '@/features/sync/services/syncService';
 import type { CustomerBranch } from '@/shared/types/customer.types';
 import type { BranchFormValues } from '@/shared/types/customer.schema';
 
@@ -45,8 +43,8 @@ class BranchService {
       version: 1,
     };
 
+    // Master data sync uses Settings → Yerel Verileri Firestore'a Aktar (not outbox).
     await branchLocalRepository.save(branch);
-    await this.enqueueSync(branch, 'create');
     return branch;
   }
 
@@ -73,8 +71,8 @@ class BranchService {
       syncStatus: 'pending',
     };
 
+    // Master data sync uses Settings → Yerel Verileri Firestore'a Aktar (not outbox).
     await branchLocalRepository.save(branch);
-    await this.enqueueSync(branch, 'update');
     return branch;
   }
 
@@ -93,8 +91,8 @@ class BranchService {
       syncStatus: 'pending',
     };
 
+    // Master data sync uses Settings → Yerel Verileri Firestore'a Aktar (not outbox).
     await branchLocalRepository.save(branch);
-    await this.enqueueSync(branch, 'delete');
   }
 
   toFormValues(branch: CustomerBranch): BranchFormValues {
@@ -107,21 +105,6 @@ class BranchService {
     };
   }
 
-  private async enqueueSync(
-    branch: CustomerBranch,
-    operation: 'create' | 'update' | 'delete',
-  ): Promise<void> {
-    await outboxProcessor.enqueue({
-      entityType: 'branch',
-      entityId: branch.id,
-      operation,
-      data: {
-        branchId: branch.id,
-        customerId: branch.customerId,
-      },
-    });
-    await syncService.refreshPendingCount();
-  }
 }
 
 export const branchService = new BranchService();
