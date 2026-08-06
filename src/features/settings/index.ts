@@ -13,3 +13,4 @@ export { OrderSettingsPage } from './components/OrderSettingsPage';
 export { SyncSettingsPage } from './components/SyncSettingsPage';
 export { LocalDataFirestoreUploadPage } from './components/LocalDataFirestoreUploadPage';
 export { UsersManagementPage } from './components/UsersManagementPage';
+export { UserFormPage } from '@/features/users/components/UserFormPage';

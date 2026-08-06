@@ -30,6 +30,8 @@ export async function getDevUsers(): Promise<AppUser[]> {
       name: seed.name,
       role: seed.role,
       active: true,
+      isDeleted: false,
+      syncStatus: 'synced' as const,
       createdAt: now,
       updatedAt: now,
     })),

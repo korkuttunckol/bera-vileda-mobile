@@ -129,13 +129,30 @@ class BeraViledaDatabase extends Dexie {
       products: 'id, sku, name, syncStatus, erpId, barcode',
     });
 
-    this.version(DB_CONFIG.version).stores({
+    this.version(6).stores({
       meta: 'key',
       syncQueue:
         'id, entityType, entityId, idempotencyKey, status, createdAt',
       syncReports: 'id, startedAt, success',
       importLogs: 'id, type, startedAt, success',
       users: 'id, userCode, role, active',
+      orders:
+        'id, localId, customerId, branchId, salesRepId, status, syncStatus, orderSyncStatus, erpId, isDeleted, createdAt',
+      orderLines: 'id, orderId, productId, erpId',
+      customers:
+        'id, code, name, salesRepId, syncStatus, erpId, isActive, isDeleted',
+      branches:
+        'id, customerId, name, isActive, isDeleted, syncStatus, erpId',
+      products: 'id, sku, name, syncStatus, erpId, barcode',
+    });
+
+    this.version(DB_CONFIG.version).stores({
+      meta: 'key',
+      syncQueue:
+        'id, entityType, entityId, idempotencyKey, status, createdAt',
+      syncReports: 'id, startedAt, success',
+      importLogs: 'id, type, startedAt, success',
+      users: 'id, userCode, role, active, syncStatus, isDeleted',
       orders:
         'id, localId, customerId, branchId, salesRepId, status, syncStatus, orderSyncStatus, erpId, isDeleted, createdAt',
       orderLines: 'id, orderId, productId, erpId',

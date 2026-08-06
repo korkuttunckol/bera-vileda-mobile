@@ -17,6 +17,16 @@ vi.mock('@/config/env', () => ({
   isFirebaseConfigured: () => true,
 }));
 
+vi.mock('@/features/users/services/userPushService', () => ({
+  pushPendingUsers: vi.fn(async () => ({
+    total: 0,
+    synced: 0,
+    failed: 0,
+    errors: [],
+  })),
+}));
+
+
 vi.mock('@/shared/lib/sync/OutboxProcessor', () => ({
   outboxProcessor: {
     processAll: () => processAll(),

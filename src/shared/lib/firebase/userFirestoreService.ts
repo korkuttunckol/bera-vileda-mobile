@@ -4,7 +4,6 @@ import {
   getDoc,
   getDocs,
   setDoc,
-  deleteDoc,
   Timestamp,
 } from 'firebase/firestore';
 import { getFirestoreDb } from './firestore';
@@ -13,12 +12,11 @@ import {
   getFirestoreErrorMessage,
   logFirestoreError,
 } from './firestoreUtils';
-import { hashPassword } from '@/shared/lib/crypto/passwordService';
+import { omitUndefinedDeep } from './converters';
 import {
+  normalizeAppUser,
   normalizeUserCode,
   type AppUser,
-  type CreateUserInput,
-  type UpdateUserInput,
 } from '@/shared/types/user.types';
 import { parseUserRole } from '@/shared/types/role.types';
 
@@ -42,16 +40,43 @@ function mapFirestoreUser(id: string, data: Record<string, unknown>): AppUser | 
   const role = parseUserRole(data.role);
   if (!role) return null;
 
-  return {
+  return normalizeAppUser({
     id,
     userCode: readString(data.userCode, id),
     passwordHash: readString(data.passwordHash),
     name: readString(data.name),
     role,
     active: data.active !== false,
+    phone: readString(data.phone) || undefined,
+    email: readString(data.email) || undefined,
+    description: readString(data.description) || undefined,
+    isDeleted: data.isDeleted === true,
+    deletedAt: data.deletedAt
+      ? timestampToIso(data.deletedAt as Timestamp | string)
+      : undefined,
+    syncStatus: 'synced',
     createdAt: timestampToIso(data.createdAt as Timestamp | string | undefined),
     updatedAt: timestampToIso(data.updatedAt as Timestamp | string | undefined),
-  };
+  });
+}
+
+function toFirestorePayload(user: AppUser): Record<string, unknown> {
+  return omitUndefinedDeep({
+    userCode: user.userCode,
+    passwordHash: user.passwordHash,
+    name: user.name,
+    role: user.role,
+    active: user.active,
+    phone: user.phone,
+    email: user.email,
+    description: user.description,
+    isDeleted: user.isDeleted,
+    deletedAt: user.deletedAt
+      ? Timestamp.fromDate(new Date(user.deletedAt))
+      : null,
+    createdAt: Timestamp.fromDate(new Date(user.createdAt)),
+    updatedAt: Timestamp.fromDate(new Date(user.updatedAt)),
+  });
 }
 
 export async function fetchUserByCodeFromFirestore(
@@ -101,7 +126,11 @@ export async function fetchAllUsersFromFirestore(): Promise<AppUser[]> {
   }
 }
 
-export async function createUserInFirestore(input: CreateUserInput): Promise<AppUser> {
+/**
+ * Upsert by business key (`userCode` = Firestore document id).
+ * Same key always updates the same document — no UUID duplicates.
+ */
+export async function upsertUserToFirestore(user: AppUser): Promise<AppUser> {
   const db = getFirestoreDb();
   if (!db) {
     throw new Error('Firestore bağlantısı kurulamadı.');
@@ -109,118 +138,18 @@ export async function createUserInFirestore(input: CreateUserInput): Promise<App
 
   assertOnlineForFirestoreWrite();
 
-  const userCode = normalizeUserCode(input.userCode);
-  const existing = await fetchUserByCodeFromFirestore(userCode);
-  if (existing) {
-    throw new Error('Bu kullanıcı kodu Firestore üzerinde zaten kayıtlı.');
+  const normalized = normalizeAppUser(user);
+  const ref = doc(db, USERS_COLLECTION, normalized.userCode);
+
+  try {
+    await setDoc(ref, toFirestorePayload(normalized));
+  } catch (error) {
+    logFirestoreError('Kullanıcı yazma hatası', error);
+    throw new Error(getFirestoreErrorMessage(error));
   }
 
-  const now = Timestamp.now();
-  const passwordHash = await hashPassword(input.password);
-
-  const user: AppUser = {
-    id: userCode,
-    userCode,
-    passwordHash,
-    name: input.name.trim(),
-    role: input.role,
-    active: input.active ?? true,
-    createdAt: now.toDate().toISOString(),
-    updatedAt: now.toDate().toISOString(),
+  return {
+    ...normalized,
+    syncStatus: 'synced',
   };
-
-  try {
-    await setDoc(doc(db, USERS_COLLECTION, userCode), {
-      userCode,
-      passwordHash,
-      name: user.name,
-      role: user.role,
-      active: user.active,
-      createdAt: now,
-      updatedAt: now,
-    });
-  } catch (error) {
-    logFirestoreError('Kullanıcı oluşturma hatası', error);
-    throw new Error(getFirestoreErrorMessage(error));
-  }
-
-  return user;
-}
-
-export async function updateUserInFirestore(
-  userCode: string,
-  input: UpdateUserInput,
-): Promise<AppUser> {
-  const db = getFirestoreDb();
-  if (!db) {
-    throw new Error('Firestore bağlantısı kurulamadı.');
-  }
-
-  assertOnlineForFirestoreWrite();
-
-  const normalizedCode = normalizeUserCode(userCode);
-  const ref = doc(db, USERS_COLLECTION, normalizedCode);
-
-  const existing = await getDoc(ref);
-  if (!existing.exists()) {
-    throw new Error('Kullanıcı bulunamadı.');
-  }
-
-  const current = mapFirestoreUser(existing.id, existing.data());
-  if (!current) {
-    throw new Error('Kullanıcı verisi okunamadı.');
-  }
-
-  const now = Timestamp.now();
-  const nextPasswordHash = input.password
-    ? await hashPassword(input.password)
-    : current.passwordHash;
-
-  const updated: AppUser = {
-    ...current,
-    name: input.name?.trim() ?? current.name,
-    role: input.role ?? current.role,
-    active: input.active ?? current.active,
-    passwordHash: nextPasswordHash,
-    updatedAt: now.toDate().toISOString(),
-  };
-
-  try {
-    await setDoc(ref, {
-      userCode: updated.userCode,
-      passwordHash: updated.passwordHash,
-      name: updated.name,
-      role: updated.role,
-      active: updated.active,
-      createdAt: Timestamp.fromDate(new Date(current.createdAt)),
-      updatedAt: now,
-    });
-  } catch (error) {
-    logFirestoreError('Kullanıcı güncelleme hatası', error);
-    throw new Error(getFirestoreErrorMessage(error));
-  }
-
-  return updated;
-}
-
-export async function deleteUserFromFirestore(userCode: string): Promise<void> {
-  const db = getFirestoreDb();
-  if (!db) {
-    throw new Error('Firestore bağlantısı kurulamadı.');
-  }
-
-  assertOnlineForFirestoreWrite();
-
-  const normalizedCode = normalizeUserCode(userCode);
-  const ref = doc(db, USERS_COLLECTION, normalizedCode);
-
-  console.info('[Firestore] deleteDoc çağrılıyor:', normalizedCode);
-
-  try {
-    await deleteDoc(ref);
-    console.info('[Firestore] deleteDoc tamamlandı:', normalizedCode);
-  } catch (error) {
-    logFirestoreError(`Kullanıcı silme hatası (${normalizedCode})`, error);
-    throw new Error(getFirestoreErrorMessage(error));
-  }
 }

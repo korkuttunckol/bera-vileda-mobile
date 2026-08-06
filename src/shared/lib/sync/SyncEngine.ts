@@ -5,6 +5,7 @@ import { META_KEYS, setMetaValue } from '@/shared/lib/indexeddb/db';
 import { saveSyncLog } from '@/shared/lib/firebase/firestoreService';
 import { outboxProcessor } from './OutboxProcessor';
 import { pullSync } from './PullSync';
+import { pushPendingUsers } from '@/features/users/services/userPushService';
 import { buildSyncReport, saveAndNotifySyncReport } from './syncReportBuilder';
 import { logSyncFailed } from './syncPullLogger';
 import type {
@@ -124,6 +125,18 @@ export class SyncEngine implements ISyncEngine {
     try {
       if (navigator.onLine) {
         if (isFirebaseConfigured()) {
+          // Push pending users before pull so offline edits are not overwritten.
+          const userPush = await pushPendingUsers();
+          for (const error of userPush.errors) {
+            errors.push({
+              entityType: 'user',
+              entityId: error.userCode,
+              idempotencyKey: `user:${error.userCode}`,
+              message: error.message,
+              timestamp: new Date().toISOString(),
+            });
+          }
+
           pullStats = await pullSync.pullAll({ full: shouldFullSync });
         }
 

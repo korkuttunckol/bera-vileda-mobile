@@ -29,6 +29,7 @@ service cloud.firestore {
         && isNonEmptyString(data.passwordHash)
         && data.role in ['admin', 'merch']
         && data.active is bool
+        && (!('isDeleted' in data) || data.isDeleted is bool)
         && hasTimestamps(data);
     }
 

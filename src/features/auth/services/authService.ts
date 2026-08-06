@@ -80,7 +80,7 @@ class AuthService {
       );
     }
 
-    if (!user.active) {
+    if (!user.active || user.isDeleted) {
       throw new Error(INACTIVE_USER_MESSAGE);
     }
 

@@ -7,7 +7,13 @@ import {
 } from '@/shared/lib/indexeddb/db';
 import { customerLocalRepository } from '@/shared/lib/indexeddb/repositories/customerRepository';
 import { productLocalRepository } from '@/shared/lib/indexeddb/repositories/productRepository';
+import { userLocalRepository } from '@/shared/lib/indexeddb/repositories/userRepository';
 import { fetchAllUsersFromFirestore } from '@/shared/lib/firebase/userFirestoreService';
+import {
+  normalizeAppUser,
+  normalizeUserCode,
+  type AppUser,
+} from '@/shared/types/user.types';
 import {
   pullAllCustomers,
   pullAllProducts,
@@ -57,6 +63,56 @@ function normalizeProduct(remote: Product): Product {
     ...remote,
     syncStatus: 'synced',
   };
+}
+
+function normalizeRemoteUser(remote: AppUser): AppUser {
+  return normalizeAppUser({
+    ...remote,
+    syncStatus: 'synced',
+  });
+}
+
+/**
+ * Merge remote users by business key (userCode).
+ * Preserve local pending/failed rows that are newer or not yet on remote.
+ */
+export async function mergeUsersFromRemote(remotes: AppUser[]): Promise<number> {
+  const locals = await userLocalRepository.findAll();
+  const localByCode = new Map(
+    locals.map((user) => [normalizeUserCode(user.userCode), user]),
+  );
+  const remoteByCode = new Map(
+    remotes.map((user) => {
+      const normalized = normalizeRemoteUser(user);
+      return [normalized.userCode, normalized] as const;
+    }),
+  );
+
+  const merged: AppUser[] = [];
+
+  for (const [code, remote] of remoteByCode) {
+    const local = localByCode.get(code);
+    if (
+      local &&
+      (local.syncStatus === 'pending' || local.syncStatus === 'failed') &&
+      local.updatedAt >= remote.updatedAt
+    ) {
+      merged.push(local);
+    } else {
+      merged.push(remote);
+    }
+  }
+
+  for (const local of locals) {
+    const code = normalizeUserCode(local.userCode);
+    if (remoteByCode.has(code)) continue;
+    if (local.syncStatus === 'pending' || local.syncStatus === 'failed') {
+      merged.push(local);
+    }
+  }
+
+  await userLocalRepository.replaceAll(merged);
+  return merged.length;
 }
 
 async function mergeCustomersBatch(remotes: Customer[]): Promise<void> {
@@ -135,15 +191,12 @@ async function replaceAllFromFirestore(
     logIndexedDbWriteStart();
     const startedAt = Date.now();
 
-    // Users: only replace when remote has rows; otherwise keep local users too.
+    // Users: merge when remote has rows; otherwise keep local users too.
     if (remoteUsers.length > 0) {
-      await db.transaction('rw', db.users, async () => {
-        await db.users.clear();
-        await db.users.bulkPut(remoteUsers);
-      });
+      const userCount = await mergeUsersFromRemote(remoteUsers);
       logIndexedDbWriteEnd(
         Date.now() - startedAt,
-        `master korundu · ${String(remoteUsers.length)} kullanıcı güncellendi`,
+        `master korundu · ${String(userCount)} kullanıcı birleştirildi`,
       );
     } else {
       console.warn(
@@ -161,12 +214,11 @@ async function replaceAllFromFirestore(
   logIndexedDbWriteStart();
   const startedAt = Date.now();
 
-  // Full replace only refreshes customers/products/users. Branches stay local until a
-  // dedicated branch pull exists — clearing them here wiped offline branch data.
-  await db.transaction('rw', [db.customers, db.products, db.users], async () => {
+  // Full replace refreshes customers/products. Users merge by userCode and keep
+  // pending local edits. Branches stay local until a dedicated branch pull exists.
+  await db.transaction('rw', [db.customers, db.products], async () => {
     await db.customers.clear();
     await db.products.clear();
-    await db.users.clear();
 
     if (customers.length > 0) {
       await db.customers.bulkPut(customers);
@@ -174,14 +226,13 @@ async function replaceAllFromFirestore(
     if (products.length > 0) {
       await db.products.bulkPut(products);
     }
-    if (remoteUsers.length > 0) {
-      await db.users.bulkPut(remoteUsers);
-    }
   });
+
+  const userCount = await mergeUsersFromRemote(remoteUsers);
 
   logIndexedDbWriteEnd(
     Date.now() - startedAt,
-    `${String(customers.length)} cari, ${String(products.length)} stok, ${String(remoteUsers.length)} kullanıcı`,
+    `${String(customers.length)} cari, ${String(products.length)} stok, ${String(userCount)} kullanıcı`,
   );
 
   return { skippedEmptyRemote: false };
@@ -380,15 +431,10 @@ export class PullSync {
 
       logIndexedDbWriteStart();
       const usersWriteStartedAt = Date.now();
-      await db.transaction('rw', db.users, async () => {
-        await db.users.clear();
-        if (remoteUsers.length > 0) {
-          await db.users.bulkPut(remoteUsers);
-        }
-      });
+      const userCount = await mergeUsersFromRemote(remoteUsers);
       logIndexedDbWriteEnd(
         Date.now() - usersWriteStartedAt,
-        `${String(remoteUsers.length)} kullanıcı`,
+        `${String(userCount)} kullanıcı`,
       );
 
       const loaded = await readLoadedCounts();

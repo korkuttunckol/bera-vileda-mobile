@@ -47,7 +47,7 @@ class DataStatsService {
     const [allCustomers, activeProducts, users, sources] = await Promise.all([
       customerLocalRepository.getAll(),
       productLocalRepository.findActiveNotDeleted(),
-      userLocalRepository.findAll(),
+      userLocalRepository.findAllNotDeleted(),
       readDataSources(),
     ]);
 

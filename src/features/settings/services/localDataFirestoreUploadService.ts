@@ -6,11 +6,13 @@ import {
 import { isFirebaseConfigured } from '@/config/env';
 import { customerLocalRepository } from '@/shared/lib/indexeddb/repositories/customerRepository';
 import { productLocalRepository } from '@/shared/lib/indexeddb/repositories/productRepository';
+import { userLocalRepository } from '@/shared/lib/indexeddb/repositories/userRepository';
 import { getFirestoreDb } from '@/shared/lib/firebase/firestore';
 import {
   pullAllCustomers,
   pullAllProducts,
 } from '@/shared/lib/firebase/firestoreService';
+import { upsertUserToFirestore } from '@/shared/lib/firebase/userFirestoreService';
 import {
   customerConverter,
   productConverter,
@@ -18,6 +20,7 @@ import {
 import { getFirestoreErrorMessage } from '@/shared/lib/firebase/firestoreUtils';
 import type { Customer } from '@/shared/types/customer.types';
 import type { Product } from '@/shared/types/product.types';
+import type { AppUser } from '@/shared/types/user.types';
 
 const FIRESTORE_BATCH_SIZE = 500;
 
@@ -37,6 +40,7 @@ export interface FirestoreUploadEntityResult {
 export interface LocalDataFirestoreUploadResult {
   customers: FirestoreUploadEntityResult;
   products: FirestoreUploadEntityResult;
+  users: FirestoreUploadEntityResult;
 }
 
 /** Normalize business keys the same way Excel import does. */
@@ -391,6 +395,32 @@ async function uploadProducts(
   };
 }
 
+async function uploadUsers(users: AppUser[]): Promise<FirestoreUploadEntityResult> {
+  const failures: FirestoreUploadFailure[] = [];
+  const written: AppUser[] = [];
+
+  for (const user of users) {
+    try {
+      const synced = await upsertUserToFirestore(user);
+      written.push(synced);
+      await userLocalRepository.upsert(synced);
+    } catch (error) {
+      failures.push({
+        id: user.id,
+        label: user.userCode,
+        message: getFirestoreErrorMessage(error),
+      });
+    }
+  }
+
+  return {
+    total: users.length,
+    written: written.length,
+    failed: failures.length,
+    failures,
+  };
+}
+
 class LocalDataFirestoreUploadService {
   async uploadAllFromIndexedDb(): Promise<LocalDataFirestoreUploadResult> {
     if (!navigator.onLine) {
@@ -401,20 +431,23 @@ class LocalDataFirestoreUploadService {
       throw new Error('Firebase yapılandırması eksik.');
     }
 
-    const [customers, products, remoteCustomers, remoteProducts] =
+    const [customers, products, users, remoteCustomers, remoteProducts] =
       await Promise.all([
         customerLocalRepository.getAll(),
         productLocalRepository.getAll(),
+        userLocalRepository.findAll(),
         pullAllCustomers(),
         pullAllProducts(),
       ]);
 
     const customerResult = await uploadCustomers(customers, remoteCustomers);
     const productResult = await uploadProducts(products, remoteProducts);
+    const userResult = await uploadUsers(users);
 
     return {
       customers: customerResult,
       products: productResult,
+      users: userResult,
     };
   }
 }

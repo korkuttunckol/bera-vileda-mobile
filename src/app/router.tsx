@@ -31,6 +31,7 @@ import {
   SyncSettingsPage,
   LocalDataFirestoreUploadPage,
   UsersManagementPage,
+  UserFormPage,
 } from '@/features/settings';
 import { OrderDetailPage } from '@/features/orders/components/OrderDetailPage';
 import { SendOrderPage } from '@/features/orders/components/SendOrderPage';
@@ -243,6 +244,22 @@ export const router = createBrowserRouter([
             element: (
               <AdminRoute>
                 <UsersManagementPage />
+              </AdminRoute>
+            ),
+          },
+          {
+            path: ROUTES.SETTINGS_USER_NEW,
+            element: (
+              <AdminRoute>
+                <UserFormPage />
+              </AdminRoute>
+            ),
+          },
+          {
+            path: ROUTES.SETTINGS_USER_EDIT,
+            element: (
+              <AdminRoute>
+                <UserFormPage />
               </AdminRoute>
             ),
           },
