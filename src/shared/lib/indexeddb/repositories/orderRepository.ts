@@ -110,10 +110,12 @@ export function filterOrdersByStatus(
 
   switch (filter) {
     case 'pending':
+      // Align with countPendingOrders: waiting + failed need attention.
       result = result.filter(
         (o) =>
           o.orderSyncStatus === 'pending_offline' ||
-          o.orderSyncStatus === 'sending',
+          o.orderSyncStatus === 'sending' ||
+          o.orderSyncStatus === 'failed',
       );
       break;
     case 'sent':

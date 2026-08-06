@@ -2,14 +2,20 @@ import { v4 as uuidv4 } from 'uuid';
 import {
   productLocalRepository,
   filterProducts,
+  type ProductActiveFilter,
 } from '@/shared/lib/indexeddb/repositories/productRepository';
 import type { Product } from '@/shared/types/product.types';
 import type { ProductFormValues } from '@/shared/types/product.schema';
 
+export type { ProductActiveFilter };
+
 class ProductService {
-  async list(search?: string): Promise<Product[]> {
-    const all = await productLocalRepository.findActiveNotDeleted();
-    return filterProducts(all, { search });
+  async list(
+    search?: string,
+    activeFilter: ProductActiveFilter = 'all',
+  ): Promise<Product[]> {
+    const all = await productLocalRepository.getAll();
+    return filterProducts(all, { search, activeFilter });
   }
 
   async getById(id: string): Promise<Product | undefined> {
@@ -68,7 +74,8 @@ class ProductService {
       createdBy: userId,
       updatedBy: userId,
       version: 1,
-      syncStatus: 'synced',
+      // Master data sync uses Settings → Yerel Verileri Firestore'a Aktar.
+      syncStatus: 'pending',
     };
 
     await productLocalRepository.save(product);
@@ -105,10 +112,32 @@ class ProductService {
       updatedAt: new Date().toISOString(),
       updatedBy: userId,
       version: existing.version + 1,
+      syncStatus: 'pending',
     };
 
     await productLocalRepository.save(product);
     return product;
+  }
+
+  async softDelete(id: string, userId: string): Promise<void> {
+    const existing = await productLocalRepository.getById(id);
+    if (!existing || existing.isDeleted) {
+      throw new Error('Ürün bulunamadı.');
+    }
+
+    const now = new Date().toISOString();
+    const product: Product = {
+      ...existing,
+      isDeleted: true,
+      isActive: false,
+      deletedAt: now,
+      updatedAt: now,
+      updatedBy: userId,
+      version: existing.version + 1,
+      syncStatus: 'pending',
+    };
+
+    await productLocalRepository.save(product);
   }
 
   async saveMany(products: Product[]): Promise<void> {

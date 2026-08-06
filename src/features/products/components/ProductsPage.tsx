@@ -2,6 +2,10 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PageHeader } from '@/shared/components/layout/PageHeader';
 import { SearchInput } from '@/shared/components/form/SearchInput';
+import {
+  ActiveFilter,
+  type ActiveFilterValue,
+} from '@/shared/components/form/ActiveFilter';
 import { Button } from '@/shared/components/ui/Button';
 import { LoadingSpinner } from '@/shared/components/feedback/LoadingSpinner';
 import { EmptyState } from '@/shared/components/feedback/EmptyState';
@@ -12,7 +16,8 @@ import { ROUTES } from '@/shared/constants/routes';
 export function ProductsPage() {
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
-  const { products, isLoading } = useProducts(search);
+  const [activeFilter, setActiveFilter] = useState<ActiveFilterValue>('all');
+  const { products, isLoading } = useProducts(search, activeFilter);
 
   return (
     <div>
@@ -33,6 +38,7 @@ export function ProductsPage() {
           onChange={(e) => { setSearch(e.target.value); }}
           onClear={() => { setSearch(''); }}
         />
+        <ActiveFilter value={activeFilter} onChange={setActiveFilter} />
 
         {isLoading ? (
           <LoadingSpinner fullPage label="Ürünler yükleniyor..." />
