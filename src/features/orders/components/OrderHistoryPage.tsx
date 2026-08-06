@@ -28,7 +28,7 @@ const FILTERS: { key: OrderHistoryFilter; label: string }[] = [
 export function OrderHistoryPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [filter, setFilter] = useState<OrderHistoryFilter>('sent');
+  const [filter, setFilter] = useState<OrderHistoryFilter>('all');
   const { orders, isLoading, pendingCount, reload } = useOrders(filter);
   const { isSyncing, lastReport, syncNow } = useSync();
   const {
@@ -48,6 +48,7 @@ export function OrderHistoryPage() {
   }, [filter, clearSelection]);
 
   const handleSyncPending = async (): Promise<void> => {
+    setFilter('pending');
     await syncNow('manual');
     await reload();
   };

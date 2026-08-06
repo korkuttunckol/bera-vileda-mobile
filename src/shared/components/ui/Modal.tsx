@@ -44,7 +44,14 @@ export function Modal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4">
+    <div
+      className={cn(
+        'fixed inset-0 z-[60] flex items-center justify-center',
+        'px-4',
+        'pt-[max(1rem,env(safe-area-inset-top,0px))]',
+        'pb-[max(1rem,env(safe-area-inset-bottom,0px))]',
+      )}
+    >
       <div
         className="absolute inset-0 bg-brand-navy/40"
         onClick={onClose}
@@ -56,12 +63,12 @@ export function Modal({
         aria-labelledby="modal-title"
         className={cn(
           'relative z-10 flex w-full flex-col',
-          'max-h-[min(90dvh,calc(100dvh-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px)-1rem))]',
-          'rounded-t-2xl bg-white shadow-modal sm:rounded-2xl',
+          'max-h-[min(85dvh,calc(100dvh-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px)-2rem))]',
+          'rounded-2xl bg-white shadow-modal',
           sizeStyles[size],
         )}
       >
-        <div className="shrink-0 border-b border-brand-gray-200 bg-white px-4 pb-4 pt-[max(1rem,env(safe-area-inset-top,0px))] sm:px-6 sm:pt-4">
+        <div className="shrink-0 border-b border-brand-gray-200 bg-white px-4 py-4 sm:px-6">
           <h2 id="modal-title" className="text-lg font-semibold text-brand-navy">
             {title}
           </h2>
@@ -70,7 +77,7 @@ export function Modal({
           {children}
         </div>
         {footer ? (
-          <div className="shrink-0 border-t border-brand-gray-200 bg-brand-gray-50 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] sm:px-6">
+          <div className="shrink-0 border-t border-brand-gray-200 bg-brand-gray-50 px-4 py-3 sm:px-6">
             {footer}
           </div>
         ) : null}

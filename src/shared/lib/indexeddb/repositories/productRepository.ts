@@ -75,11 +75,27 @@ export function dedupeProducts(products: LocalProduct[]): LocalProduct[] {
   return Array.from(byKey.values());
 }
 
+export type ProductActiveFilter = 'all' | 'active' | 'passive';
+
 export function filterProducts(
   products: LocalProduct[],
-  options: { search?: string },
+  options: {
+    search?: string;
+    activeFilter?: ProductActiveFilter;
+    includeDeleted?: boolean;
+  },
 ): LocalProduct[] {
-  let result = dedupeProducts(products.filter((p) => !p.isDeleted));
+  let result = options.includeDeleted
+    ? [...products]
+    : products.filter((p) => !p.isDeleted);
+
+  result = dedupeProducts(result);
+
+  if (options.activeFilter === 'active') {
+    result = result.filter((p) => p.isActive);
+  } else if (options.activeFilter === 'passive') {
+    result = result.filter((p) => !p.isActive);
+  }
 
   if (options.search?.trim()) {
     const term = options.search.trim().toLocaleLowerCase('tr-TR');

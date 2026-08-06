@@ -5,6 +5,7 @@ import { BackButton } from '@/shared/components/layout/BackButton';
 import { Input } from '@/shared/components/ui/Input';
 import { Button } from '@/shared/components/ui/Button';
 import { Card } from '@/shared/components/ui/Card';
+import { ConfirmDialog } from '@/shared/components/ui/Modal';
 import { LoadingSpinner } from '@/shared/components/feedback/LoadingSpinner';
 import { useAuthStore } from '@/stores/authStore';
 import { toast } from '@/stores/toastStore';
@@ -37,6 +38,8 @@ export function ProductFormPage() {
   const [form, setForm] = useState<ProductFormValues>(EMPTY);
   const [errors, setErrors] = useState<Partial<Record<keyof ProductFormValues, string>>>({});
   const [isSaving, setIsSaving] = useState(false);
+  const [showDelete, setShowDelete] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
@@ -83,6 +86,21 @@ export function ProductFormPage() {
       toast(err instanceof Error ? err.message : 'Kayıt başarısız', 'error');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleDelete = async (): Promise<void> => {
+    if (!user || !id) return;
+    setIsDeleting(true);
+    try {
+      await productService.softDelete(id, user.uid);
+      toast('Ürün silindi', 'success');
+      void navigate(ROUTES.PRODUCTS);
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Silme başarısız', 'error');
+    } finally {
+      setIsDeleting(false);
+      setShowDelete(false);
     }
   };
 
@@ -183,7 +201,29 @@ export function ProductFormPage() {
         <Button type="submit" fullWidth size="lg" isLoading={isSaving}>
           {isEdit ? 'Güncelle' : 'Kaydet'}
         </Button>
+
+        {isEdit && id ? (
+          <Button
+            type="button"
+            variant="danger"
+            fullWidth
+            onClick={() => { setShowDelete(true); }}
+          >
+            Ürünü Sil
+          </Button>
+        ) : null}
       </form>
+
+      <ConfirmDialog
+        isOpen={showDelete}
+        onClose={() => { setShowDelete(false); }}
+        onConfirm={() => void handleDelete()}
+        title="Ürünü Sil"
+        message="Bu ürün silinecek. Kayıt sistemden kaldırılmaz, pasif hale getirilir. Devam etmek istiyor musunuz?"
+        confirmLabel="Sil"
+        variant="danger"
+        isLoading={isDeleting}
+      />
     </div>
   );
 }
