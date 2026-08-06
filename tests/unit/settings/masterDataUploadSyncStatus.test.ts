@@ -4,8 +4,13 @@ import type { Product } from '@/shared/types/product.types';
 
 const customers = new Map<string, Customer>();
 const products = new Map<string, Product>();
+const users = new Map<string, { id: string; userCode: string; syncStatus: string }>();
 const remoteCustomers: Customer[] = [];
 const remoteProducts: Product[] = [];
+const upsertUserToFirestore = vi.fn(async (user: { id: string; userCode: string }) => ({
+  ...user,
+  syncStatus: 'synced',
+}));
 
 const setDoc = vi.fn(async () => undefined);
 const batchSets: Array<{ path: string; payload: { id: string } }> = [];
@@ -29,6 +34,11 @@ vi.mock('@/shared/lib/firebase/firestore', () => ({
 vi.mock('@/shared/lib/firebase/firestoreService', () => ({
   pullAllCustomers: async () => [...remoteCustomers],
   pullAllProducts: async () => [...remoteProducts],
+}));
+
+vi.mock('@/shared/lib/firebase/userFirestoreService', () => ({
+  upsertUserToFirestore: (user: { id: string; userCode: string }) =>
+    upsertUserToFirestore(user),
 }));
 
 vi.mock('firebase/firestore', async () => {
@@ -68,6 +78,17 @@ vi.mock('@/shared/lib/indexeddb/repositories/productRepository', () => ({
       for (const row of rows) {
         products.set(row.id, { ...row });
       }
+    },
+  },
+}));
+
+vi.mock('@/shared/lib/indexeddb/repositories/userRepository', () => ({
+  userLocalRepository: {
+    async findAll() {
+      return [...users.values()];
+    },
+    async upsert(row: { id: string; userCode: string; syncStatus: string }) {
+      users.set(row.id, { ...row });
     },
   },
 }));
@@ -121,11 +142,17 @@ describe('Master data upload syncStatus', () => {
   beforeEach(() => {
     customers.clear();
     products.clear();
+    users.clear();
     remoteCustomers.length = 0;
     remoteProducts.length = 0;
     batchSets.length = 0;
     setDoc.mockClear();
     writeBatch.mockClear();
+    upsertUserToFirestore.mockClear();
+    upsertUserToFirestore.mockImplementation(async (user: { id: string; userCode: string }) => ({
+      ...user,
+      syncStatus: 'synced',
+    }));
     writeBatch.mockImplementation(() => ({
       set: (ref: { path?: string }, payload: { id: string }) => {
         batchSets.push({ path: String(ref.path), payload });

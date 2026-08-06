@@ -9,7 +9,7 @@ export const APP_CONFIG = {
 
 export const DB_CONFIG = {
   name: 'BeraViledaDB',
-  version: 6,
+  version: 7,
 } as const;
 
 export const SYNC_CONFIG = {

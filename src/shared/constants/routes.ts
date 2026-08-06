@@ -30,6 +30,8 @@ export const ROUTES = {
   SETTINGS_ORDER: '/settings/order',
   SETTINGS_APP_INFO: '/settings/app-info',
   SETTINGS_USERS: '/settings/users',
+  SETTINGS_USER_NEW: '/settings/users/new',
+  SETTINGS_USER_EDIT: '/settings/users/:userCode/edit',
 } as const;
 
 export type BranchFormReturnTo = 'order';

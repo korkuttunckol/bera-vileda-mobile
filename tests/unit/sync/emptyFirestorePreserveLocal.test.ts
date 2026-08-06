@@ -130,6 +130,12 @@ vi.mock('@/shared/lib/indexeddb/repositories/userRepository', () => ({
     async findAll() {
       return usersTable.toArray();
     },
+    async replaceAll(users: AppUser[]) {
+      usersTable.store.clear();
+      for (const user of users) {
+        await usersTable.put(user as unknown as Row);
+      }
+    },
   },
 }));
 
@@ -181,12 +187,14 @@ describe('PullSync empty Firestore preserves local master data', () => {
       version: 1,
     });
     await usersTable.put({
-      id: 'user-local-1',
+      id: 'REP',
       userCode: 'REP',
       passwordHash: 'hash',
       name: 'Local User',
-      role: 'sales_rep',
+      role: 'merch',
       active: true,
+      isDeleted: false,
+      syncStatus: 'synced',
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
     });
@@ -212,7 +220,7 @@ describe('PullSync empty Firestore preserves local master data', () => {
 
     const users = await usersTable.toArray();
     expect(users).toHaveLength(1);
-    expect(users[0]?.id).toBe('user-local-1');
+    expect(users[0]?.id).toBe('REP');
   });
 
   it('still replaces master data when Firestore has customers/products', async () => {
@@ -256,12 +264,14 @@ describe('PullSync empty Firestore preserves local master data', () => {
     ]);
     fetchAllUsersFromFirestore.mockResolvedValue([
       {
-        id: 'user-1',
+        id: 'ADMIN',
         userCode: 'ADMIN',
         passwordHash: 'hash',
         name: 'Admin',
         role: 'admin',
         active: true,
+        isDeleted: false,
+        syncStatus: 'synced',
         createdAt: '2026-01-01T00:00:00.000Z',
         updatedAt: '2026-01-01T00:00:00.000Z',
       } satisfies AppUser,

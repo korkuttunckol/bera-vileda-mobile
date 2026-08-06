@@ -132,16 +132,32 @@ vi.mock('@/shared/lib/firebase/firestoreService', () => ({
 vi.mock('@/shared/lib/firebase/userFirestoreService', () => ({
   fetchAllUsersFromFirestore: vi.fn(async () => [
     {
-      id: 'user-1',
+      id: 'ADMIN',
       userCode: 'ADMIN',
       passwordHash: 'hash',
       name: 'Admin',
       role: 'admin',
       active: true,
+      isDeleted: false,
+      syncStatus: 'synced',
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
     } satisfies AppUser,
   ]),
+}));
+
+vi.mock('@/shared/lib/indexeddb/repositories/userRepository', () => ({
+  userLocalRepository: {
+    async findAll() {
+      return usersTable.toArray() as unknown as AppUser[];
+    },
+    async replaceAll(users: AppUser[]) {
+      usersTable.store.clear();
+      for (const user of users) {
+        await usersTable.put(user as unknown as Row);
+      }
+    },
+  },
 }));
 
 const localBranch: CustomerBranch = {
@@ -231,6 +247,6 @@ describe('PullSync full replace preserves local branches', () => {
 
     const users = await usersTable.toArray();
     expect(users).toHaveLength(1);
-    expect(users[0]?.id).toBe('user-1');
+    expect(users[0]?.id).toBe('ADMIN');
   });
 });
