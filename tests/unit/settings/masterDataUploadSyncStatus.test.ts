@@ -4,13 +4,15 @@ import type { Product } from '@/shared/types/product.types';
 
 const customers = new Map<string, Customer>();
 const products = new Map<string, Product>();
+const remoteCustomers: Customer[] = [];
+const remoteProducts: Product[] = [];
 
 const setDoc = vi.fn(async () => undefined);
+const batchSets: Array<{ path: string; payload: { id: string } }> = [];
 const writeBatch = vi.fn(() => {
-  const ops: unknown[] = [];
   return {
-    set: (...args: unknown[]) => {
-      ops.push(args);
+    set: (ref: { path?: string }, payload: { id: string }) => {
+      batchSets.push({ path: String(ref.path), payload });
     },
     commit: async () => undefined,
   };
@@ -22,6 +24,11 @@ vi.mock('@/config/env', () => ({
 
 vi.mock('@/shared/lib/firebase/firestore', () => ({
   getFirestoreDb: () => ({ name: 'mock-db' }),
+}));
+
+vi.mock('@/shared/lib/firebase/firestoreService', () => ({
+  pullAllCustomers: async () => [...remoteCustomers],
+  pullAllProducts: async () => [...remoteProducts],
 }));
 
 vi.mock('firebase/firestore', async () => {
@@ -114,9 +121,19 @@ describe('Master data upload syncStatus', () => {
   beforeEach(() => {
     customers.clear();
     products.clear();
+    remoteCustomers.length = 0;
+    remoteProducts.length = 0;
+    batchSets.length = 0;
     setDoc.mockClear();
     writeBatch.mockClear();
+    writeBatch.mockImplementation(() => ({
+      set: (ref: { path?: string }, payload: { id: string }) => {
+        batchSets.push({ path: String(ref.path), payload });
+      },
+      commit: async () => undefined,
+    }));
     vi.stubGlobal('navigator', { onLine: true });
+    vi.resetModules();
   });
 
   it('marks successfully uploaded customers/products as synced', async () => {
@@ -142,7 +159,9 @@ describe('Master data upload syncStatus', () => {
     customers.set('cust-bad', baseCustomer({ id: 'cust-bad', code: 'BAD' }));
 
     writeBatch.mockImplementation(() => ({
-      set: () => undefined,
+      set: (ref: { path?: string }, payload: { id: string }) => {
+        batchSets.push({ path: String(ref.path), payload });
+      },
       commit: async () => {
         throw new Error('batch failed');
       },
@@ -164,5 +183,135 @@ describe('Master data upload syncStatus', () => {
     expect(result.customers.failed).toBe(1);
     expect(customers.get('cust-ok')?.syncStatus).toBe('synced');
     expect(customers.get('cust-bad')?.syncStatus).toBe('pending');
+  });
+
+  it('updates existing remote customer by code instead of creating a new UUID doc', async () => {
+    remoteCustomers.push(
+      baseCustomer({
+        id: 'remote-cust-A',
+        code: 'C001',
+        name: 'Eski Cari',
+      }),
+    );
+    customers.set(
+      'local-cust-B',
+      baseCustomer({
+        id: 'local-cust-B',
+        code: 'c001',
+        name: 'Yeni Import Cari',
+      }),
+    );
+
+    const { localDataFirestoreUploadService } = await import(
+      '@/features/settings/services/localDataFirestoreUploadService'
+    );
+
+    await localDataFirestoreUploadService.uploadAllFromIndexedDb();
+
+    expect(batchSets).toHaveLength(1);
+    expect(batchSets[0]?.path).toBe('customers/remote-cust-A');
+    expect(batchSets[0]?.payload.id).toBe('remote-cust-A');
+    expect(batchSets[0]?.payload).toMatchObject({
+      code: 'C001',
+      name: 'Yeni Import Cari',
+    });
+    // Local IndexedDB id stays as-is (Solution A — no id migration).
+    expect(customers.get('local-cust-B')?.syncStatus).toBe('synced');
+    expect(customers.has('remote-cust-A')).toBe(false);
+  });
+
+  it('updates existing remote product by sku instead of creating a new UUID doc', async () => {
+    remoteProducts.push(
+      baseProduct({
+        id: 'remote-prod-A',
+        sku: 'SKU-1',
+        name: 'Eski Ürün',
+      }),
+    );
+    products.set(
+      'local-prod-B',
+      baseProduct({
+        id: 'local-prod-B',
+        sku: 'sku-1',
+        name: 'Yeni Import Ürün',
+      }),
+    );
+
+    const { localDataFirestoreUploadService } = await import(
+      '@/features/settings/services/localDataFirestoreUploadService'
+    );
+
+    await localDataFirestoreUploadService.uploadAllFromIndexedDb();
+
+    expect(batchSets).toHaveLength(1);
+    expect(batchSets[0]?.path).toBe('products/remote-prod-A');
+    expect(batchSets[0]?.payload.id).toBe('remote-prod-A');
+    expect(batchSets[0]?.payload).toMatchObject({
+      sku: 'SKU-1',
+      name: 'Yeni Import Ürün',
+    });
+    expect(products.get('local-prod-B')?.syncStatus).toBe('synced');
+  });
+
+  it('creates a new document when business key is absent remotely', async () => {
+    customers.set('cust-new', baseCustomer({ id: 'cust-new', code: 'NEW1' }));
+    products.set('prod-new', baseProduct({ id: 'prod-new', sku: 'NEW-SKU' }));
+
+    const { localDataFirestoreUploadService } = await import(
+      '@/features/settings/services/localDataFirestoreUploadService'
+    );
+
+    await localDataFirestoreUploadService.uploadAllFromIndexedDb();
+
+    const paths = batchSets.map((entry) => entry.path).sort();
+    expect(paths).toEqual(['customers/cust-new', 'products/prod-new']);
+  });
+});
+
+describe('resolveCustomersForUpload / resolveProductsForUpload', () => {
+  it('dedupes local rows by business key before resolve', async () => {
+    const { resolveCustomersForUpload, resolveProductsForUpload } = await import(
+      '@/features/settings/services/localDataFirestoreUploadService'
+    );
+
+    const customerWrites = resolveCustomersForUpload(
+      [
+        baseCustomer({
+          id: 'old',
+          code: 'C001',
+          updatedAt: '2026-01-01T00:00:00.000Z',
+          name: 'Eski',
+        }),
+        baseCustomer({
+          id: 'new',
+          code: 'C001',
+          updatedAt: '2026-02-01T00:00:00.000Z',
+          name: 'Yeni',
+        }),
+      ],
+      [],
+    );
+    expect(customerWrites.writes).toHaveLength(1);
+    expect(customerWrites.writes[0]?.payload.name).toBe('Yeni');
+
+    const productWrites = resolveProductsForUpload(
+      [
+        baseProduct({
+          id: 'p-old',
+          sku: 'S1',
+          updatedAt: '2026-01-01T00:00:00.000Z',
+        }),
+        baseProduct({
+          id: 'p-new',
+          sku: 'S1',
+          updatedAt: '2026-02-01T00:00:00.000Z',
+          name: 'Yeni Ürün',
+        }),
+      ],
+      [baseProduct({ id: 'remote-p', sku: 'S1' })],
+    );
+    expect(productWrites.writes).toHaveLength(1);
+    expect(productWrites.writes[0]?.payload.id).toBe('remote-p');
+    expect(productWrites.writes[0]?.payload.name).toBe('Yeni Ürün');
   });
 });
