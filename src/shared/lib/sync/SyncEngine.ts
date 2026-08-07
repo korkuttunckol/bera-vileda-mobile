@@ -114,41 +114,51 @@ export class SyncEngine implements ISyncEngine {
       pending: 0,
     };
 
+    const pullOnly = options.pullOnly === true;
     const shouldFullSync =
+      pullOnly ||
       options.forceFull === true ||
       options.full === true ||
       trigger === 'manual' ||
       (await pullSync.needsInitialSync());
 
-    console.info(`[Sync] mode=${shouldFullSync ? 'full' : 'incremental'}`);
+    console.info(
+      `[Sync] mode=${shouldFullSync ? 'full' : 'incremental'}${pullOnly ? ' pullOnly=true' : ''}`,
+    );
 
     try {
       if (navigator.onLine) {
         if (isFirebaseConfigured()) {
-          // Push pending users before pull so offline edits are not overwritten.
-          const userPush = await pushPendingUsers();
-          for (const error of userPush.errors) {
-            errors.push({
-              entityType: 'user',
-              entityId: error.userCode,
-              idempotencyKey: `user:${error.userCode}`,
-              message: error.message,
-              timestamp: new Date().toISOString(),
-            });
+          if (!pullOnly) {
+            // Push pending users before pull so offline edits are not overwritten.
+            const userPush = await pushPendingUsers();
+            for (const error of userPush.errors) {
+              errors.push({
+                entityType: 'user',
+                entityId: error.userCode,
+                idempotencyKey: `user:${error.userCode}`,
+                message: error.message,
+                timestamp: new Date().toISOString(),
+              });
+            }
           }
 
           pullStats = await pullSync.pullAll({ full: shouldFullSync });
         }
 
-        // Tüm trigger'larda (auto dahil) outbox bitmeden report/activeSync tamamlanmaz.
-        console.info('[Sync] OUTBOX PUSH START');
-        const outboxStartedAt = Date.now();
-        const pushResult = await outboxProcessor.processAll();
-        queueRun = pushResult.stats;
-        errors.push(...pushResult.errors);
-        console.info(
-          `[Sync] OUTBOX PUSH END (${String(Date.now() - outboxStartedAt)} ms) · synced=${String(queueRun.synced)} failed=${String(queueRun.failed)}`,
-        );
+        if (pullOnly) {
+          console.info('[Sync] OUTBOX PUSH SKIP — pullOnly master data');
+        } else {
+          // Tüm trigger'larda (auto dahil) outbox bitmeden report/activeSync tamamlanmaz.
+          console.info('[Sync] OUTBOX PUSH START');
+          const outboxStartedAt = Date.now();
+          const pushResult = await outboxProcessor.processAll();
+          queueRun = pushResult.stats;
+          errors.push(...pushResult.errors);
+          console.info(
+            `[Sync] OUTBOX PUSH END (${String(Date.now() - outboxStartedAt)} ms) · synced=${String(queueRun.synced)} failed=${String(queueRun.failed)}`,
+          );
+        }
       } else {
         console.info('[Sync] Çevrimdışı — Firestore adımları atlandı');
       }

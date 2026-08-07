@@ -31,6 +31,11 @@ export interface SyncPullStats {
 export interface SyncNowOptions {
   full?: boolean;
   forceFull?: boolean;
+  /**
+   * Master-data download only (customers/products/users).
+   * Skips user push, outbox/order push, and any upload paths.
+   */
+  pullOnly?: boolean;
 }
 
 export interface SyncOrderStats {
