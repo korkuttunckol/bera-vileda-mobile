@@ -223,13 +223,6 @@ export function DashboardPage() {
               icon="products"
             />
           ) : null}
-          {can('manageUsers') ? (
-            <StatCard
-              value={stats?.userCount ?? 0}
-              label="Kullanıcı Sayısı"
-              icon="customers"
-            />
-          ) : null}
         </div>
 
         {can('syncManagement') ? (
