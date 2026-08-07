@@ -225,7 +225,7 @@ export function DashboardPage() {
           ) : null}
         </div>
 
-        {can('syncManagement') ? (
+        {can('syncManagement') || can('pullMasterData') ? (
           <Card padding="md" className={DASHBOARD_CARD}>
             <div className="mb-3 flex items-start justify-between gap-3">
               <div>
@@ -233,7 +233,9 @@ export function DashboardPage() {
                   Veri Senkronizasyonu
                 </h3>
                 <p className="mt-1 text-xs text-brand-gray-500">
-                  Mac ve iPhone aynı güncel verileri kullanır.
+                  {can('syncManagement')
+                    ? 'Mac ve iPhone aynı güncel verileri kullanır.'
+                    : 'Cari, stok ve kullanıcı verilerini sunucudan indirir. Cihazdan veri göndermez.'}
                 </p>
               </div>
               <Button
@@ -241,14 +243,19 @@ export function DashboardPage() {
                 variant="outline"
                 isLoading={isSyncing || isInitialSyncing}
                 disabled={!isOnline}
-                onClick={() => void syncNow('manual')}
+                onClick={() =>
+                  void syncNow(
+                    'manual',
+                    can('syncManagement') ? undefined : { pullOnly: true },
+                  )
+                }
               >
                 Senkronize Et
               </Button>
             </div>
             <SyncStatusPanel
               compact
-              showUsers={can('manageUsers')}
+              showUsers={can('manageUsers') || can('pullMasterData')}
               isSyncing={isSyncing}
               isInitialSyncing={isInitialSyncing}
             />

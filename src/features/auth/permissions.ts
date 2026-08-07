@@ -9,6 +9,8 @@ export const PERMISSIONS = {
   importExcel: 'importExcel',
   systemSettings: 'systemSettings',
   syncManagement: 'syncManagement',
+  /** Firestore → device master data pull only (no upload / no outbox). */
+  pullMasterData: 'pullMasterData',
   createOrder: 'createOrder',
   editOrder: 'editOrder',
   deleteOrder: 'deleteOrder',
@@ -21,6 +23,7 @@ export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
 const ROLE_PERMISSIONS: Record<UserRole, ReadonlySet<Permission>> = {
   [UserRole.ADMIN]: new Set(Object.values(PERMISSIONS)),
   [UserRole.MERCH]: new Set([
+    PERMISSIONS.pullMasterData,
     PERMISSIONS.createOrder,
     PERMISSIONS.editOrder,
     PERMISSIONS.deleteOrder,

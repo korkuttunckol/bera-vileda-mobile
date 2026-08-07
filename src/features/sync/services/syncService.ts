@@ -23,6 +23,8 @@ import type { EntityDataSource } from '@/shared/lib/sync/dataSource.types';
 interface SyncNowServiceOptions {
   forceFull?: boolean;
   showDownloadMessage?: boolean;
+  /** Master-data pull only — no user push, no outbox/order push. */
+  pullOnly?: boolean;
 }
 
 class SyncService {
@@ -127,7 +129,9 @@ class SyncService {
       return this.inFlight;
     }
 
+    const pullOnly = options.pullOnly === true;
     const needsFull =
+      pullOnly ||
       options.forceFull === true ||
       trigger === 'manual' ||
       (await pullSync.needsInitialSync());
@@ -140,7 +144,9 @@ class SyncService {
       useSyncStore.getState().setInitialSyncing(true);
     }
 
-    console.info(`[Sync] isSyncing=true (trigger=${trigger})`);
+    console.info(
+      `[Sync] isSyncing=true (trigger=${trigger}${pullOnly ? ', pullOnly' : ''})`,
+    );
     useSyncStore.getState().setSyncing(true);
 
     this.inFlight = (async () => {
@@ -148,6 +154,7 @@ class SyncService {
         const result = await syncEngine.syncNow(trigger, {
           full: needsFull,
           forceFull: options.forceFull,
+          pullOnly,
         });
 
         await this.refreshPendingCount();
