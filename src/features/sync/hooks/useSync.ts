@@ -20,7 +20,10 @@ export function useSync() {
   }, []);
 
   const syncNow = useCallback(
-    async (trigger: SyncTrigger = 'manual') => {
+    async (
+      trigger: SyncTrigger = 'manual',
+      options: { pullOnly?: boolean } = {},
+    ) => {
       if (!isOnline) {
         toast('Çevrimdışı — senkronizasyon internet geldiğinde yapılacak', 'warning');
         return null;
@@ -29,12 +32,16 @@ export function useSync() {
       try {
         const result = await syncService.syncNow(trigger, {
           showDownloadMessage: trigger === 'manual',
+          pullOnly: options.pullOnly,
+          forceFull: options.pullOnly === true ? true : undefined,
         });
         const { pull } = result.report;
 
         if (result.success) {
           toast(
-            `Senkronizasyon tamamlandı · ${String(pull.customers)} cari, ${String(pull.products)} stok, ${String(pull.users)} kullanıcı`,
+            options.pullOnly
+              ? `Veriler güncellendi · ${String(pull.customers)} cari, ${String(pull.products)} stok, ${String(pull.users)} kullanıcı`
+              : `Senkronizasyon tamamlandı · ${String(pull.customers)} cari, ${String(pull.products)} stok, ${String(pull.users)} kullanıcı`,
             'success',
           );
         } else {
