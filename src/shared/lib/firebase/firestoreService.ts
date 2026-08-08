@@ -84,6 +84,49 @@ export async function findOrderByLocalId(
   return snapshot.docs[0]?.data() ?? null;
 }
 
+/** Full collection read for Admin order pull (getDocs only). */
+export async function pullAllOrders(): Promise<Order[]> {
+  const db = getFirestoreDb();
+  if (!db) return [];
+
+  console.info('[Firestore] getDocs orders (tüm koleksiyon) başladı');
+  const startedAt = Date.now();
+
+  try {
+    const snapshot = await getDocs(
+      collection(db, 'orders').withConverter(orderConverter),
+    );
+    console.info(
+      `[Firestore] getDocs orders bitti (${String(Date.now() - startedAt)} ms, ${String(snapshot.size)} kayıt)`,
+    );
+    return snapshot.docs.map((d) => d.data());
+  } catch (error) {
+    console.error(
+      `[Firestore] getDocs orders hata (${String(Date.now() - startedAt)} ms):`,
+      error,
+    );
+    throw new Error(getFirestoreErrorMessage(error));
+  }
+}
+
+/** Subcollection: orders/{orderId}/lines */
+export async function pullOrderLines(orderId: string): Promise<OrderLine[]> {
+  const db = getFirestoreDb();
+  if (!db) return [];
+
+  try {
+    const snapshot = await getDocs(
+      collection(db, 'orders', orderId, 'lines').withConverter(
+        orderLineConverter,
+      ),
+    );
+    return snapshot.docs.map((d) => d.data());
+  } catch (error) {
+    console.error(`[Firestore] getDocs order lines hata (orderId=${orderId}):`, error);
+    throw new Error(getFirestoreErrorMessage(error));
+  }
+}
+
 export async function pullCustomersSince(
   since: string,
 ): Promise<Customer[]> {
@@ -173,7 +216,12 @@ export async function pullAllProducts(): Promise<Product[]> {
 export async function saveSyncLog(report: {
   id: string;
   push: { synced: number; failed: number };
-  pull: { customers: number; products: number; users: number };
+  pull: {
+    customers: number;
+    products: number;
+    users: number;
+    orders?: { pulled: number; updated: number; skipped: number };
+  };
   success: boolean;
   errors: { message: string }[];
   startedAt: string;

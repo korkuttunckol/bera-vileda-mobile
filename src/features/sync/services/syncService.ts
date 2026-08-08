@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { isFirebaseConfigured } from '@/config/env';
+import { hasPermission, PERMISSIONS } from '@/features/auth/permissions';
 import { syncEngine } from '@/shared/lib/sync/SyncEngine';
 import { pullSync } from '@/shared/lib/sync/PullSync';
 import { outboxProcessor } from '@/shared/lib/sync/OutboxProcessor';
@@ -13,6 +14,7 @@ import {
   publishOrderSyncReport,
 } from '@/shared/lib/sync/syncReportBuilder';
 import { computeOrderSyncStats } from '@/shared/lib/sync/orderSyncStats';
+import { useAuthStore } from '@/stores/authStore';
 import { useSyncStore } from '@/stores/syncStore';
 import { useOfflineStore } from '@/stores/offlineStore';
 import { dataStatsService } from '@/features/sync/services/dataStatsService';
@@ -25,6 +27,8 @@ interface SyncNowServiceOptions {
   showDownloadMessage?: boolean;
   /** Master-data pull only — no user push, no outbox/order push. */
   pullOnly?: boolean;
+  /** Explicit Admin order pull gate (defaults from role + manual sync). */
+  includeOrders?: boolean;
 }
 
 class SyncService {
@@ -136,6 +140,14 @@ class SyncService {
       trigger === 'manual' ||
       (await pullSync.needsInitialSync());
 
+    const authUser = useAuthStore.getState().user;
+    const includeOrders =
+      !pullOnly &&
+      (options.includeOrders === true ||
+        (options.includeOrders !== false &&
+          trigger === 'manual' &&
+          hasPermission(authUser, PERMISSIONS.syncManagement)));
+
     const showDownloadMessage =
       options.showDownloadMessage ??
       (needsFull && navigator.onLine && isFirebaseConfigured());
@@ -145,7 +157,7 @@ class SyncService {
     }
 
     console.info(
-      `[Sync] isSyncing=true (trigger=${trigger}${pullOnly ? ', pullOnly' : ''})`,
+      `[Sync] isSyncing=true (trigger=${trigger}${pullOnly ? ', pullOnly' : ''}${includeOrders ? ', includeOrders' : ''})`,
     );
     useSyncStore.getState().setSyncing(true);
 
@@ -155,6 +167,7 @@ class SyncService {
           full: needsFull,
           forceFull: options.forceFull,
           pullOnly,
+          includeOrders,
         });
 
         await this.refreshPendingCount();
@@ -172,10 +185,15 @@ class SyncService {
           const pulledTotal =
             result.report.pull.customers +
             result.report.pull.products +
-            result.report.pull.users;
+            result.report.pull.users +
+            (result.report.pull.orders?.pulled ?? 0);
 
           if (pulledTotal > 0 || result.report.pull.full) {
             useSyncStore.getState().setHasRemoteUpdates(true);
+          }
+
+          if ((result.report.pull.orders?.pulled ?? 0) > 0) {
+            this.notifyDataChanged();
           }
         }
 

@@ -1,7 +1,6 @@
 import { Card } from '@/shared/components/ui/Card';
 import { OrderStatusBadge } from './OrderStatusBadge';
-import { formatDate } from '@/shared/utils/cn';
-import { cn } from '@/shared/utils/cn';
+import { cn, formatDate, formatDateTime } from '@/shared/utils/cn';
 import type { Order } from '@/shared/types/order.types';
 
 interface OrderCardProps {
@@ -90,7 +89,7 @@ export function OrderCard({
           </div>
 
           <p className="mt-3 text-sm font-medium text-brand-gray-600">
-            {formatDate(order.orderDate)}
+            {formatDateTime(order.orderDate)}
           </p>
 
           <p className="mt-1 text-sm text-brand-gray-500">
