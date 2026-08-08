@@ -22,8 +22,8 @@ export function MainLayout() {
   };
 
   return (
-    <div className="flex min-h-screen min-w-0 flex-col overflow-x-hidden bg-brand-surface">
-      <header className="safe-area-top sticky top-0 z-30 border-b border-white/10 bg-gradient-to-r from-brand-navy via-brand-navy-light to-brand-navy-dark px-4 py-3 shadow-sm">
+    <div className="flex h-dvh min-h-0 min-w-0 flex-col overflow-hidden bg-brand-surface">
+      <header className="safe-area-top z-30 shrink-0 border-b border-white/10 bg-gradient-to-r from-brand-navy via-brand-navy-light to-brand-navy-dark px-4 py-3 shadow-sm">
         <div className="app-shell flex items-center justify-between gap-2">
           <div>
             <p className="text-[15px] font-bold tracking-tight text-white">
@@ -54,9 +54,12 @@ export function MainLayout() {
         </div>
       </header>
 
-      <OfflineBanner />
+      <div className="shrink-0">
+        <OfflineBanner />
+      </div>
 
-      <main className="app-shell min-w-0 flex-1 pb-20 page-enter">
+      {/* Single vertical scroll owner for all authenticated pages (Android + iOS). */}
+      <main className="app-shell min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-y-contain pb-20 page-enter">
         <Outlet />
       </main>
 
