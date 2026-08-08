@@ -38,10 +38,14 @@ export function useSync() {
         const { pull } = result.report;
 
         if (result.success) {
+          const orderPart =
+            pull.orders != null
+              ? `, ${String(pull.orders.pulled)} sipariş (${String(pull.orders.updated)} güncellendi)`
+              : '';
           toast(
             options.pullOnly
               ? `Veriler güncellendi · ${String(pull.customers)} cari, ${String(pull.products)} stok, ${String(pull.users)} kullanıcı`
-              : `Senkronizasyon tamamlandı · ${String(pull.customers)} cari, ${String(pull.products)} stok, ${String(pull.users)} kullanıcı`,
+              : `Senkronizasyon tamamlandı · ${String(pull.customers)} cari, ${String(pull.products)} stok, ${String(pull.users)} kullanıcı${orderPart}`,
             'success',
           );
         } else {
