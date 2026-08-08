@@ -6,19 +6,27 @@
   html {
     -webkit-tap-highlight-color: transparent;
     -webkit-text-size-adjust: 100%;
-    overflow-x: hidden;
+    /*
+     * Do not use overflow-x:hidden alone: with overflow-y:visible it computes
+     * overflow-y to auto and creates a dead scrollport (Android Chrome).
+     * Lock both axes here; page scroll lives in MainLayout <main>.
+     */
+    height: 100%;
+    overflow: hidden;
   }
 
   body {
     background-color: #f7f8fa;
     @apply font-sans text-brand-gray-700 antialiased;
-    overscroll-behavior: none;
-    overflow-x: hidden;
+    /* Horizontal rubber-band only; vertical scroll is owned by layout <main>. */
+    overscroll-behavior-x: none;
     min-width: 320px;
+    height: 100%;
+    overflow: hidden;
   }
 
   #root {
-    @apply min-h-screen w-full min-w-0 overflow-x-hidden;
+    @apply h-full min-h-0 w-full min-w-0 overflow-hidden;
   }
 }
 
