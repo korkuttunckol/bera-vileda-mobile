@@ -18,10 +18,21 @@ export interface SyncPushStats {
 
 import type { SyncPullValidation } from '../syncPullValidation';
 
+export interface SyncOrderPullStats {
+  /** Remote orders successfully written (insert + update). */
+  pulled: number;
+  /** Existing local rows updated by id. */
+  updated: number;
+  /** Local pending/sending/failed rows left untouched. */
+  skipped: number;
+}
+
 export interface SyncPullStats {
   customers: number;
   products: number;
   users: number;
+  /** Present only when Admin order pull ran. */
+  orders?: SyncOrderPullStats;
   validation?: SyncPullValidation;
   full: boolean;
   /** Full replace skipped because Firestore master data was empty while local had rows. */
@@ -36,6 +47,11 @@ export interface SyncNowOptions {
    * Skips user push, outbox/order push, and any upload paths.
    */
   pullOnly?: boolean;
+  /**
+   * Admin-only: also pull Firestore orders (+ lines) into IndexedDB.
+   * Ignored when pullOnly is true.
+   */
+  includeOrders?: boolean;
 }
 
 export interface SyncOrderStats {

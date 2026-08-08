@@ -98,6 +98,23 @@ class OrderLocalRepository extends BaseRepository<LocalOrder> {
       await db.orderLines.bulkPut(lines);
     });
   }
+
+  /**
+   * Upsert order by id and replace all local lines for that orderId.
+   * Used by Admin Firestore order pull so stale lines are not left behind.
+   */
+  async replaceWithLines(
+    order: LocalOrder,
+    lines: LocalOrderLine[],
+  ): Promise<void> {
+    await db.transaction('rw', [db.orders, db.orderLines], async () => {
+      await db.orderLines.where('orderId').equals(order.id).delete();
+      await db.orders.put(order);
+      if (lines.length > 0) {
+        await db.orderLines.bulkPut(lines);
+      }
+    });
+  }
 }
 
 export const orderLocalRepository = new OrderLocalRepository();

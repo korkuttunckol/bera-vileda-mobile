@@ -5,6 +5,7 @@ import { META_KEYS, setMetaValue } from '@/shared/lib/indexeddb/db';
 import { saveSyncLog } from '@/shared/lib/firebase/firestoreService';
 import { outboxProcessor } from './OutboxProcessor';
 import { pullSync } from './PullSync';
+import { orderPullSync } from './OrderPullSync';
 import { pushPendingUsers } from '@/features/users/services/userPushService';
 import { buildSyncReport, saveAndNotifySyncReport } from './syncReportBuilder';
 import { logSyncFailed } from './syncPullLogger';
@@ -13,6 +14,7 @@ import type {
   SyncResult,
   SyncTrigger,
   SyncNowOptions,
+  SyncPullStats,
 } from './types/sync.types';
 
 /** Online flapping'de çoklu sync engeli (ms). */
@@ -104,7 +106,7 @@ export class SyncEngine implements ISyncEngine {
 
     const startedAt = new Date().toISOString();
     const errors: SyncReport['errors'] = [];
-    let pullStats = { customers: 0, products: 0, users: 0, full: false };
+    let pullStats: SyncPullStats = { customers: 0, products: 0, users: 0, full: false };
     let pullSucceeded = true;
     let queueRun = {
       total: 0,
@@ -115,6 +117,7 @@ export class SyncEngine implements ISyncEngine {
     };
 
     const pullOnly = options.pullOnly === true;
+    const includeOrders = options.includeOrders === true && !pullOnly;
     const shouldFullSync =
       pullOnly ||
       options.forceFull === true ||
@@ -123,7 +126,7 @@ export class SyncEngine implements ISyncEngine {
       (await pullSync.needsInitialSync());
 
     console.info(
-      `[Sync] mode=${shouldFullSync ? 'full' : 'incremental'}${pullOnly ? ' pullOnly=true' : ''}`,
+      `[Sync] mode=${shouldFullSync ? 'full' : 'incremental'}${pullOnly ? ' pullOnly=true' : ''}${includeOrders ? ' includeOrders=true' : ''}`,
     );
 
     try {
@@ -144,6 +147,12 @@ export class SyncEngine implements ISyncEngine {
           }
 
           pullStats = await pullSync.pullAll({ full: shouldFullSync });
+
+          // Admin-only order download — separate from master-data pullAll.
+          if (includeOrders) {
+            const orderStats = await orderPullSync.pullAndMerge();
+            pullStats = { ...pullStats, orders: orderStats };
+          }
         }
 
         if (pullOnly) {
@@ -208,6 +217,15 @@ export class SyncEngine implements ISyncEngine {
           customers: pullStats.customers,
           products: pullStats.products,
           users: pullStats.users,
+          ...(pullStats.orders
+            ? {
+                orders: {
+                  pulled: pullStats.orders.pulled,
+                  updated: pullStats.orders.updated,
+                  skipped: pullStats.orders.skipped,
+                },
+              }
+            : {}),
         },
         success: syncSuccessful,
         errors,
