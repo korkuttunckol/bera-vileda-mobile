@@ -1,5 +1,6 @@
 import { Card } from '@/shared/components/ui/Card';
 import { OrderStatusBadge } from './OrderStatusBadge';
+import { useResolvedOrderCreatorName } from '../hooks/useResolvedOrderCreatorName';
 import { cn, formatDate, formatDateTime } from '@/shared/utils/cn';
 import type { Order } from '@/shared/types/order.types';
 
@@ -40,6 +41,7 @@ export function OrderCard({
   onToggleSelect,
 }: OrderCardProps) {
   const syncMeta = formatSyncMeta(order);
+  const creatorName = useResolvedOrderCreatorName(order);
 
   const handleToggleSelect = (): void => {
     onToggleSelect?.(order);
@@ -109,6 +111,9 @@ export function OrderCard({
                 {syncMeta}
               </p>
             ) : null}
+            <p className="truncate text-xs text-brand-gray-500">
+              Siparişi oluşturan: {creatorName}
+            </p>
           </div>
         </div>
       </div>
