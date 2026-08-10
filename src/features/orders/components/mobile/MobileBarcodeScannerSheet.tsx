@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Button } from '@/shared/components/ui/Button';
 import { Input } from '@/shared/components/ui/Input';
 import { productService } from '@/features/products/services/productService';
@@ -15,6 +15,11 @@ import {
   MANUAL_SCAN_NOT_READY_TOAST,
 } from '@/features/orders/utils/barcodeScannerEngine';
 import type { BarcodeScanEngine } from '@/features/orders/utils/barcodeScannerEngine';
+import {
+  isBarcodeDebugEnabled,
+  type BarcodeManualScanDebugSnapshot,
+} from '@/features/orders/utils/barcodeScannerDebug';
+import { MobileBarcodeScanDebugPanel } from '@/features/orders/components/mobile/MobileBarcodeScanDebugPanel';
 import type { Product } from '@/shared/types/product.types';
 
 interface MobileBarcodeScannerSheetProps {
@@ -42,6 +47,8 @@ export function MobileBarcodeScannerSheet({
   const resolvingRef = useRef(false);
   const titleId = useId();
 
+  const debugEnabled = useMemo(() => isBarcodeDebugEnabled(), []);
+
   const [phase, setPhase] = useState<SheetPhase>('booting');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [pendingProduct, setPendingProduct] = useState<Product | null>(null);
@@ -49,6 +56,8 @@ export function MobileBarcodeScannerSheet({
   const [qtyText, setQtyText] = useState('1');
   const [isAdding, setIsAdding] = useState(false);
   const [isManualScanning, setIsManualScanning] = useState(false);
+  const [debugSnapshot, setDebugSnapshot] =
+    useState<BarcodeManualScanDebugSnapshot | null>(null);
 
   const setPhaseSafe = useCallback((next: SheetPhase): void => {
     phaseRef.current = next;
@@ -133,6 +142,7 @@ export function MobileBarcodeScannerSheet({
       setQtyText('1');
       setIsManualScanning(false);
       lastScanRef.current = { barcode: null, at: 0 };
+      setDebugSnapshot(null);
       return;
     }
 
@@ -221,11 +231,39 @@ export function MobileBarcodeScannerSheet({
 
     setIsManualScanning(true);
     try {
-      const result = await engine.scanOnce();
+      const result = await engine.scanOnce({ includeDebug: debugEnabled });
+      let snapshot = result.debug ?? null;
+
       if (result.status === 'detected') {
+        if (debugEnabled && snapshot) {
+          // Lookup step — only after decode success (separate from ZXing result).
+          try {
+            const product = await productService.findByBarcode(result.barcode);
+            const resolved = resolveScannedProduct(product);
+            const lookup =
+              resolved.status === 'ready'
+                ? 'found'
+                : resolved.status === 'out_of_stock'
+                  ? 'out_of_stock'
+                  : 'not_found';
+            snapshot = { ...snapshot, lookup };
+            setDebugSnapshot(snapshot);
+          } catch {
+            snapshot = { ...snapshot, lookup: 'not_found' };
+            setDebugSnapshot(snapshot);
+          }
+        } else if (debugEnabled) {
+          setDebugSnapshot(null);
+        }
+
         await handleDetected(result.barcode);
         return;
       }
+
+      if (debugEnabled && snapshot) {
+        setDebugSnapshot({ ...snapshot, lookup: 'skipped' });
+      }
+
       if (result.status === 'not_ready') {
         toast(MANUAL_SCAN_NOT_READY_TOAST, 'warning');
         return;
@@ -236,7 +274,7 @@ export function MobileBarcodeScannerSheet({
     } finally {
       setIsManualScanning(false);
     }
-  }, [handleDetected, isManualScanning]);
+  }, [debugEnabled, handleDetected, isManualScanning]);
 
   const handleConfirmAdd = (): void => {
     if (!pendingProduct || isAdding) return;
@@ -302,6 +340,10 @@ export function MobileBarcodeScannerSheet({
           muted
           autoPlay
         />
+
+        {debugEnabled && debugSnapshot ? (
+          <MobileBarcodeScanDebugPanel snapshot={debugSnapshot} />
+        ) : null}
 
         {phase !== 'confirm' ? (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-8 pb-28">

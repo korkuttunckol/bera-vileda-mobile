@@ -1,11 +1,26 @@
 import { normalizeScannedBarcodeForLookup } from '@/features/orders/utils/barcodeZxingConfig';
+import {
+  canvasHasNonZeroPixels,
+  canvasToDebugThumbnail,
+  mapDecodeErrorToDebugStatus,
+  type BarcodeManualScanDebugSnapshot,
+} from '@/features/orders/utils/barcodeScannerDebug';
 
 export type BarcodeScanEngineMode = 'zxing' | 'native';
 
+export type ManualScanOptions = {
+  /** Attach structured runtime debug (DEV / ?barcodeDebug=1 consumers). */
+  includeDebug?: boolean;
+};
+
 export type ManualScanResult =
-  | { status: 'detected'; barcode: string }
-  | { status: 'not_found' }
-  | { status: 'not_ready' };
+  | {
+      status: 'detected';
+      barcode: string;
+      debug?: BarcodeManualScanDebugSnapshot;
+    }
+  | { status: 'not_found'; debug?: BarcodeManualScanDebugSnapshot }
+  | { status: 'not_ready'; debug?: BarcodeManualScanDebugSnapshot };
 
 export interface BarcodeScanEngineOptions {
   video: HTMLVideoElement;
@@ -23,7 +38,7 @@ export interface BarcodeScanEngine {
   /** Resume continuous detection after confirm/cancel. */
   resume: () => void;
   /** Single-frame decode from the live preview (independent of continuous loop). */
-  scanOnce: () => Promise<ManualScanResult>;
+  scanOnce: (options?: ManualScanOptions) => Promise<ManualScanResult>;
   /** True while MediaStream is attached (preview may be live). */
   isPreviewLive: () => boolean;
   stop: () => void;
@@ -218,6 +233,48 @@ function captureVideoFrameToCanvas(video: HTMLVideoElement): HTMLCanvasElement {
   return canvas;
 }
 
+function readTrackSettings(stream: MediaStream | null): {
+  width: number | null;
+  height: number | null;
+  facingMode: string | null;
+} {
+  const track = stream?.getVideoTracks()[0];
+  if (!track || typeof track.getSettings !== 'function') {
+    return { width: null, height: null, facingMode: null };
+  }
+  const settings = track.getSettings();
+  return {
+    width: typeof settings.width === 'number' ? settings.width : null,
+    height: typeof settings.height === 'number' ? settings.height : null,
+    facingMode:
+      typeof settings.facingMode === 'string' ? settings.facingMode : null,
+  };
+}
+
+function baseDebugSnapshot(
+  video: HTMLVideoElement,
+  mediaStream: MediaStream | null,
+): Omit<
+  BarcodeManualScanDebugSnapshot,
+  | 'capture'
+  | 'decode'
+  | 'rawBarcode'
+  | 'barcodeFormat'
+  | 'normalizedBarcode'
+  | 'lookup'
+> {
+  return {
+    engine: 'ZXing',
+    scannedAt: new Date().toISOString(),
+    video: {
+      readyState: video.readyState,
+      videoWidth: video.videoWidth,
+      videoHeight: video.videoHeight,
+    },
+    track: readTrackSettings(mediaStream),
+  };
+}
+
 /**
  * Primary field scanner: ZXing BrowserMultiFormatReader.
  *
@@ -339,28 +396,175 @@ async function createZxingEngine(
       if (stopped) return;
       paused = false;
     },
-    scanOnce(): Promise<ManualScanResult> {
-      if (stopped || !stream) return Promise.resolve({ status: 'not_ready' });
-      if (!isVideoFrameReady(options.video)) {
-        return Promise.resolve({ status: 'not_ready' });
+    scanOnce(scanOptions?: ManualScanOptions): Promise<ManualScanResult> {
+      const includeDebug = scanOptions?.includeDebug === true;
+      const withDebug = (
+        result: ManualScanResult,
+        debug: BarcodeManualScanDebugSnapshot | undefined,
+      ): ManualScanResult => {
+        if (!includeDebug || !debug) return result;
+        return { ...result, debug };
+      };
+
+      if (stopped || !stream) {
+        return Promise.resolve(
+          withDebug(
+            { status: 'not_ready' },
+            includeDebug
+              ? {
+                  ...baseDebugSnapshot(options.video, stream),
+                  capture: {
+                    canvasWidth: 0,
+                    canvasHeight: 0,
+                    hasNonZeroPixels: false,
+                    thumbnailDataUrl: null,
+                  },
+                  decode: { status: 'not_ready', otherName: null },
+                  rawBarcode: null,
+                  barcodeFormat: null,
+                  normalizedBarcode: null,
+                  lookup: 'skipped',
+                }
+              : undefined,
+          ),
+        );
       }
 
-      try {
-        const canvas = captureVideoFrameToCanvas(options.video);
-        const result = reader.decodeFromCanvas(canvas);
-        const text = normalizeScannedBarcodeForLookup(result.getText());
-        if (!text) return Promise.resolve({ status: 'not_found' });
-        return Promise.resolve({ status: 'detected', barcode: text });
-      } catch (error) {
-        if (isTransientDecodeError(error)) {
-          return Promise.resolve({ status: 'not_found' });
-        }
-        console.warn(
-          '[barcode-scanner] manual scan error',
-          getErrorName(error),
-          error,
+      if (!isVideoFrameReady(options.video)) {
+        return Promise.resolve(
+          withDebug(
+            { status: 'not_ready' },
+            includeDebug
+              ? {
+                  ...baseDebugSnapshot(options.video, stream),
+                  capture: {
+                    canvasWidth: 0,
+                    canvasHeight: 0,
+                    hasNonZeroPixels: false,
+                    thumbnailDataUrl: null,
+                  },
+                  decode: { status: 'not_ready', otherName: null },
+                  rawBarcode: null,
+                  barcodeFormat: null,
+                  normalizedBarcode: null,
+                  lookup: 'skipped',
+                }
+              : undefined,
+          ),
         );
-        return Promise.resolve({ status: 'not_found' });
+      }
+
+      let canvas: HTMLCanvasElement;
+      try {
+        canvas = captureVideoFrameToCanvas(options.video);
+      } catch (error) {
+        const mapped = mapDecodeErrorToDebugStatus(error);
+        return Promise.resolve(
+          withDebug(
+            { status: 'not_found' },
+            includeDebug
+              ? {
+                  ...baseDebugSnapshot(options.video, stream),
+                  capture: {
+                    canvasWidth: 0,
+                    canvasHeight: 0,
+                    hasNonZeroPixels: false,
+                    thumbnailDataUrl: null,
+                  },
+                  decode: {
+                    status: mapped.status,
+                    otherName: mapped.otherName,
+                  },
+                  rawBarcode: null,
+                  barcodeFormat: null,
+                  normalizedBarcode: null,
+                  lookup: 'skipped',
+                }
+              : undefined,
+          ),
+        );
+      }
+
+      const captureInfo = {
+        canvasWidth: canvas.width,
+        canvasHeight: canvas.height,
+        hasNonZeroPixels: includeDebug ? canvasHasNonZeroPixels(canvas) : false,
+        thumbnailDataUrl: includeDebug ? canvasToDebugThumbnail(canvas) : null,
+      };
+
+      try {
+        const result = reader.decodeFromCanvas(canvas);
+        const raw = result.getText();
+        const formatValue = result.getBarcodeFormat();
+        const formatKey = (
+          BarcodeFormat as unknown as Record<number, string | undefined>
+        )[formatValue];
+        const barcodeFormat =
+          typeof formatKey === 'string' ? formatKey : String(formatValue);
+        const normalized = normalizeScannedBarcodeForLookup(raw);
+        if (!normalized) {
+          return Promise.resolve(
+            withDebug(
+              { status: 'not_found' },
+              includeDebug
+                ? {
+                    ...baseDebugSnapshot(options.video, stream),
+                    capture: captureInfo,
+                    decode: { status: 'success', otherName: null },
+                    rawBarcode: raw,
+                    barcodeFormat,
+                    normalizedBarcode: null,
+                    lookup: 'skipped',
+                  }
+                : undefined,
+            ),
+          );
+        }
+        return Promise.resolve(
+          withDebug(
+            { status: 'detected', barcode: normalized },
+            includeDebug
+              ? {
+                  ...baseDebugSnapshot(options.video, stream),
+                  capture: captureInfo,
+                  decode: { status: 'success', otherName: null },
+                  rawBarcode: raw,
+                  barcodeFormat,
+                  normalizedBarcode: normalized,
+                  // Lookup happens in UI after this result — left skipped here.
+                  lookup: 'skipped',
+                }
+              : undefined,
+          ),
+        );
+      } catch (error) {
+        const mapped = mapDecodeErrorToDebugStatus(error);
+        if (!isTransientDecodeError(error)) {
+          console.warn(
+            '[barcode-scanner] manual scan error',
+            getErrorName(error),
+            error,
+          );
+        }
+        return Promise.resolve(
+          withDebug(
+            { status: 'not_found' },
+            includeDebug
+              ? {
+                  ...baseDebugSnapshot(options.video, stream),
+                  capture: captureInfo,
+                  decode: {
+                    status: mapped.status,
+                    otherName: mapped.otherName,
+                  },
+                  rawBarcode: null,
+                  barcodeFormat: null,
+                  normalizedBarcode: null,
+                  lookup: 'skipped',
+                }
+              : undefined,
+          ),
+        );
       }
     },
     isPreviewLive() {

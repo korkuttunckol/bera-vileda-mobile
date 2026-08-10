@@ -116,6 +116,11 @@ function makeTrack(stop = vi.fn()) {
     stop,
     getCapabilities: () => ({ focusMode: ['continuous'] }),
     applyConstraints: vi.fn(async () => undefined),
+    getSettings: () => ({
+      width: 640,
+      height: 480,
+      facingMode: 'environment',
+    }),
   };
 }
 
@@ -384,6 +389,7 @@ describe('createBarcodeScanEngine lifecycle', () => {
         decodeFromVideoElement = vi.fn(async () => ({ stop: stopControls }));
         decodeFromCanvas = vi.fn(() => ({
           getText: () => '8690123456788',
+          getBarcodeFormat: () => 7, // BarcodeFormat.EAN_13
         }));
         reset = vi.fn();
       },
@@ -401,13 +407,17 @@ describe('createBarcodeScanEngine lifecycle', () => {
     });
 
     const drawImage = vi.fn();
+    const getImageData = vi.fn(() => ({
+      data: new Uint8ClampedArray([12, 34, 56, 255]),
+    }));
     vi.stubGlobal('document', {
       createElement: (tag: string) => {
         if (tag !== 'canvas') throw new Error(`unexpected ${tag}`);
         return {
           width: 0,
           height: 0,
-          getContext: () => ({ drawImage }),
+          getContext: () => ({ drawImage, getImageData }),
+          toDataURL: () => 'data:image/jpeg;base64,xx',
         };
       },
     });
@@ -441,6 +451,14 @@ describe('createBarcodeScanEngine lifecycle', () => {
     });
     expect(engine.isPreviewLive()).toBe(true);
     expect(trackStop).not.toHaveBeenCalled();
+
+    const debugResult = await engine.scanOnce({ includeDebug: true });
+    expect(debugResult.status).toBe('detected');
+    expect(debugResult.debug?.decode.status).toBe('success');
+    expect(debugResult.debug?.rawBarcode).toBe('8690123456788');
+    expect(debugResult.debug?.normalizedBarcode).toBe('8690123456788');
+    expect(debugResult.debug?.capture.canvasWidth).toBe(640);
+    expect(debugResult.debug?.lookup).toBe('skipped');
   });
 
   it('manual scanOnce miss keeps camera open', async () => {
@@ -470,7 +488,13 @@ describe('createBarcodeScanEngine lifecycle', () => {
       createElement: () => ({
         width: 0,
         height: 0,
-        getContext: () => ({ drawImage: vi.fn() }),
+        getContext: () => ({
+          drawImage: vi.fn(),
+          getImageData: () => ({
+            data: new Uint8ClampedArray([1, 2, 3, 255]),
+          }),
+        }),
+        toDataURL: () => 'data:image/jpeg;base64,yy',
       }),
     });
 
@@ -500,6 +524,12 @@ describe('createBarcodeScanEngine lifecycle', () => {
     await expect(engine.scanOnce()).resolves.toEqual({ status: 'not_found' });
     expect(engine.isPreviewLive()).toBe(true);
     expect(trackStop).not.toHaveBeenCalled();
+
+    const debugMiss = await engine.scanOnce({ includeDebug: true });
+    expect(debugMiss.status).toBe('not_found');
+    expect(debugMiss.debug?.decode.status).toBe('NotFoundException');
+    expect(debugMiss.debug?.rawBarcode).toBeNull();
+    expect(debugMiss.debug?.lookup).toBe('skipped');
 
     engine.stop();
     expect(trackStop).toHaveBeenCalled();
