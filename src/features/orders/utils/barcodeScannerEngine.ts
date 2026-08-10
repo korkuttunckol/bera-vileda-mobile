@@ -1,4 +1,6 @@
-export type BarcodeScanEngineMode = 'native' | 'zxing';
+import { normalizeScannedBarcodeForLookup } from '@/features/orders/utils/barcodeZxingConfig';
+
+export type BarcodeScanEngineMode = 'zxing' | 'native';
 
 export interface BarcodeScanEngineOptions {
   video: HTMLVideoElement;
@@ -15,22 +17,6 @@ export interface BarcodeScanEngine {
   /** Resume detection after confirm/cancel. */
   resume: () => void;
   stop: () => void;
-}
-
-type BarcodeDetectorLike = {
-  detect: (source: ImageBitmapSource) => Promise<Array<{ rawValue: string }>>;
-};
-
-type BarcodeDetectorConstructor = new (options?: {
-  formats?: string[];
-}) => BarcodeDetectorLike;
-
-function getBarcodeDetectorCtor(): BarcodeDetectorConstructor | null {
-  if (typeof window === 'undefined') return null;
-  const ctor = (
-    window as Window & { BarcodeDetector?: BarcodeDetectorConstructor }
-  ).BarcodeDetector;
-  return ctor ?? null;
 }
 
 function stopStream(stream: MediaStream | null): void {
@@ -69,91 +55,27 @@ async function createCameraStream(facingMode: string): Promise<MediaStream> {
   }
 }
 
-function createNativeEngine(
-  Detector: BarcodeDetectorConstructor,
-  options: BarcodeScanEngineOptions,
-): BarcodeScanEngine {
-  const detector = new Detector({
-    formats: ['ean_13', 'ean_8', 'code_128', 'code_39', 'qr_code', 'upc_a', 'upc_e'],
-  });
-
-  let stream: MediaStream | null = null;
-  let rafId = 0;
-  let paused = true;
-  let stopped = false;
-  let detecting = false;
-
-  const tick = (): void => {
-    if (stopped || paused) return;
-    rafId = window.requestAnimationFrame(() => {
-      void (async () => {
-        if (stopped || paused || detecting) {
-          tick();
-          return;
-        }
-        detecting = true;
-        try {
-          if (options.video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
-            const codes = await detector.detect(options.video);
-            const value = codes[0]?.rawValue?.trim();
-            if (value) {
-              options.onDetect(value);
-            }
-          }
-        } catch {
-          // Transient detect errors are ignored; loop continues.
-        } finally {
-          detecting = false;
-          tick();
-        }
-      })();
-    });
-  };
-
-  return {
-    mode: 'native',
-    async start() {
-      stopped = false;
-      stream = await createCameraStream(options.facingMode ?? 'environment');
-      options.video.srcObject = stream;
-      options.video.setAttribute('playsinline', 'true');
-      options.video.muted = true;
-      await options.video.play();
-      paused = false;
-      tick();
-    },
-    pause() {
-      paused = true;
-      if (rafId) {
-        window.cancelAnimationFrame(rafId);
-        rafId = 0;
-      }
-    },
-    resume() {
-      if (stopped) return;
-      paused = false;
-      tick();
-    },
-    stop() {
-      stopped = true;
-      paused = true;
-      if (rafId) {
-        window.cancelAnimationFrame(rafId);
-        rafId = 0;
-      }
-      options.video.pause();
-      options.video.srcObject = null;
-      stopStream(stream);
-      stream = null;
-    },
-  };
-}
-
+/**
+ * Primary field scanner: ZXing BrowserMultiFormatReader.
+ * Used on Android Chrome and iPhone Safari (BarcodeDetector is not primary).
+ */
 async function createZxingEngine(
   options: BarcodeScanEngineOptions,
 ): Promise<BarcodeScanEngine> {
-  const { BrowserMultiFormatReader } = await import('@zxing/browser');
-  const reader = new BrowserMultiFormatReader();
+  const [{ BrowserMultiFormatReader }, { BarcodeFormat, DecodeHintType }] =
+    await Promise.all([import('@zxing/browser'), import('@zxing/library')]);
+
+  const hints = new Map();
+  hints.set(DecodeHintType.POSSIBLE_FORMATS, [
+    BarcodeFormat.EAN_13,
+    BarcodeFormat.EAN_8,
+    BarcodeFormat.UPC_A,
+    BarcodeFormat.UPC_E,
+    BarcodeFormat.CODE_128,
+  ]);
+  hints.set(DecodeHintType.TRY_HARDER, true);
+
+  const reader = new BrowserMultiFormatReader(hints);
   let stream: MediaStream | null = null;
   let controls: { stop: () => void } | null = null;
   let paused = true;
@@ -171,7 +93,7 @@ async function createZxingEngine(
       paused = false;
       controls = await reader.decodeFromStream(stream, options.video, (result) => {
         if (stopped || paused || !result) return;
-        const text = result.getText().trim();
+        const text = normalizeScannedBarcodeForLookup(result.getText());
         if (text) options.onDetect(text);
       });
     },
@@ -205,19 +127,12 @@ async function createZxingEngine(
   };
 }
 
+/**
+ * Always uses ZXing so Android Chrome never gets stuck on native BarcodeDetector.
+ * Native BarcodeDetector path is intentionally not selected here.
+ */
 export async function createBarcodeScanEngine(
   options: BarcodeScanEngineOptions,
 ): Promise<BarcodeScanEngine> {
-  const Detector = getBarcodeDetectorCtor();
-  if (Detector) {
-    try {
-      // Feature-detect: some browsers expose the ctor but throw on construct.
-      const probe = new Detector({ formats: ['ean_13'] });
-      void probe;
-      return createNativeEngine(Detector, options);
-    } catch {
-      // fall through to ZXing
-    }
-  }
   return createZxingEngine(options);
 }

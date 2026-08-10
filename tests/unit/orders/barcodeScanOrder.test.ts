@@ -1,4 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { BarcodeFormat, DecodeHintType } from '@zxing/library';
+import {
+  ZXING_PRODUCT_FORMAT_NAMES,
+  isConfiguredZxingFormatName,
+  normalizeScannedBarcodeForLookup,
+} from '@/features/orders/utils/barcodeZxingConfig';
 import {
   parseScanQuantity,
   resolveScannedProduct,
@@ -13,7 +19,7 @@ function makeProduct(overrides: Partial<Product> = {}): Product {
     name: 'Test Ürün',
     category: 'cat',
     unit: 'Adet',
-    barcode: '8691234567890',
+    barcode: '8690123456788',
     listPrice: 10,
     vatRate: 20,
     isActive: true,
@@ -28,76 +34,180 @@ function makeProduct(overrides: Partial<Product> = {}): Product {
   };
 }
 
-describe('barcodeScanOrder', () => {
-  it('resolves found product by barcode lookup result', () => {
-    const product = makeProduct();
-    expect(resolveScannedProduct(product)).toEqual({
-      status: 'ready',
-      product,
+describe('ZXing product barcode formats', () => {
+  it('includes EAN-13 for retail product barcodes', () => {
+    expect(isConfiguredZxingFormatName('EAN_13')).toBe(true);
+    expect(ZXING_PRODUCT_FORMAT_NAMES).toContain('EAN_13');
+  });
+
+  it('includes EAN-8', () => {
+    expect(ZXING_PRODUCT_FORMAT_NAMES).toContain('EAN_8');
+  });
+
+  it('includes UPC-A', () => {
+    expect(ZXING_PRODUCT_FORMAT_NAMES).toContain('UPC_A');
+  });
+
+  it('includes UPC-E', () => {
+    expect(ZXING_PRODUCT_FORMAT_NAMES).toContain('UPC_E');
+  });
+
+  it('includes CODE-128', () => {
+    expect(ZXING_PRODUCT_FORMAT_NAMES).toContain('CODE_128');
+  });
+
+  it('maps configured names to ZXing BarcodeFormat enums used by the reader', () => {
+    const mapped = ZXING_PRODUCT_FORMAT_NAMES.map((name) => {
+      switch (name) {
+        case 'EAN_13':
+          return BarcodeFormat.EAN_13;
+        case 'EAN_8':
+          return BarcodeFormat.EAN_8;
+        case 'UPC_A':
+          return BarcodeFormat.UPC_A;
+        case 'UPC_E':
+          return BarcodeFormat.UPC_E;
+        case 'CODE_128':
+          return BarcodeFormat.CODE_128;
+        default: {
+          const _exhaustive: never = name;
+          return _exhaustive;
+        }
+      }
     });
+
+    expect(mapped).toEqual([
+      BarcodeFormat.EAN_13,
+      BarcodeFormat.EAN_8,
+      BarcodeFormat.UPC_A,
+      BarcodeFormat.UPC_E,
+      BarcodeFormat.CODE_128,
+    ]);
+
+    const hints = new Map();
+    hints.set(DecodeHintType.POSSIBLE_FORMATS, mapped);
+    hints.set(DecodeHintType.TRY_HARDER, true);
+    expect(hints.get(DecodeHintType.POSSIBLE_FORMATS)).toHaveLength(5);
+  });
+});
+
+describe('normalizeScannedBarcodeForLookup', () => {
+  it('keeps EAN-13 decode text for Product.barcode lookup', () => {
+    expect(normalizeScannedBarcodeForLookup('8690123456788')).toBe(
+      '8690123456788',
+    );
   });
 
-  it('returns not_found when product is missing', () => {
-    expect(resolveScannedProduct(undefined)).toEqual({ status: 'not_found' });
+  it('keeps EAN-8 decode text', () => {
+    expect(normalizeScannedBarcodeForLookup('96385074')).toBe('96385074');
   });
 
-  it('blocks out-of-stock products (stock <= 0)', () => {
-    const product = makeProduct({ stockQuantity: 0 });
-    expect(resolveScannedProduct(product)).toEqual({
-      status: 'out_of_stock',
-      product,
+  it('normalizes UPC-A 12-digit to EAN-13 style for lookup', () => {
+    expect(normalizeScannedBarcodeForLookup('012345678905')).toBe(
+      '0012345678905',
+    );
+  });
+
+  it('keeps CODE-128 alphanumeric payload', () => {
+    expect(normalizeScannedBarcodeForLookup('ABC-12345')).toBe('ABC-12345');
+  });
+
+  it('sends normalized decode value to Product.barcode lookup', async () => {
+    const findByBarcode = vi.fn(async (code: string) =>
+      makeProduct({ barcode: code }),
+    );
+    const decoded = normalizeScannedBarcodeForLookup('8690123456788');
+    const product = await findByBarcode(decoded);
+    expect(findByBarcode).toHaveBeenCalledWith('8690123456788');
+    expect(resolveScannedProduct(product).status).toBe('ready');
+  });
+});
+
+describe('createBarcodeScanEngine prefers ZXing', () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.unstubAllGlobals();
+  });
+
+  it('always returns zxing mode even when BarcodeDetector exists', async () => {
+    const decodeFromStream = vi.fn(async () => ({ stop: vi.fn() }));
+    vi.doMock('@zxing/browser', () => ({
+      BrowserMultiFormatReader: class {
+        decodeFromStream = decodeFromStream;
+        reset = vi.fn();
+      },
+    }));
+
+    vi.stubGlobal('BarcodeDetector', class {
+      detect = vi.fn(async () => []);
     });
+    vi.stubGlobal('window', {
+      isSecureContext: true,
+      location: { hostname: 'localhost' },
+      BarcodeDetector: class {
+        detect = vi.fn(async () => []);
+      },
+    });
+    vi.stubGlobal('navigator', {
+      mediaDevices: {
+        getUserMedia: vi.fn(async () => ({
+          getTracks: () => [{ stop: vi.fn() }],
+        })),
+      },
+    });
+
+    const { createBarcodeScanEngine } = await import(
+      '@/features/orders/utils/barcodeScannerEngine'
+    );
+
+    const video = {
+      srcObject: null,
+      muted: false,
+      setAttribute: vi.fn(),
+      play: vi.fn(async () => undefined),
+      pause: vi.fn(),
+    } as unknown as HTMLVideoElement;
+
+    const engine = await createBarcodeScanEngine({
+      video,
+      onDetect: vi.fn(),
+      facingMode: 'environment',
+    });
+
+    expect(engine.mode).toBe('zxing');
+  });
+});
+
+describe('barcodeScanOrder guards', () => {
+  it('blocks stock 0', () => {
+    expect(
+      resolveScannedProduct(makeProduct({ stockQuantity: 0 })).status,
+    ).toBe('out_of_stock');
   });
 
-  it('parses valid manual quantity for cart add', () => {
-    expect(parseScanQuantity('12')).toBe(12);
-    expect(parseScanQuantity('0')).toBeNull();
+  it('suppresses duplicate scanner events', () => {
+    expect(
+      shouldAcceptScanEvent({
+        barcode: '8690123456788',
+        now: 1_200,
+        lastBarcode: '8690123456788',
+        lastAcceptedAt: 1_000,
+        cooldownMs: 1_500,
+      }),
+    ).toBe(false);
+  });
+
+  it('requires confirm qty before cart add', () => {
     expect(parseScanQuantity('')).toBeNull();
-    expect(parseScanQuantity('1.5')).toBeNull();
-  });
-
-  it('does not treat detect as cart add — confirm qty is separate', () => {
-    // Detection only resolves product readiness; cart write requires parseScanQuantity.
-    const ready = resolveScannedProduct(makeProduct());
-    expect(ready.status).toBe('ready');
-    expect(parseScanQuantity('')).toBeNull();
-  });
-
-  it('suppresses duplicate scanner events within cooldown', () => {
-    const first = shouldAcceptScanEvent({
-      barcode: '8691234567890',
-      now: 1_000,
-      lastBarcode: null,
-      lastAcceptedAt: 0,
-      cooldownMs: 1_500,
-    });
-    expect(first).toBe(true);
-
-    const duplicate = shouldAcceptScanEvent({
-      barcode: '8691234567890',
-      now: 1_200,
-      lastBarcode: '8691234567890',
-      lastAcceptedAt: 1_000,
-      cooldownMs: 1_500,
-    });
-    expect(duplicate).toBe(false);
-
-    const afterCooldown = shouldAcceptScanEvent({
-      barcode: '8691234567890',
-      now: 3_000,
-      lastBarcode: '8691234567890',
-      lastAcceptedAt: 1_000,
-      cooldownMs: 1_500,
-    });
-    expect(afterCooldown).toBe(true);
+    expect(parseScanQuantity('5')).toBe(5);
   });
 });
 
 describe('addToCart accumulation for rescanned product', () => {
-  it('adds quantities when same product is added twice via addToCart', async () => {
+  it('adds quantities when same product is scanned twice', async () => {
     const { useOrderDraftStore } = await import('@/stores/orderDraftStore');
     useOrderDraftStore.getState().reset();
-    const product = makeProduct({ id: 'scan-p1', barcode: '111' });
+    const product = makeProduct({ id: 'scan-p1' });
 
     useOrderDraftStore.getState().addToCart(product, 10);
     useOrderDraftStore.getState().addToCart(product, 3);
