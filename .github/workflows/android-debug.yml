@@ -5,7 +5,7 @@
 # Artifact: bera-vileda-android-debug / app-debug.apk
 #
 # Matches project:
-#   Capacitor 8.5 · AGP 8.13 · Gradle 8.14.3 · compile/target SDK 36 · minSdk 24
+#   Capacitor 8.5 · AGP 8.13 · Gradle 8.14.3 · JDK 21 · compile/target SDK 36 · minSdk 24
 
 name: Android Debug APK
 
@@ -65,11 +65,13 @@ jobs:
           node-version: '22'
           cache: npm
 
-      - name: Setup JDK 17
+      - name: Setup JDK 21
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          # Capacitor Android 8 / AGP 8.13 compile with source/target 21
+          # (JDK 17 fails: "invalid source release: 21").
+          java-version: '21'
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
