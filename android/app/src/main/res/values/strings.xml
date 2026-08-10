@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">BERA VİLEDA</string>
+    <string name="title_activity_main">BERA VİLEDA</string>
+    <string name="package_name">com.beravileda.siparis</string>
+    <string name="custom_url_scheme">com.beravileda.siparis</string>
+</resources>
