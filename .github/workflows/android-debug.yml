@@ -10,7 +10,23 @@
 name: Android Debug APK
 
 on:
+  # Manual: Actions → Android Debug APK → Run workflow → select branch
+  # (Requires this file on the repo default branch for the UI dispatch picker.
+  #  Until then, pushes to the native barcode branch also build a debug APK.)
   workflow_dispatch:
+  push:
+    branches:
+      - cursor/capacitor-mlkit-barcode-poc-7d6c
+    paths:
+      - '.github/workflows/android-debug.yml'
+      - 'android/**'
+      - 'capacitor.config.ts'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'src/**'
+      - 'index.html'
+      - 'vite.config.ts'
+      - 'tsconfig*.json'
 
 permissions:
   contents: read
