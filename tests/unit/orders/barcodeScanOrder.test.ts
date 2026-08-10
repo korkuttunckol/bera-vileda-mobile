@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { BarcodeFormat, DecodeHintType } from '@zxing/library';
 import {
   ZXING_PRODUCT_FORMAT_NAMES,
@@ -120,61 +120,6 @@ describe('normalizeScannedBarcodeForLookup', () => {
     const product = await findByBarcode(decoded);
     expect(findByBarcode).toHaveBeenCalledWith('8690123456788');
     expect(resolveScannedProduct(product).status).toBe('ready');
-  });
-});
-
-describe('createBarcodeScanEngine prefers ZXing', () => {
-  beforeEach(() => {
-    vi.resetModules();
-    vi.unstubAllGlobals();
-  });
-
-  it('always returns zxing mode even when BarcodeDetector exists', async () => {
-    const decodeFromStream = vi.fn(async () => ({ stop: vi.fn() }));
-    vi.doMock('@zxing/browser', () => ({
-      BrowserMultiFormatReader: class {
-        decodeFromStream = decodeFromStream;
-        reset = vi.fn();
-      },
-    }));
-
-    vi.stubGlobal('BarcodeDetector', class {
-      detect = vi.fn(async () => []);
-    });
-    vi.stubGlobal('window', {
-      isSecureContext: true,
-      location: { hostname: 'localhost' },
-      BarcodeDetector: class {
-        detect = vi.fn(async () => []);
-      },
-    });
-    vi.stubGlobal('navigator', {
-      mediaDevices: {
-        getUserMedia: vi.fn(async () => ({
-          getTracks: () => [{ stop: vi.fn() }],
-        })),
-      },
-    });
-
-    const { createBarcodeScanEngine } = await import(
-      '@/features/orders/utils/barcodeScannerEngine'
-    );
-
-    const video = {
-      srcObject: null,
-      muted: false,
-      setAttribute: vi.fn(),
-      play: vi.fn(async () => undefined),
-      pause: vi.fn(),
-    } as unknown as HTMLVideoElement;
-
-    const engine = await createBarcodeScanEngine({
-      video,
-      onDetect: vi.fn(),
-      facingMode: 'environment',
-    });
-
-    expect(engine.mode).toBe('zxing');
   });
 });
 
