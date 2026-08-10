@@ -13,8 +13,11 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "cap:sync": "npm run build && npx cap sync android",
-    "cap:open:android": "npx cap open android"
+    "cap:sync": "npm run build && npx cap sync",
+    "cap:sync:android": "npm run build && npx cap sync android",
+    "cap:sync:ios": "npm run build && npx cap sync ios",
+    "cap:open:android": "npx cap open android",
+    "cap:open:ios": "npx cap open ios"
   },
   "dependencies": {
     "@capacitor-mlkit/barcode-scanning": "^8.1.0",
@@ -36,6 +39,7 @@
   "devDependencies": {
     "@capacitor/android": "^8.5.0",
     "@capacitor/cli": "^8.5.0",
+    "@capacitor/ios": "^8.5.0",
     "@eslint/js": "^9.24.0",
     "@types/bcryptjs": "^2.4.6",
     "@types/react": "^19.1.2",

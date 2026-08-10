@@ -14,6 +14,12 @@ import {
   rememberRecentProduct,
   getLastBranchForCustomer,
 } from '@/features/orders/hooks/orderPrefs';
+import { productService } from '@/features/products/services/productService';
+import {
+  barcodeLookupCandidates,
+  scanNativeBarcode,
+} from '@/shared/nativeBarcode/scanNativeBarcode';
+import { resolveScannedProduct } from '@/features/orders/utils/barcodeScanOrder';
 import { useOrderDraftStore } from '@/stores/orderDraftStore';
 import { useAuthStore } from '@/stores/authStore';
 import { toast } from '@/stores/toastStore';
@@ -22,6 +28,7 @@ import type { Customer } from '@/shared/types/customer.types';
 import type { Product } from '@/shared/types/product.types';
 import { MobileCustomerSection } from './MobileCustomerSection';
 import { MobileProductSection } from './MobileProductSection';
+import { MobileNativeBarcodeConfirmSheet } from './MobileNativeBarcodeConfirmSheet';
 import { MobileStickyCartBar } from './MobileStickyCartBar';
 import { MobileQtyStepper } from './MobileQtyStepper';
 
@@ -55,6 +62,9 @@ export function MobileOrderScreen() {
   const [isSaving, setIsSaving] = useState(false);
   const [lastSavedOrderId, setLastSavedOrderId] = useState<string | null>(null);
   const [showCartLines, setShowCartLines] = useState(false);
+  const [isScanningBarcode, setIsScanningBarcode] = useState(false);
+  const [confirmProduct, setConfirmProduct] = useState<Product | null>(null);
+  const [scannedBarcode, setScannedBarcode] = useState('');
 
   const cartQtyByProductId = useMemo(() => {
     const map: Record<string, number> = {};
@@ -135,6 +145,59 @@ export function MobileOrderScreen() {
     [addToCart, removeLine, updateLineQuantity],
   );
 
+  const handleScanAddToCart = useCallback(
+    (product: Product, quantity: number): void => {
+      addToCart(product, quantity);
+      rememberRecentProduct(product.id);
+    },
+    [addToCart],
+  );
+
+  const handleScanBarcodeClick = useCallback((): void => {
+    if (isScanningBarcode) return;
+
+    void (async () => {
+      setIsScanningBarcode(true);
+      try {
+        const result = await scanNativeBarcode();
+        if (result.status === 'cancelled') return;
+        if (result.status === 'denied' || result.status === 'unsupported') {
+          toast(result.message, 'warning');
+          return;
+        }
+        if (result.status === 'error') {
+          toast(result.message, 'error');
+          return;
+        }
+
+        const candidates = barcodeLookupCandidates(result.rawValue);
+        let product: Product | undefined;
+        for (const code of candidates) {
+          product = await productService.findByBarcode(code);
+          if (product) break;
+        }
+
+        const resolved = resolveScannedProduct(product);
+        if (resolved.status === 'not_found') {
+          toast(
+            `Barkod bulunamadı: ${result.rawValue}`,
+            'warning',
+          );
+          return;
+        }
+        if (resolved.status === 'out_of_stock') {
+          toast('Bu ürünün stoğu bulunmuyor.', 'warning');
+          return;
+        }
+
+        setScannedBarcode(result.rawValue);
+        setConfirmProduct(resolved.product);
+      } finally {
+        setIsScanningBarcode(false);
+      }
+    })();
+  }, [isScanningBarcode]);
+
   const handleSave = async (): Promise<void> => {
     if (!user) return;
     if (!customerId || lines.length === 0) {
@@ -196,6 +259,8 @@ export function MobileOrderScreen() {
           enabled={Boolean(customerId && branchId)}
           cartQtyByProductId={cartQtyByProductId}
           onQuantityChange={handleQuantityChange}
+          onScanBarcodeClick={handleScanBarcodeClick}
+          scanBarcodeBusy={isScanningBarcode}
         />
 
         {showCartLines && lines.length > 0 ? (
@@ -273,6 +338,17 @@ export function MobileOrderScreen() {
         onOpenCartLines={() => {
           setShowCartLines(true);
         }}
+      />
+
+      <MobileNativeBarcodeConfirmSheet
+        open={Boolean(confirmProduct)}
+        product={confirmProduct}
+        scannedBarcode={scannedBarcode}
+        onClose={() => {
+          setConfirmProduct(null);
+          setScannedBarcode('');
+        }}
+        onAddToCart={handleScanAddToCart}
       />
     </div>
   );

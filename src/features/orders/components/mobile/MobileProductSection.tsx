@@ -11,12 +11,18 @@ interface MobileProductSectionProps {
   enabled: boolean;
   cartQtyByProductId: Record<string, number>;
   onQuantityChange: (product: Product, quantity: number) => void;
+  /** Opens native Capacitor barcode scanner (auto-detect). */
+  onScanBarcodeClick: () => void;
+  /** Disables camera while a scan is in progress. */
+  scanBarcodeBusy?: boolean;
 }
 
 export function MobileProductSection({
   enabled,
   cartQtyByProductId,
   onQuantityChange,
+  onScanBarcodeClick,
+  scanBarcodeBusy = false,
 }: MobileProductSectionProps) {
   const [search, setSearch] = useState('');
   const { products, allProducts, isInitialLoading } = useCachedProducts(search);
@@ -94,12 +100,11 @@ export function MobileProductSection({
         ) : (
           <button
             type="button"
-            className="absolute right-2 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-xl text-brand-navy active:bg-brand-gray-100"
-            aria-label="Barkod tarama (yakında)"
-            title="Kamera ile barkod — yakında"
-            onClick={() => {
-              // Placeholder for future camera barcode integration.
-            }}
+            className="absolute right-2 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-xl text-brand-navy active:bg-brand-gray-100 disabled:opacity-50"
+            aria-label="Barkod okut"
+            title="Kamera ile barkod okut"
+            disabled={scanBarcodeBusy}
+            onClick={onScanBarcodeClick}
           >
             <svg
               className="h-5 w-5"
