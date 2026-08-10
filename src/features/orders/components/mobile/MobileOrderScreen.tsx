@@ -20,10 +20,12 @@ import {
   scanNativeBarcode,
 } from '@/shared/nativeBarcode/scanNativeBarcode';
 import { resolveScannedProduct } from '@/features/orders/utils/barcodeScanOrder';
+import { useVisualViewportKeyboard } from '@/shared/hooks/useVisualViewportKeyboard';
 import { useOrderDraftStore } from '@/stores/orderDraftStore';
 import { useAuthStore } from '@/stores/authStore';
 import { toast } from '@/stores/toastStore';
 import { ROUTES } from '@/shared/constants/routes';
+import { cn } from '@/shared/utils/cn';
 import type { Customer } from '@/shared/types/customer.types';
 import type { Product } from '@/shared/types/product.types';
 import { MobileCustomerSection } from './MobileCustomerSection';
@@ -43,6 +45,7 @@ export function MobileOrderScreen() {
 
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
+  const { keyboardOpen } = useVisualViewportKeyboard();
 
   const customerId = useOrderDraftStore((s) => s.customerId);
   const customerName = useOrderDraftStore((s) => s.customerName);
@@ -241,7 +244,7 @@ export function MobileOrderScreen() {
   };
 
   return (
-    <div className="pb-44">
+    <div className={cn(keyboardOpen ? 'pb-4' : 'pb-44')}>
       <div className="space-y-3 p-3">
         <MobileCustomerSection
           selectedCustomerId={customerId}

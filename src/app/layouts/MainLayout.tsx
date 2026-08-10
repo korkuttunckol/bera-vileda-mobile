@@ -6,11 +6,14 @@ import { APP_SHORT_NAME } from '@/shared/constants/app';
 import { ROUTES } from '@/shared/constants/routes';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { usePermissions } from '@/features/auth/hooks/usePermissions';
+import { useVisualViewportKeyboard } from '@/shared/hooks/useVisualViewportKeyboard';
+import { cn } from '@/shared/utils/cn';
 
 export function MainLayout() {
   const { user, logout } = useAuth();
   const { can } = usePermissions();
   const navigate = useNavigate();
+  const { keyboardOpen } = useVisualViewportKeyboard();
 
   const handleSettingsClick = (): void => {
     void navigate(can('systemSettings') ? ROUTES.SETTINGS : ROUTES.SETTINGS_APP_INFO);
@@ -22,7 +25,7 @@ export function MainLayout() {
   };
 
   return (
-    <div className="flex h-dvh min-h-0 min-w-0 flex-col overflow-hidden bg-brand-surface">
+    <div className="app-vv-height flex min-h-0 min-w-0 flex-col overflow-hidden bg-brand-surface">
       <header className="safe-area-top z-30 shrink-0 border-b border-white/10 bg-gradient-to-r from-brand-navy via-brand-navy-light to-brand-navy-dark px-4 py-3 shadow-sm">
         <div className="app-shell flex items-center justify-between gap-2">
           <div>
@@ -59,7 +62,13 @@ export function MainLayout() {
       </div>
 
       {/* Single vertical scroll owner for all authenticated pages (Android + iOS). */}
-      <main className="app-shell min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-y-contain pb-20 page-enter">
+      <main
+        className={cn(
+          'app-shell min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-y-contain page-enter',
+          // Bottom nav clearance; drop when keyboard hides the nav.
+          keyboardOpen ? 'pb-3' : 'pb-20',
+        )}
+      >
         <Outlet />
       </main>
 

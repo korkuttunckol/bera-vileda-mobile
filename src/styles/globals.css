@@ -88,6 +88,16 @@
   .text-balance {
     text-wrap: balance;
   }
+
+  /*
+   * Prefer visualViewport height when the soft keyboard is open
+   * (set by useVisualViewportKeyboard → --app-vv-height).
+   * Fallback: 100dvh (not 100vh) for iOS/PWA.
+   */
+  .app-vv-height {
+    height: var(--app-vv-height, 100dvh);
+    max-height: var(--app-vv-height, 100dvh);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -1,4 +1,4 @@
-import { useMemo, useState, type KeyboardEvent } from 'react';
+import { useMemo, useState, type FocusEvent, type KeyboardEvent } from 'react';
 import { EmptyState } from '@/shared/components/feedback/EmptyState';
 import { LoadingSpinner } from '@/shared/components/feedback/LoadingSpinner';
 import { useCachedProducts } from '@/features/orders/hooks/useCachedProducts';
@@ -6,6 +6,14 @@ import { getRecentProductIds } from '@/features/orders/hooks/orderPrefs';
 import { cn } from '@/shared/utils/cn';
 import { MobileProductRow } from './MobileProductRow';
 import type { Product } from '@/shared/types/product.types';
+
+function scrollSearchFieldIntoView(el: HTMLElement): void {
+  // Immediate + delayed pass: Android keyboard animation finishes after focus.
+  el.scrollIntoView({ block: 'start', inline: 'nearest', behavior: 'smooth' });
+  window.setTimeout(() => {
+    el.scrollIntoView({ block: 'start', inline: 'nearest', behavior: 'smooth' });
+  }, 280);
+}
 
 interface MobileProductSectionProps {
   enabled: boolean;
@@ -42,6 +50,10 @@ export function MobileProductSection({
     }
   };
 
+  const handleSearchFocus = (e: FocusEvent<HTMLInputElement>): void => {
+    scrollSearchFieldIntoView(e.currentTarget);
+  };
+
   if (!enabled) {
     return (
       <div className="rounded-2xl border border-dashed border-brand-gray-200 bg-brand-gray-50 p-6 text-center text-sm text-brand-gray-500">
@@ -52,6 +64,8 @@ export function MobileProductSection({
 
   return (
     <div className="space-y-2.5">
+      {/* Sticky within MainLayout <main> so the field stays above the keyboard. */}
+      <div className="sticky top-0 z-20 -mx-3 bg-brand-surface/95 px-3 py-1.5 backdrop-blur-sm">
       <div className="relative">
         <span
           className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-brand-navy"
@@ -73,11 +87,13 @@ export function MobileProductSection({
           type="search"
           inputMode="search"
           autoComplete="off"
+          enterKeyHint="search"
           placeholder="Barkod, ürün kodu veya ad..."
           value={search}
           onChange={(e) => {
             setSearch(e.target.value);
           }}
+          onFocus={handleSearchFocus}
           onKeyDown={handleBarcodeKeyDown}
           data-barcode-search="true"
           className={cn(
@@ -118,6 +134,7 @@ export function MobileProductSection({
             </svg>
           </button>
         )}
+      </div>
       </div>
 
       {isInitialLoading ? (

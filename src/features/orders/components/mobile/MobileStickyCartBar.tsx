@@ -1,6 +1,8 @@
 import { Button } from '@/shared/components/ui/Button';
 import { useOrderTotals } from '@/features/orders/hooks/useOrderTotals';
+import { useVisualViewportKeyboard } from '@/shared/hooks/useVisualViewportKeyboard';
 import { useOrderDraftStore } from '@/stores/orderDraftStore';
+import { cn } from '@/shared/utils/cn';
 
 interface MobileStickyCartBarProps {
   isSaving: boolean;
@@ -20,17 +22,27 @@ export function MobileStickyCartBar({
   const customerId = useOrderDraftStore((s) => s.customerId);
   const lineCount = useOrderDraftStore((s) => s.lines.length);
   const totals = useOrderTotals();
+  const { keyboardOpen } = useVisualViewportKeyboard();
 
   const canSave = Boolean(customerId) && lineCount > 0 && !isSaving;
 
   return (
-    <div className="fixed bottom-16 left-0 right-0 z-30 border-t border-brand-gray-200 bg-white px-3 py-2.5 shadow-lg safe-area-bottom">
+    <div
+      className={cn(
+        'fixed bottom-16 left-0 right-0 z-30 border-t border-brand-gray-200 bg-white px-3 py-2.5 shadow-lg safe-area-bottom transition-transform duration-200 ease-out',
+        // Hide while keyboard is open so search/results keep usable height.
+        // Summary + save restore when the keyboard closes (logic unchanged).
+        keyboardOpen && 'pointer-events-none translate-y-[140%] opacity-0',
+      )}
+      aria-hidden={keyboardOpen}
+    >
       <div className="app-shell space-y-2">
         <button
           type="button"
           onClick={onOpenCartLines}
           className="flex min-h-12 w-full items-center justify-center gap-4 rounded-xl bg-brand-gray-50 px-3 text-sm font-semibold text-brand-navy active:bg-brand-gray-100 disabled:opacity-50"
           disabled={lineCount === 0}
+          tabIndex={keyboardOpen ? -1 : undefined}
         >
           <span>{totals.lineCount} Kalem</span>
           <span className="text-brand-gray-300">·</span>
@@ -43,6 +55,7 @@ export function MobileStickyCartBar({
               variant="outline"
               className="min-h-12 flex-1"
               onClick={onShare}
+              tabIndex={keyboardOpen ? -1 : undefined}
             >
               Paylaş
             </Button>
@@ -53,6 +66,7 @@ export function MobileStickyCartBar({
             isLoading={isSaving}
             disabled={!canSave}
             onClick={onSave}
+            tabIndex={keyboardOpen ? -1 : undefined}
           >
             Siparişi Kaydet
           </Button>
