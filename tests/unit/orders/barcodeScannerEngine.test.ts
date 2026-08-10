@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   buildCameraVideoConstraints,
+  buildFallbackCameraVideoConstraints,
   isTransientDecodeError,
   isVideoFrameReady,
   waitForVideoFrameReady,
@@ -52,35 +53,26 @@ describe('video frame readiness helpers', () => {
     ).toBe(true);
   });
 
-  it('waitForVideoFrameReady does not resolve until dimensions are ready', async () => {
+  it('waitForVideoFrameReady resolves true when dimensions become ready', async () => {
     const video = makeVideo({
       readyState: 0,
       videoWidth: 0,
       videoHeight: 0,
     }) as HTMLVideoElement & { dispatch: (t: string) => void };
 
-    let resolved = false;
-    const pending = waitForVideoFrameReady(video, 2_000).then(() => {
-      resolved = true;
-    });
-
-    await Promise.resolve();
-    expect(resolved).toBe(false);
+    const pending = waitForVideoFrameReady(video, 2_000);
 
     (video as unknown as { readyState: number }).readyState = 2;
     (video as unknown as { videoWidth: number }).videoWidth = 640;
     (video as unknown as { videoHeight: number }).videoHeight = 480;
     video.dispatch('loadedmetadata');
 
-    await pending;
-    expect(resolved).toBe(true);
+    await expect(pending).resolves.toBe(true);
   });
 
-  it('waitForVideoFrameReady rejects on timeout when never ready', async () => {
+  it('waitForVideoFrameReady resolves false on timeout (non-fatal)', async () => {
     const video = makeVideo();
-    await expect(waitForVideoFrameReady(video, 80)).rejects.toThrow(
-      /Kamera görüntüsü hazır olmadı/,
-    );
+    await expect(waitForVideoFrameReady(video, 80)).resolves.toBe(false);
   });
 });
 
@@ -90,6 +82,12 @@ describe('buildCameraVideoConstraints', () => {
     expect(constraints.facingMode).toEqual({ ideal: 'environment' });
     expect(constraints.width).toEqual({ ideal: 640 });
     expect(constraints.height).toEqual({ ideal: 480 });
+  });
+
+  it('fallback omits width/height ideals', () => {
+    expect(buildFallbackCameraVideoConstraints('environment')).toEqual({
+      facingMode: { ideal: 'environment' },
+    });
   });
 });
 
@@ -102,6 +100,25 @@ describe('isTransientDecodeError', () => {
   });
 });
 
+function stubSecureWindow(): void {
+  vi.stubGlobal('window', {
+    isSecureContext: true,
+    location: { hostname: 'localhost' },
+    setInterval,
+    clearInterval,
+    setTimeout,
+    clearTimeout,
+  });
+}
+
+function makeTrack(stop = vi.fn()) {
+  return {
+    stop,
+    getCapabilities: () => ({ focusMode: ['continuous'] }),
+    applyConstraints: vi.fn(async () => undefined),
+  };
+}
+
 describe('createBarcodeScanEngine lifecycle', () => {
   beforeEach(() => {
     vi.resetModules();
@@ -113,7 +130,153 @@ describe('createBarcodeScanEngine lifecycle', () => {
     vi.doUnmock('@zxing/browser');
   });
 
-  it('does not start decoder before video dimensions are ready, then starts and detects', async () => {
+  it('opens preview even when video frame is not ready yet', async () => {
+    const decodeFromVideoElement = vi.fn(async () => ({ stop: vi.fn() }));
+    const decodeFromCanvas = vi.fn();
+
+    vi.doMock('@zxing/browser', () => ({
+      BrowserMultiFormatReader: class {
+        decodeFromVideoElement = decodeFromVideoElement;
+        decodeFromCanvas = decodeFromCanvas;
+        reset = vi.fn();
+      },
+    }));
+
+    const trackStop = vi.fn();
+    stubSecureWindow();
+    vi.stubGlobal('navigator', {
+      mediaDevices: {
+        getUserMedia: vi.fn(async () => ({
+          getTracks: () => [makeTrack(trackStop)],
+          getVideoTracks: () => [makeTrack(trackStop)],
+        })),
+      },
+    });
+
+    const { createBarcodeScanEngine } = await import(
+      '@/features/orders/utils/barcodeScannerEngine'
+    );
+
+    const videoState = {
+      readyState: 0,
+      videoWidth: 0,
+      videoHeight: 0,
+      srcObject: null as MediaStream | null,
+      muted: false,
+    };
+
+    const video = {
+      get readyState() {
+        return videoState.readyState;
+      },
+      get videoWidth() {
+        return videoState.videoWidth;
+      },
+      get videoHeight() {
+        return videoState.videoHeight;
+      },
+      get srcObject() {
+        return videoState.srcObject;
+      },
+      set srcObject(value: MediaStream | null) {
+        videoState.srcObject = value;
+      },
+      get muted() {
+        return videoState.muted;
+      },
+      set muted(value: boolean) {
+        videoState.muted = value;
+      },
+      setAttribute: vi.fn(),
+      play: vi.fn(async () => undefined),
+      pause: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    } as unknown as HTMLVideoElement;
+
+    const engine = await createBarcodeScanEngine({
+      video,
+      onDetect: vi.fn(),
+      facingMode: 'environment',
+    });
+
+    await engine.start();
+
+    expect(video.srcObject).not.toBeNull();
+    expect(engine.isPreviewLive()).toBe(true);
+    // Continuous decode waits for frame size — must not block preview.
+    expect(decodeFromVideoElement).not.toHaveBeenCalled();
+
+    engine.stop();
+    expect(trackStop).toHaveBeenCalled();
+    expect(engine.isPreviewLive()).toBe(false);
+  });
+
+  it('frame-ready timeout is non-fatal: preview stays live for manual scan', async () => {
+    vi.useFakeTimers();
+    const decodeFromVideoElement = vi.fn(async () => ({ stop: vi.fn() }));
+    const decodeFromCanvas = vi.fn(() => {
+      const err = new Error('NotFoundException');
+      err.name = 'NotFoundException';
+      throw err;
+    });
+
+    vi.doMock('@zxing/browser', () => ({
+      BrowserMultiFormatReader: class {
+        decodeFromVideoElement = decodeFromVideoElement;
+        decodeFromCanvas = decodeFromCanvas;
+        reset = vi.fn();
+      },
+    }));
+
+    stubSecureWindow();
+    vi.stubGlobal('navigator', {
+      mediaDevices: {
+        getUserMedia: vi.fn(async () => ({
+          getTracks: () => [makeTrack()],
+          getVideoTracks: () => [makeTrack()],
+        })),
+      },
+    });
+
+    const { createBarcodeScanEngine } = await import(
+      '@/features/orders/utils/barcodeScannerEngine'
+    );
+
+    const video = {
+      readyState: 0,
+      videoWidth: 0,
+      videoHeight: 0,
+      srcObject: null as MediaStream | null,
+      muted: false,
+      setAttribute: vi.fn(),
+      play: vi.fn(async () => undefined),
+      pause: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    } as unknown as HTMLVideoElement;
+
+    const engine = await createBarcodeScanEngine({
+      video,
+      onDetect: vi.fn(),
+    });
+
+    await engine.start();
+    expect(engine.isPreviewLive()).toBe(true);
+
+    await vi.advanceTimersByTimeAsync(11_000);
+    expect(decodeFromVideoElement).not.toHaveBeenCalled();
+    expect(engine.isPreviewLive()).toBe(true);
+
+    // Manual scan while dimensions still missing → not_ready, camera stays open.
+    await expect(engine.scanOnce()).resolves.toEqual({ status: 'not_ready' });
+    expect(engine.isPreviewLive()).toBe(true);
+
+    engine.stop();
+    vi.useRealTimers();
+  });
+
+  it('starts continuous decode after frames are ready and detects', async () => {
     const decodeFromVideoElement = vi.fn(
       async (
         _video: HTMLVideoElement,
@@ -122,7 +285,6 @@ describe('createBarcodeScanEngine lifecycle', () => {
           error?: unknown,
         ) => void,
       ) => {
-        // Simulate continuous loop: transient miss then success
         callback(undefined, { name: 'NotFoundException' });
         callback({ getText: () => '8690123456788' }, undefined);
         return { stop: vi.fn() };
@@ -132,37 +294,17 @@ describe('createBarcodeScanEngine lifecycle', () => {
     vi.doMock('@zxing/browser', () => ({
       BrowserMultiFormatReader: class {
         decodeFromVideoElement = decodeFromVideoElement;
+        decodeFromCanvas = vi.fn();
         reset = vi.fn();
       },
     }));
 
-    const trackStop = vi.fn();
-    const applyConstraints = vi.fn(async () => undefined);
-    vi.stubGlobal('window', {
-      isSecureContext: true,
-      location: { hostname: 'localhost' },
-      setInterval,
-      clearInterval,
-      setTimeout,
-      clearTimeout,
-    });
+    stubSecureWindow();
     vi.stubGlobal('navigator', {
       mediaDevices: {
         getUserMedia: vi.fn(async () => ({
-          getTracks: () => [
-            {
-              stop: trackStop,
-              getCapabilities: () => ({ focusMode: ['continuous'] }),
-              applyConstraints,
-            },
-          ],
-          getVideoTracks: () => [
-            {
-              stop: trackStop,
-              getCapabilities: () => ({ focusMode: ['continuous'] }),
-              applyConstraints,
-            },
-          ],
+          getTracks: () => [makeTrack()],
+          getVideoTracks: () => [makeTrack()],
         })),
       },
     });
@@ -204,7 +346,6 @@ describe('createBarcodeScanEngine lifecycle', () => {
       },
       setAttribute: vi.fn(),
       play: vi.fn(async () => {
-        // Dimensions become available only after play (Android-like timing).
         videoState.readyState = 2;
         videoState.videoWidth = 640;
         videoState.videoHeight = 480;
@@ -228,63 +369,46 @@ describe('createBarcodeScanEngine lifecycle', () => {
       facingMode: 'environment',
     });
 
-    expect(engine.mode).toBe('zxing');
-    expect(decodeFromVideoElement).not.toHaveBeenCalled();
-
     await engine.start();
-
-    expect(decodeFromVideoElement).toHaveBeenCalledTimes(1);
-    expect(applyConstraints).toHaveBeenCalled();
+    // Allow background continuous start to settle.
+    await vi.waitFor(() => {
+      expect(decodeFromVideoElement).toHaveBeenCalledTimes(1);
+    });
     expect(onDetect).toHaveBeenCalledWith('8690123456788');
   });
 
-  it('keeps scanner running after NotFoundException (no onDetect)', async () => {
-    let decodeCallback:
-      | ((
-          result?: { getText: () => string },
-          error?: unknown,
-        ) => void)
-      | null = null;
-    const stop = vi.fn();
-
+  it('manual scanOnce success returns barcode without stopping preview', async () => {
+    const stopControls = vi.fn();
     vi.doMock('@zxing/browser', () => ({
       BrowserMultiFormatReader: class {
-        decodeFromVideoElement = vi.fn(
-          async (
-            _video: HTMLVideoElement,
-            callback: (
-              result?: { getText: () => string },
-              error?: unknown,
-            ) => void,
-          ) => {
-            decodeCallback = callback;
-            return { stop };
-          },
-        );
+        decodeFromVideoElement = vi.fn(async () => ({ stop: stopControls }));
+        decodeFromCanvas = vi.fn(() => ({
+          getText: () => '8690123456788',
+        }));
         reset = vi.fn();
       },
     }));
 
-    vi.stubGlobal('window', {
-      isSecureContext: true,
-      location: { hostname: 'localhost' },
-      setInterval,
-      clearInterval,
-      setTimeout,
-      clearTimeout,
-    });
+    stubSecureWindow();
+    const trackStop = vi.fn();
     vi.stubGlobal('navigator', {
       mediaDevices: {
         getUserMedia: vi.fn(async () => ({
-          getTracks: () => [{ stop: vi.fn() }],
-          getVideoTracks: () => [
-            {
-              stop: vi.fn(),
-              getCapabilities: () => ({}),
-              applyConstraints: vi.fn(),
-            },
-          ],
+          getTracks: () => [makeTrack(trackStop)],
+          getVideoTracks: () => [makeTrack(trackStop)],
         })),
+      },
+    });
+
+    const drawImage = vi.fn();
+    vi.stubGlobal('document', {
+      createElement: (tag: string) => {
+        if (tag !== 'canvas') throw new Error(`unexpected ${tag}`);
+        return {
+          width: 0,
+          height: 0,
+          getContext: () => ({ drawImage }),
+        };
       },
     });
 
@@ -296,7 +420,7 @@ describe('createBarcodeScanEngine lifecycle', () => {
       readyState: 2,
       videoWidth: 640,
       videoHeight: 480,
-      srcObject: null,
+      srcObject: null as MediaStream | null,
       muted: false,
       setAttribute: vi.fn(),
       play: vi.fn(async () => undefined),
@@ -305,47 +429,100 @@ describe('createBarcodeScanEngine lifecycle', () => {
       removeEventListener: vi.fn(),
     } as unknown as HTMLVideoElement;
 
-    const onDetect = vi.fn();
-    const engine = await createBarcodeScanEngine({ video, onDetect });
+    const engine = await createBarcodeScanEngine({
+      video,
+      onDetect: vi.fn(),
+    });
     await engine.start();
 
-    expect(decodeCallback).not.toBeNull();
-    decodeCallback?.(undefined, { name: 'NotFoundException' });
-    decodeCallback?.(undefined, { name: 'NotFoundException' });
-    expect(onDetect).not.toHaveBeenCalled();
-    expect(stop).not.toHaveBeenCalled();
+    await expect(engine.scanOnce()).resolves.toEqual({
+      status: 'detected',
+      barcode: '8690123456788',
+    });
+    expect(engine.isPreviewLive()).toBe(true);
+    expect(trackStop).not.toHaveBeenCalled();
+  });
 
-    decodeCallback?.({ getText: () => ' 8690123456788 ' }, undefined);
-    expect(onDetect).toHaveBeenCalledWith('8690123456788');
+  it('manual scanOnce miss keeps camera open', async () => {
+    vi.doMock('@zxing/browser', () => ({
+      BrowserMultiFormatReader: class {
+        decodeFromVideoElement = vi.fn(async () => ({ stop: vi.fn() }));
+        decodeFromCanvas = vi.fn(() => {
+          const err = new Error('NotFoundException');
+          err.name = 'NotFoundException';
+          throw err;
+        });
+        reset = vi.fn();
+      },
+    }));
+
+    stubSecureWindow();
+    const trackStop = vi.fn();
+    vi.stubGlobal('navigator', {
+      mediaDevices: {
+        getUserMedia: vi.fn(async () => ({
+          getTracks: () => [makeTrack(trackStop)],
+          getVideoTracks: () => [makeTrack(trackStop)],
+        })),
+      },
+    });
+    vi.stubGlobal('document', {
+      createElement: () => ({
+        width: 0,
+        height: 0,
+        getContext: () => ({ drawImage: vi.fn() }),
+      }),
+    });
+
+    const { createBarcodeScanEngine } = await import(
+      '@/features/orders/utils/barcodeScannerEngine'
+    );
+
+    const video = {
+      readyState: 2,
+      videoWidth: 640,
+      videoHeight: 480,
+      srcObject: null as MediaStream | null,
+      muted: false,
+      setAttribute: vi.fn(),
+      play: vi.fn(async () => undefined),
+      pause: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    } as unknown as HTMLVideoElement;
+
+    const engine = await createBarcodeScanEngine({
+      video,
+      onDetect: vi.fn(),
+    });
+    await engine.start();
+
+    await expect(engine.scanOnce()).resolves.toEqual({ status: 'not_found' });
+    expect(engine.isPreviewLive()).toBe(true);
+    expect(trackStop).not.toHaveBeenCalled();
+
+    engine.stop();
+    expect(trackStop).toHaveBeenCalled();
   });
 
   it('always returns zxing mode even when BarcodeDetector exists', async () => {
     vi.doMock('@zxing/browser', () => ({
       BrowserMultiFormatReader: class {
         decodeFromVideoElement = vi.fn(async () => ({ stop: vi.fn() }));
+        decodeFromCanvas = vi.fn();
         reset = vi.fn();
       },
     }));
 
+    stubSecureWindow();
     vi.stubGlobal('BarcodeDetector', class {
       detect = vi.fn(async () => []);
-    });
-    vi.stubGlobal('window', {
-      isSecureContext: true,
-      location: { hostname: 'localhost' },
-      setInterval,
-      clearInterval,
-      setTimeout,
-      clearTimeout,
-      BarcodeDetector: class {
-        detect = vi.fn(async () => []);
-      },
     });
     vi.stubGlobal('navigator', {
       mediaDevices: {
         getUserMedia: vi.fn(async () => ({
-          getTracks: () => [{ stop: vi.fn() }],
-          getVideoTracks: () => [{ stop: vi.fn() }],
+          getTracks: () => [makeTrack()],
+          getVideoTracks: () => [makeTrack()],
         })),
       },
     });

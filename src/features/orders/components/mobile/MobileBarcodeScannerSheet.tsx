@@ -9,7 +9,11 @@ import {
   shouldAcceptScanEvent,
   SCAN_COOLDOWN_MS,
 } from '@/features/orders/utils/barcodeScanOrder';
-import { createBarcodeScanEngine } from '@/features/orders/utils/barcodeScannerEngine';
+import {
+  createBarcodeScanEngine,
+  MANUAL_SCAN_MISS_TOAST,
+  MANUAL_SCAN_NOT_READY_TOAST,
+} from '@/features/orders/utils/barcodeScannerEngine';
 import type { BarcodeScanEngine } from '@/features/orders/utils/barcodeScannerEngine';
 import type { Product } from '@/shared/types/product.types';
 
@@ -44,6 +48,7 @@ export function MobileBarcodeScannerSheet({
   const [scannedBarcode, setScannedBarcode] = useState('');
   const [qtyText, setQtyText] = useState('1');
   const [isAdding, setIsAdding] = useState(false);
+  const [isManualScanning, setIsManualScanning] = useState(false);
 
   const setPhaseSafe = useCallback((next: SheetPhase): void => {
     phaseRef.current = next;
@@ -60,6 +65,7 @@ export function MobileBarcodeScannerSheet({
     setPendingProduct(null);
     setScannedBarcode('');
     setQtyText('1');
+    setIsManualScanning(false);
     setPhaseSafe('scanning');
     engineRef.current?.resume();
   }, [setPhaseSafe]);
@@ -125,6 +131,7 @@ export function MobileBarcodeScannerSheet({
       setPendingProduct(null);
       setScannedBarcode('');
       setQtyText('1');
+      setIsManualScanning(false);
       lastScanRef.current = { barcode: null, at: 0 };
       return;
     }
@@ -166,9 +173,11 @@ export function MobileBarcodeScannerSheet({
           engine.stop();
           return;
         }
+        // Preview is live — continuous decode may still be warming up.
         setPhaseSafe('scanning');
       } catch (error) {
         if (cancelledRef.current) return;
+        stopEngine();
         const message =
           error instanceof Error ? error.message : 'Kamera açılamadı.';
         setErrorMessage(message);
@@ -199,6 +208,35 @@ export function MobileBarcodeScannerSheet({
   const handleCancelConfirm = (): void => {
     resumeScanning();
   };
+
+  const handleManualScan = useCallback(async (): Promise<void> => {
+    if (phaseRef.current !== 'scanning' || isManualScanning || resolvingRef.current) {
+      return;
+    }
+    const engine = engineRef.current;
+    if (!engine?.isPreviewLive()) {
+      toast(MANUAL_SCAN_NOT_READY_TOAST, 'warning');
+      return;
+    }
+
+    setIsManualScanning(true);
+    try {
+      const result = await engine.scanOnce();
+      if (result.status === 'detected') {
+        await handleDetected(result.barcode);
+        return;
+      }
+      if (result.status === 'not_ready') {
+        toast(MANUAL_SCAN_NOT_READY_TOAST, 'warning');
+        return;
+      }
+      toast(MANUAL_SCAN_MISS_TOAST, 'warning');
+    } catch {
+      toast(MANUAL_SCAN_MISS_TOAST, 'warning');
+    } finally {
+      setIsManualScanning(false);
+    }
+  }, [handleDetected, isManualScanning]);
 
   const handleConfirmAdd = (): void => {
     if (!pendingProduct || isAdding) return;
@@ -242,7 +280,7 @@ export function MobileBarcodeScannerSheet({
           <p className="text-xs text-white/70">
             {phase === 'confirm'
               ? 'Miktarı girip ürünü ekleyin'
-              : 'Barkodu çerçeveye hizalayın'}
+              : 'Barkodu çerçeveye hizalayıp tarayın'}
           </p>
         </div>
         <Button
@@ -266,7 +304,7 @@ export function MobileBarcodeScannerSheet({
         />
 
         {phase !== 'confirm' ? (
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-8">
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-8 pb-28">
             <div className="h-44 w-full max-w-sm rounded-2xl border-2 border-white/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]" />
           </div>
         ) : null}
@@ -287,6 +325,25 @@ export function MobileBarcodeScannerSheet({
                 Kapat
               </Button>
             </div>
+          </div>
+        ) : null}
+
+        {phase === 'scanning' ? (
+          <div className="safe-area-bottom absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/70 to-transparent px-4 pb-4 pt-10">
+            <Button
+              type="button"
+              variant="primary"
+              size="lg"
+              fullWidth
+              className="text-base tracking-wide"
+              onClick={() => {
+                void handleManualScan();
+              }}
+              isLoading={isManualScanning}
+              disabled={isManualScanning}
+            >
+              BARKODU TARA
+            </Button>
           </div>
         ) : null}
 
