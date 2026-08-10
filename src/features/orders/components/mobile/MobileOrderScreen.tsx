@@ -135,6 +135,14 @@ export function MobileOrderScreen() {
     [addToCart, removeLine, updateLineQuantity],
   );
 
+  const handleAddFromScan = useCallback(
+    (product: Product, quantity: number): void => {
+      addToCart(product, quantity);
+      rememberRecentProduct(product.id);
+    },
+    [addToCart],
+  );
+
   const handleSave = async (): Promise<void> => {
     if (!user) return;
     if (!customerId || lines.length === 0) {
@@ -196,6 +204,7 @@ export function MobileOrderScreen() {
           enabled={Boolean(customerId && branchId)}
           cartQtyByProductId={cartQtyByProductId}
           onQuantityChange={handleQuantityChange}
+          onAddFromScan={handleAddFromScan}
         />
 
         {showCartLines && lines.length > 0 ? (

@@ -5,20 +5,25 @@ import { useCachedProducts } from '@/features/orders/hooks/useCachedProducts';
 import { getRecentProductIds } from '@/features/orders/hooks/orderPrefs';
 import { cn } from '@/shared/utils/cn';
 import { MobileProductRow } from './MobileProductRow';
+import { MobileBarcodeScannerSheet } from './MobileBarcodeScannerSheet';
 import type { Product } from '@/shared/types/product.types';
 
 interface MobileProductSectionProps {
   enabled: boolean;
   cartQtyByProductId: Record<string, number>;
   onQuantityChange: (product: Product, quantity: number) => void;
+  /** Scan flow uses addToCart (accumulate). */
+  onAddFromScan: (product: Product, quantity: number) => void;
 }
 
 export function MobileProductSection({
   enabled,
   cartQtyByProductId,
   onQuantityChange,
+  onAddFromScan,
 }: MobileProductSectionProps) {
   const [search, setSearch] = useState('');
+  const [scannerOpen, setScannerOpen] = useState(false);
   const { products, allProducts, isInitialLoading } = useCachedProducts(search);
 
   const favorites = useMemo(() => {
@@ -95,10 +100,10 @@ export function MobileProductSection({
           <button
             type="button"
             className="absolute right-2 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-xl text-brand-navy active:bg-brand-gray-100"
-            aria-label="Barkod tarama (yakında)"
-            title="Kamera ile barkod — yakında"
+            aria-label="Barkod okut"
+            title="Kamera ile barkod okut"
             onClick={() => {
-              // Placeholder for future camera barcode integration.
+              setScannerOpen(true);
             }}
           >
             <svg
@@ -114,6 +119,14 @@ export function MobileProductSection({
           </button>
         )}
       </div>
+
+      <MobileBarcodeScannerSheet
+        open={scannerOpen}
+        onClose={() => {
+          setScannerOpen(false);
+        }}
+        onAddToCart={onAddFromScan}
+      />
 
       {isInitialLoading ? (
         <LoadingSpinner label="Ürünler yükleniyor..." />
