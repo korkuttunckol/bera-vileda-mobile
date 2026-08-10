@@ -24,6 +24,9 @@ export function MobileProductRow({
       )}
     >
       <div className="min-w-0 flex-1">
+        {product.barcode?.trim() ? (
+          <p className="truncate text-xs text-brand-gray-500">{product.barcode.trim()}</p>
+        ) : null}
         <p
           className={cn(
             'truncate font-semibold text-brand-navy',
