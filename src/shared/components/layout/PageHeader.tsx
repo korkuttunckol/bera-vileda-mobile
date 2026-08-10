@@ -8,6 +8,8 @@ interface PageHeaderProps {
   backButton?: ReactNode;
   className?: string;
   variant?: 'default' | 'transparent';
+  /** Default true. Set false when the page owns a pinned flex layout (Yeni Sipariş). */
+  sticky?: boolean;
 }
 
 export function PageHeader({
@@ -17,11 +19,13 @@ export function PageHeader({
   backButton,
   className,
   variant = 'default',
+  sticky = true,
 }: PageHeaderProps) {
   return (
     <header
       className={cn(
-        'sticky top-0 z-30 w-full min-w-0 px-4 py-4',
+        'z-30 w-full min-w-0 px-4 py-4',
+        sticky && 'sticky top-0',
         variant === 'default' &&
           'border-b border-brand-gray-200/80 bg-white/95 backdrop-blur-md',
         variant === 'transparent' && 'bg-transparent',

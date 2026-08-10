@@ -1,11 +1,11 @@
 import { useSyncExternalStore } from 'react';
 
 export interface VisualViewportKeyboardState {
-  /** True when the soft keyboard is likely open (viewport shrunk). */
+  /** True when the soft keyboard is likely open. */
   keyboardOpen: boolean;
   /** Approximate keyboard height in CSS pixels. */
   keyboardInset: number;
-  /** Current visualViewport height (fallback: window.innerHeight). */
+  /** Visible layout height used for diagnostics. */
   viewportHeight: number;
 }
 
@@ -18,6 +18,10 @@ let state: VisualViewportKeyboardState = {
     typeof window !== 'undefined' ? window.innerHeight : 0,
 };
 
+/** Largest known height while no editable is focused (adjustResize baseline). */
+let baselineHeight =
+  typeof window !== 'undefined' ? window.innerHeight : 0;
+
 const listeners = new Set<() => void>();
 let attached = false;
 
@@ -27,12 +31,16 @@ function emit(): void {
   }
 }
 
-function applyCssVars(next: VisualViewportKeyboardState): void {
-  if (typeof document === 'undefined') return;
-  const root = document.documentElement;
-  root.style.setProperty('--app-vv-height', `${String(next.viewportHeight)}px`);
-  root.style.setProperty('--keyboard-inset', `${String(next.keyboardInset)}px`);
-  root.classList.toggle('keyboard-open', next.keyboardOpen);
+function isEditableTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  if (target.isContentEditable) return true;
+  const tag = target.tagName;
+  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+}
+
+function hasFocusedEditable(): boolean {
+  if (typeof document === 'undefined') return false;
+  return isEditableTarget(document.activeElement);
 }
 
 function readViewport(): VisualViewportKeyboardState {
@@ -45,24 +53,40 @@ function readViewport(): VisualViewportKeyboardState {
   }
 
   const vv = window.visualViewport;
-  if (!vv) {
-    return {
-      keyboardOpen: false,
-      keyboardInset: 0,
-      viewportHeight: window.innerHeight,
-    };
-  }
+  const layoutHeight = window.innerHeight;
+  const visualHeight = vv?.height ?? layoutHeight;
+  const offsetTop = vv?.offsetTop ?? 0;
 
-  // offsetTop accounts for iOS URL-bar / scroll within visual viewport.
-  const inset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+  // With adjustResize, innerHeight already shrinks — compare to baseline.
+  // With adjustPan / iOS, visualViewport inset is the better signal.
+  const resizeInset = Math.max(0, baselineHeight - layoutHeight);
+  const visualInset = Math.max(0, layoutHeight - visualHeight - offsetTop);
+  const inset = Math.max(resizeInset, visualInset);
+  const focused = hasFocusedEditable();
+
+  // Prefer focus+shrink; also treat large visual inset alone (iOS Safari).
+  const keyboardOpen =
+    (focused && inset > KEYBOARD_OPEN_THRESHOLD_PX) ||
+    inset > KEYBOARD_OPEN_THRESHOLD_PX * 1.5;
+
   return {
-    keyboardOpen: inset > KEYBOARD_OPEN_THRESHOLD_PX,
+    keyboardOpen,
     keyboardInset: inset,
-    viewportHeight: vv.height,
+    viewportHeight: Math.min(layoutHeight, visualHeight),
   };
 }
 
+function applyDomFlags(next: VisualViewportKeyboardState): void {
+  if (typeof document === 'undefined') return;
+  // Only toggle class — do NOT rewrite shell height every frame (causes jumps).
+  document.documentElement.classList.toggle('keyboard-open', next.keyboardOpen);
+}
+
 function syncViewport(): void {
+  if (typeof window !== 'undefined' && !hasFocusedEditable()) {
+    baselineHeight = Math.max(baselineHeight, window.innerHeight);
+  }
+
   const next = readViewport();
   const changed =
     next.keyboardOpen !== state.keyboardOpen ||
@@ -71,18 +95,37 @@ function syncViewport(): void {
 
   if (!changed) return;
   state = next;
-  applyCssVars(next);
+  applyDomFlags(next);
   emit();
+}
+
+function onFocusIn(event: FocusEvent): void {
+  if (isEditableTarget(event.target)) {
+    syncViewport();
+  }
+}
+
+function onFocusOut(): void {
+  // Defer: next focus may land on another input in the same tick.
+  window.setTimeout(() => {
+    if (!hasFocusedEditable() && typeof window !== 'undefined') {
+      baselineHeight = Math.max(baselineHeight, window.innerHeight);
+    }
+    syncViewport();
+  }, 0);
 }
 
 function ensureAttached(): void {
   if (attached || typeof window === 'undefined') return;
   attached = true;
 
+  baselineHeight = window.innerHeight;
   const vv = window.visualViewport;
   vv?.addEventListener('resize', syncViewport);
   vv?.addEventListener('scroll', syncViewport);
   window.addEventListener('resize', syncViewport);
+  document.addEventListener('focusin', onFocusIn);
+  document.addEventListener('focusout', onFocusOut);
   syncViewport();
 }
 
@@ -107,8 +150,8 @@ function getServerSnapshot(): VisualViewportKeyboardState {
 }
 
 /**
- * Tracks soft-keyboard via visualViewport (Android WebView / iOS / mobile browsers).
- * Also mirrors height/inset onto CSS vars `--app-vv-height` and `--keyboard-inset`.
+ * Soft-keyboard state for Android WebView (adjustResize) + iOS/PWA.
+ * Does not mutate layout height continuously — consumers hide chrome only.
  */
 export function useVisualViewportKeyboard(): VisualViewportKeyboardState {
   return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
@@ -116,14 +159,20 @@ export function useVisualViewportKeyboard(): VisualViewportKeyboardState {
 
 /** Pure helper for unit tests. */
 export function computeKeyboardState(
-  innerHeight: number,
+  baselineHeightPx: number,
+  layoutHeight: number,
   visualHeight: number,
   offsetTop = 0,
+  focusedEditable = true,
   thresholdPx = KEYBOARD_OPEN_THRESHOLD_PX,
 ): Pick<VisualViewportKeyboardState, 'keyboardOpen' | 'keyboardInset'> {
-  const inset = Math.max(0, innerHeight - visualHeight - offsetTop);
+  const resizeInset = Math.max(0, baselineHeightPx - layoutHeight);
+  const visualInset = Math.max(0, layoutHeight - visualHeight - offsetTop);
+  const inset = Math.max(resizeInset, visualInset);
+  const keyboardOpen =
+    (focusedEditable && inset > thresholdPx) || inset > thresholdPx * 1.5;
   return {
-    keyboardOpen: inset > thresholdPx,
+    keyboardOpen,
     keyboardInset: inset,
   };
 }

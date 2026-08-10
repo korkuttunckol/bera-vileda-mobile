@@ -1,4 +1,4 @@
-import { Outlet, useNavigate } from 'react-router-dom';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { BottomNav } from '@/shared/components/layout/BottomNav';
 import { OfflineBanner } from '@/shared/components/offline/OfflineBanner';
 import { ToastContainer } from '@/shared/components/feedback/Toast';
@@ -13,7 +13,10 @@ export function MainLayout() {
   const { user, logout } = useAuth();
   const { can } = usePermissions();
   const navigate = useNavigate();
+  const location = useLocation();
   const { keyboardOpen } = useVisualViewportKeyboard();
+
+  const isNewOrder = location.pathname === ROUTES.NEW_ORDER;
 
   const handleSettingsClick = (): void => {
     void navigate(can('systemSettings') ? ROUTES.SETTINGS : ROUTES.SETTINGS_APP_INFO);
@@ -25,7 +28,7 @@ export function MainLayout() {
   };
 
   return (
-    <div className="app-vv-height flex min-h-0 min-w-0 flex-col overflow-hidden bg-brand-surface">
+    <div className="app-shell-height flex min-h-0 min-w-0 flex-col overflow-hidden bg-brand-surface">
       <header className="safe-area-top z-30 shrink-0 border-b border-white/10 bg-gradient-to-r from-brand-navy via-brand-navy-light to-brand-navy-dark px-4 py-3 shadow-sm">
         <div className="app-shell flex items-center justify-between gap-2">
           <div>
@@ -61,11 +64,17 @@ export function MainLayout() {
         <OfflineBanner />
       </div>
 
-      {/* Single vertical scroll owner for all authenticated pages (Android + iOS). */}
+      {/*
+        Default pages: main is the scroll owner.
+        Yeni Sipariş: overflow hidden + flex so the page pins search and
+        scrolls only the product list (avoids Android IME scroll jumps).
+      */}
       <main
         className={cn(
-          'app-shell min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-y-contain page-enter',
-          // Bottom nav clearance; drop when keyboard hides the nav.
+          'app-shell min-h-0 min-w-0 flex-1 page-enter',
+          isNewOrder
+            ? 'flex flex-col overflow-hidden'
+            : 'overflow-y-auto overscroll-y-contain',
           keyboardOpen ? 'pb-3' : 'pb-20',
         )}
       >

@@ -1,4 +1,4 @@
-import { useMemo, useState, type FocusEvent, type KeyboardEvent } from 'react';
+import { useMemo, useState, type KeyboardEvent } from 'react';
 import { EmptyState } from '@/shared/components/feedback/EmptyState';
 import { LoadingSpinner } from '@/shared/components/feedback/LoadingSpinner';
 import { useCachedProducts } from '@/features/orders/hooks/useCachedProducts';
@@ -6,14 +6,6 @@ import { getRecentProductIds } from '@/features/orders/hooks/orderPrefs';
 import { cn } from '@/shared/utils/cn';
 import { MobileProductRow } from './MobileProductRow';
 import type { Product } from '@/shared/types/product.types';
-
-function scrollSearchFieldIntoView(el: HTMLElement): void {
-  // Immediate + delayed pass: Android keyboard animation finishes after focus.
-  el.scrollIntoView({ block: 'start', inline: 'nearest', behavior: 'smooth' });
-  window.setTimeout(() => {
-    el.scrollIntoView({ block: 'start', inline: 'nearest', behavior: 'smooth' });
-  }, 280);
-}
 
 interface MobileProductSectionProps {
   enabled: boolean;
@@ -25,6 +17,11 @@ interface MobileProductSectionProps {
   scanBarcodeBusy?: boolean;
 }
 
+/**
+ * Product search is pinned (shrink-0). Only the results list scrolls.
+ * No scrollIntoView on focus/change — Android IME + list reflow must not
+ * move the search field out of view.
+ */
 export function MobileProductSection({
   enabled,
   cartQtyByProductId,
@@ -44,14 +41,9 @@ export function MobileProductSection({
   }, [allProducts, search]);
 
   const handleBarcodeKeyDown = (e: KeyboardEvent<HTMLInputElement>): void => {
-    // Keep Enter hook for future scanner / camera flow; search filter already live.
     if (e.key === 'Enter') {
       e.currentTarget.blur();
     }
-  };
-
-  const handleSearchFocus = (e: FocusEvent<HTMLInputElement>): void => {
-    scrollSearchFieldIntoView(e.currentTarget);
   };
 
   if (!enabled) {
@@ -63,15 +55,12 @@ export function MobileProductSection({
   }
 
   return (
-    <div className="space-y-2.5">
-      {/* Sticky within MainLayout <main> so the field stays above the keyboard. */}
-      <div className="sticky top-0 z-20 -mx-3 bg-brand-surface/95 px-3 py-1.5 backdrop-blur-sm">
-      <div className="relative">
+    <div className="flex min-h-0 flex-1 flex-col gap-2">
+      <div className="relative shrink-0">
         <span
           className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-brand-navy"
           aria-hidden
         >
-          {/* Prominent barcode mark — camera integration can wrap this later */}
           <svg
             className="h-6 w-6"
             viewBox="0 0 24 24"
@@ -93,7 +82,6 @@ export function MobileProductSection({
           onChange={(e) => {
             setSearch(e.target.value);
           }}
-          onFocus={handleSearchFocus}
           onKeyDown={handleBarcodeKeyDown}
           data-barcode-search="true"
           className={cn(
@@ -135,56 +123,57 @@ export function MobileProductSection({
           </button>
         )}
       </div>
-      </div>
 
-      {isInitialLoading ? (
-        <LoadingSpinner label="Ürünler yükleniyor..." />
-      ) : (
-        <>
-          {favorites.length > 0 ? (
+      <div className="overflow-anchor-none min-h-0 flex-1 overflow-y-auto overscroll-y-contain">
+        {isInitialLoading ? (
+          <LoadingSpinner label="Ürünler yükleniyor..." />
+        ) : (
+          <div className="space-y-2.5 pb-3">
+            {favorites.length > 0 ? (
+              <section className="rounded-2xl border border-brand-gray-200 bg-white px-2.5 py-1 shadow-sm">
+                <p className="px-0.5 py-1 text-[11px] font-medium uppercase tracking-wide text-brand-gray-500">
+                  Favoriler
+                </p>
+                {favorites.map((product) => (
+                  <MobileProductRow
+                    key={`fav-${product.id}`}
+                    product={product}
+                    quantity={cartQtyByProductId[product.id] ?? 0}
+                    onQuantityChange={(qty) => {
+                      onQuantityChange(product, qty);
+                    }}
+                    compact
+                  />
+                ))}
+              </section>
+            ) : null}
+
             <section className="rounded-2xl border border-brand-gray-200 bg-white px-2.5 py-1 shadow-sm">
               <p className="px-0.5 py-1 text-[11px] font-medium uppercase tracking-wide text-brand-gray-500">
-                Favoriler
+                Ürün listesi
+                {search.trim() ? ` · ${String(products.length)}` : ''}
               </p>
-              {favorites.map((product) => (
-                <MobileProductRow
-                  key={`fav-${product.id}`}
-                  product={product}
-                  quantity={cartQtyByProductId[product.id] ?? 0}
-                  onQuantityChange={(qty) => {
-                    onQuantityChange(product, qty);
-                  }}
-                  compact
+              {products.length === 0 ? (
+                <EmptyState
+                  title="Ürün bulunamadı"
+                  description="Barkod veya ürün adını kontrol edin."
                 />
-              ))}
+              ) : (
+                products.slice(0, 80).map((product) => (
+                  <MobileProductRow
+                    key={product.id}
+                    product={product}
+                    quantity={cartQtyByProductId[product.id] ?? 0}
+                    onQuantityChange={(qty) => {
+                      onQuantityChange(product, qty);
+                    }}
+                  />
+                ))
+              )}
             </section>
-          ) : null}
-
-          <section className="rounded-2xl border border-brand-gray-200 bg-white px-2.5 py-1 shadow-sm">
-            <p className="px-0.5 py-1 text-[11px] font-medium uppercase tracking-wide text-brand-gray-500">
-              Ürün listesi
-              {search.trim() ? ` · ${String(products.length)}` : ''}
-            </p>
-            {products.length === 0 ? (
-              <EmptyState
-                title="Ürün bulunamadı"
-                description="Barkod veya ürün adını kontrol edin."
-              />
-            ) : (
-              products.slice(0, 80).map((product) => (
-                <MobileProductRow
-                  key={product.id}
-                  product={product}
-                  quantity={cartQtyByProductId[product.id] ?? 0}
-                  onQuantityChange={(qty) => {
-                    onQuantityChange(product, qty);
-                  }}
-                />
-              ))
-            )}
-          </section>
-        </>
-      )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

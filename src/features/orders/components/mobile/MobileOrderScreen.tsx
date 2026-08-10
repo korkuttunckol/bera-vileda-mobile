@@ -244,20 +244,108 @@ export function MobileOrderScreen() {
   };
 
   return (
-    <div className={cn(keyboardOpen ? 'pb-4' : 'pb-44')}>
-      <div className="space-y-3 p-3">
-        <MobileCustomerSection
-          selectedCustomerId={customerId}
-          selectedCustomerName={customerName}
-          selectedBranchId={branchId}
-          selectedBranchName={branchName}
-          onSelectCustomer={handleSelectCustomer}
-          onSelectBranch={handleSelectBranch}
-          onChangeCustomer={() => {
-            setShowCartLines(false);
-          }}
-        />
+    <div
+      className={cn(
+        'flex min-h-0 flex-1 flex-col',
+        // Reserve space for fixed cart bar only when keyboard chrome is visible.
+        keyboardOpen ? 'pb-2' : 'pb-44',
+      )}
+    >
+      {/*
+        Customer / cart panels sit above the pinned search.
+        While the keyboard is open, collapse them so search + results stay in view
+        without forcing the user to manually scroll.
+      */}
+      {keyboardOpen ? (
+        customerId ? (
+          <div className="shrink-0 px-3 pt-2">
+            <p className="truncate text-xs text-brand-gray-500">
+              {customerName}
+              {branchName ? ` · ${branchName}` : ''}
+            </p>
+          </div>
+        ) : null
+      ) : (
+        <div className="shrink-0 space-y-3 p-3 pb-0">
+          <MobileCustomerSection
+            selectedCustomerId={customerId}
+            selectedCustomerName={customerName}
+            selectedBranchId={branchId}
+            selectedBranchName={branchName}
+            onSelectCustomer={handleSelectCustomer}
+            onSelectBranch={handleSelectBranch}
+            onChangeCustomer={() => {
+              setShowCartLines(false);
+            }}
+          />
 
+          {showCartLines && lines.length > 0 ? (
+            <section className="space-y-3 rounded-2xl border border-brand-gray-200 bg-white p-3 shadow-sm">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold text-brand-navy">Sepet</p>
+                <button
+                  type="button"
+                  className="min-h-12 px-2 text-sm text-brand-gray-500"
+                  onClick={() => {
+                    setShowCartLines(false);
+                  }}
+                >
+                  Kapat
+                </button>
+              </div>
+              <ul className="space-y-1">
+                {lines.map((line) => (
+                  <li
+                    key={line.productId}
+                    className="flex items-center gap-2 border-b border-brand-gray-100 py-1.5"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-brand-navy">
+                        {line.productName}
+                      </p>
+                      <p className="truncate text-xs text-brand-gray-500">
+                        {line.productSku}
+                      </p>
+                    </div>
+                    <MobileQtyStepper
+                      value={line.quantity}
+                      min={1}
+                      onChange={(qty) => {
+                        updateLineQuantity(line.productId, qty);
+                      }}
+                    />
+                  </li>
+                ))}
+              </ul>
+              <Input
+                label="Not (opsiyonel)"
+                value={notes ?? ''}
+                onChange={(e) => {
+                  setNotes(e.target.value);
+                }}
+                placeholder="Teslimat notu..."
+              />
+            </section>
+          ) : null}
+
+          {lastSavedOrderId ? (
+            <div className="rounded-2xl border border-brand-navy/20 bg-brand-navy/5 p-3">
+              <p className="text-sm text-brand-navy">
+                Son sipariş kaydedildi. Yeni siparişe devam edebilir veya paylaşabilirsiniz.
+              </p>
+              <Button
+                variant="outline"
+                className="mt-2 min-h-12 w-full"
+                onClick={handleShare}
+              >
+                Paylaş
+              </Button>
+            </div>
+          ) : null}
+        </div>
+      )}
+
+      <div className="flex min-h-0 flex-1 flex-col px-3 pt-2">
         <MobileProductSection
           enabled={Boolean(customerId && branchId)}
           cartQtyByProductId={cartQtyByProductId}
@@ -265,70 +353,6 @@ export function MobileOrderScreen() {
           onScanBarcodeClick={handleScanBarcodeClick}
           scanBarcodeBusy={isScanningBarcode}
         />
-
-        {showCartLines && lines.length > 0 ? (
-          <section className="space-y-3 rounded-2xl border border-brand-gray-200 bg-white p-3 shadow-sm">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold text-brand-navy">Sepet</p>
-              <button
-                type="button"
-                className="min-h-12 px-2 text-sm text-brand-gray-500"
-                onClick={() => {
-                  setShowCartLines(false);
-                }}
-              >
-                Kapat
-              </button>
-            </div>
-            <ul className="space-y-1">
-              {lines.map((line) => (
-                <li
-                  key={line.productId}
-                  className="flex items-center gap-2 border-b border-brand-gray-100 py-1.5"
-                >
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-brand-navy">
-                      {line.productName}
-                    </p>
-                    <p className="truncate text-xs text-brand-gray-500">
-                      {line.productSku}
-                    </p>
-                  </div>
-                  <MobileQtyStepper
-                    value={line.quantity}
-                    min={1}
-                    onChange={(qty) => {
-                      updateLineQuantity(line.productId, qty);
-                    }}
-                  />
-                </li>
-              ))}
-            </ul>
-            <Input
-              label="Not (opsiyonel)"
-              value={notes ?? ''}
-              onChange={(e) => {
-                setNotes(e.target.value);
-              }}
-              placeholder="Teslimat notu..."
-            />
-          </section>
-        ) : null}
-
-        {lastSavedOrderId ? (
-          <div className="rounded-2xl border border-brand-navy/20 bg-brand-navy/5 p-3">
-            <p className="text-sm text-brand-navy">
-              Son sipariş kaydedildi. Yeni siparişe devam edebilir veya paylaşabilirsiniz.
-            </p>
-            <Button
-              variant="outline"
-              className="mt-2 min-h-12 w-full"
-              onClick={handleShare}
-            >
-              Paylaş
-            </Button>
-          </div>
-        ) : null}
       </div>
 
       <MobileStickyCartBar
