@@ -93,17 +93,17 @@ function OrderDetailLineItem({
   const barcode = productInfo?.barcode?.trim() || '—';
 
   return (
-    <Card padding="sm" className="!shadow-sm">
-      <p className="break-words text-[15px] font-semibold leading-snug text-brand-navy">
+    <Card padding="sm" className="!px-3 !py-2.5 !shadow-sm">
+      <p className="break-words text-sm font-semibold leading-snug text-brand-navy">
         {line.productName}
       </p>
 
-      <div className="mt-2.5 grid grid-cols-2 gap-x-3 gap-y-1">
+      <div className="mt-1.5 grid grid-cols-2 gap-x-3 gap-y-0.5">
         <div className="min-w-0">
           <p className="text-[10px] font-medium uppercase tracking-wide text-brand-gray-400">
             Barkod
           </p>
-          <p className="mt-0.5 truncate text-sm font-semibold tracking-wide text-brand-navy">
+          <p className="truncate text-sm font-semibold tracking-wide text-brand-navy">
             {barcode}
           </p>
         </div>
@@ -111,13 +111,13 @@ function OrderDetailLineItem({
           <p className="text-[10px] font-medium uppercase tracking-wide text-brand-gray-400">
             Ürün Kodu
           </p>
-          <p className="mt-0.5 truncate text-sm font-semibold tracking-wide text-brand-navy">
+          <p className="truncate text-sm font-semibold tracking-wide text-brand-navy">
             {line.productSku}
           </p>
         </div>
       </div>
 
-      <div className="mt-2.5 grid grid-cols-2 gap-x-3 border-t border-brand-gray-100 pt-2.5 text-sm">
+      <div className="mt-1.5 grid grid-cols-2 gap-x-3 border-t border-brand-gray-100 pt-1.5 text-sm">
         <p className="min-w-0 text-brand-gray-600">
           Miktar:{' '}
           <span className="font-semibold text-brand-navy">
@@ -141,7 +141,7 @@ function OrderDetailLineItem({
               <Badge
                 label="Stok Yok"
                 variant="passive"
-                className="mt-1 !bg-red-100 !text-red-700"
+                className="mt-0.5 !bg-red-100 !text-red-700"
               />
             ) : null}
           </div>
@@ -368,7 +368,7 @@ export function OrderDetailPage() {
         ) : null}
 
         {/* Ürün Listesi */}
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           <p className="px-0.5 text-sm font-semibold text-brand-navy">
             Ürün Listesi ({lines.length})
           </p>
