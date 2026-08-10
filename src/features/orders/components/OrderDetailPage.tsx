@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, type ReactNode } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { PageHeader } from '@/shared/components/layout/PageHeader';
 import { BackButton } from '@/shared/components/layout/BackButton';
@@ -21,12 +21,63 @@ import { isProductOutOfStock } from '@/features/orders/utils/stockControl';
 import { toast } from '@/stores/toastStore';
 import { ROUTES } from '@/shared/constants/routes';
 import { isFirebaseConfigured } from '@/config/env';
-import type { OrderLine } from '@/shared/types/order.types';
+import { cn } from '@/shared/utils/cn';
+import type { OrderLine, OrderSyncStatus } from '@/shared/types/order.types';
 
 interface LineProductInfo {
   barcode?: string;
   stockQuantity: number;
   unit: string;
+}
+
+function SummaryIcon({ children }: { children: ReactNode }) {
+  return (
+    <span
+      className="mb-1.5 flex h-8 w-8 items-center justify-center rounded-lg bg-brand-navy/5 text-brand-navy"
+      aria-hidden
+    >
+      {children}
+    </span>
+  );
+}
+
+function CustomerInfoRow({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] items-start gap-x-3 text-sm">
+      <span className="pt-0.5 font-medium text-brand-gray-500">{label}</span>
+      <span className="min-w-0 break-words font-semibold leading-snug text-brand-navy">
+        {value}
+      </span>
+    </div>
+  );
+}
+
+function OrderSummaryCell({
+  label,
+  children,
+  icon,
+}: {
+  label: string;
+  children: ReactNode;
+  icon: ReactNode;
+}) {
+  return (
+    <div className="flex min-w-0 flex-col items-center px-1 text-center">
+      <SummaryIcon>{icon}</SummaryIcon>
+      <p className="text-[10px] font-medium uppercase tracking-wide text-brand-gray-400">
+        {label}
+      </p>
+      <div className="mt-0.5 w-full text-sm font-semibold leading-snug text-brand-navy">
+        {children}
+      </div>
+    </div>
+  );
 }
 
 function OrderDetailLineItem({
@@ -39,53 +90,135 @@ function OrderDetailLineItem({
   const unit = line.unit ?? productInfo?.unit ?? 'Adet';
   const isOutOfStock =
     productInfo != null && isProductOutOfStock(productInfo);
+  const barcode = productInfo?.barcode?.trim() || '—';
 
   return (
-    <div className="px-4 py-4">
-      <p className="break-words text-[16px] font-semibold leading-snug text-brand-navy">
+    <Card padding="sm" className="!shadow-sm">
+      <p className="break-words text-[15px] font-semibold leading-snug text-brand-navy">
         {line.productName}
       </p>
-      {productInfo?.barcode ? (
-        <>
-          <p className="mt-2 text-xs font-medium uppercase tracking-wide text-brand-gray-400">
+
+      <div className="mt-2.5 grid grid-cols-2 gap-x-3 gap-y-1">
+        <div className="min-w-0">
+          <p className="text-[10px] font-medium uppercase tracking-wide text-brand-gray-400">
             Barkod
           </p>
-          <p className="mt-0.5 text-sm font-semibold tracking-wide text-brand-navy">
-            {productInfo.barcode}
+          <p className="mt-0.5 truncate text-sm font-semibold tracking-wide text-brand-navy">
+            {barcode}
           </p>
-        </>
-      ) : null}
-      <p className="mt-2 text-xs font-medium uppercase tracking-wide text-brand-gray-400">
-        Ürün Kodu
-      </p>
-      <p className="mt-0.5 text-sm font-semibold tracking-wide text-brand-navy">
-        {line.productSku}
-      </p>
+        </div>
+        <div className="min-w-0">
+          <p className="text-[10px] font-medium uppercase tracking-wide text-brand-gray-400">
+            Ürün Kodu
+          </p>
+          <p className="mt-0.5 truncate text-sm font-semibold tracking-wide text-brand-navy">
+            {line.productSku}
+          </p>
+        </div>
+      </div>
 
-      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
-        <p className="font-medium text-brand-gray-700">
+      <div className="mt-2.5 grid grid-cols-2 gap-x-3 border-t border-brand-gray-100 pt-2.5 text-sm">
+        <p className="min-w-0 text-brand-gray-600">
           Miktar:{' '}
-          <span className="text-brand-navy">
+          <span className="font-semibold text-brand-navy">
             {line.quantity} {unit}
           </span>
         </p>
+        {productInfo != null ? (
+          <div className="min-w-0 text-right">
+            <p className="text-brand-gray-600">
+              Depo stok:{' '}
+              <span
+                className={cn(
+                  'font-semibold',
+                  isOutOfStock ? 'text-red-700' : 'text-brand-navy',
+                )}
+              >
+                {productInfo.stockQuantity} {productInfo.unit}
+              </span>
+            </p>
+            {isOutOfStock ? (
+              <Badge
+                label="Stok Yok"
+                variant="passive"
+                className="mt-1 !bg-red-100 !text-red-700"
+              />
+            ) : null}
+          </div>
+        ) : (
+          <p className="min-w-0 text-right text-brand-gray-400">Depo stok: —</p>
+        )}
       </div>
+    </Card>
+  );
+}
 
-      {productInfo != null ? (
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          <p className="text-xs text-brand-gray-500">
-            Depo stok: {productInfo.stockQuantity} {productInfo.unit}
+function OrderSummaryCard({
+  orderDate,
+  lineCount,
+  totalQuantity,
+  status,
+}: {
+  orderDate: string;
+  lineCount: number;
+  totalQuantity: number;
+  status: OrderSyncStatus;
+}) {
+  return (
+    <Card padding="sm">
+      <div className="grid grid-cols-4 gap-1 divide-x divide-brand-gray-100">
+        <OrderSummaryCell
+          label="Sipariş Tarihi"
+          icon={
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+          }
+        >
+          <p className="truncate">{formatOrderReportDate(orderDate)}</p>
+          <p className="text-xs font-medium text-brand-gray-500">
+            {formatOrderReportTime(orderDate)}
           </p>
-          {isOutOfStock ? (
-            <Badge
-              label="Stok Yok"
-              variant="passive"
-              className="!bg-red-100 !text-red-700"
-            />
-          ) : null}
-        </div>
-      ) : null}
-    </div>
+        </OrderSummaryCell>
+
+        <OrderSummaryCell
+          label="Toplam Kalem"
+          icon={
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 10h16M4 14h10M4 18h10" />
+            </svg>
+          }
+        >
+          {lineCount}
+        </OrderSummaryCell>
+
+        <OrderSummaryCell
+          label="Toplam Adet"
+          icon={
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+            </svg>
+          }
+        >
+          {totalQuantity}
+        </OrderSummaryCell>
+
+        <OrderSummaryCell
+          label="Sipariş Durumu"
+          icon={
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+            </svg>
+          }
+        >
+          <OrderStatusBadge
+            status={status}
+            variant="inline"
+            className="justify-center text-xs"
+          />
+        </OrderSummaryCell>
+      </div>
+    </Card>
   );
 }
 
@@ -194,85 +327,59 @@ export function OrderDetailPage() {
     <div>
       <PageHeader
         title={order.localOrderNumber ?? order.orderNumber ?? 'Sipariş Detayı'}
-        subtitle={order.customerName}
         backButton={<BackButton to={ROUTES.ORDER_HISTORY} />}
         action={<OrderStatusBadge status={order.orderSyncStatus} />}
       />
 
-      <div className="space-y-4 p-4">
-        <Card padding="md" className="space-y-3">
-          <div className="flex justify-between gap-3 text-sm">
-            <span className="text-brand-gray-500">Sipariş Tarihi</span>
-            <span className="font-medium text-brand-navy">
-              {formatOrderReportDate(order.orderDate)}
-            </span>
-          </div>
-          <div className="flex justify-between gap-3 text-sm">
-            <span className="text-brand-gray-500">Sipariş Saati</span>
-            <span className="font-medium text-brand-navy">
-              {formatOrderReportTime(order.orderDate)}
-            </span>
-          </div>
-          <div className="flex justify-between gap-3 text-sm">
-            <span className="text-brand-gray-500">Cari Kod</span>
-            <span className="font-medium text-brand-navy">
-              {order.customerCode ?? '-'}
-            </span>
-          </div>
-          <div className="flex justify-between gap-3 text-sm">
-            <span className="text-brand-gray-500">Cari Adı</span>
-            <span className="text-right font-medium text-brand-navy">
-              {order.customerName}
-            </span>
-          </div>
-          <div className="flex justify-between gap-3 text-sm">
-            <span className="text-brand-gray-500">Şube</span>
-            <span className="font-medium text-brand-navy">
-              {order.branchName ?? 'Merkez'}
-            </span>
-          </div>
-          <div className="flex justify-between gap-3 text-sm">
-            <span className="text-brand-gray-500">Toplam Kalem</span>
-            <span className="font-medium text-brand-navy">{order.lineCount}</span>
-          </div>
-          <div className="flex justify-between gap-3 text-sm">
-            <span className="text-brand-gray-500">Toplam Adet</span>
-            <span className="font-medium text-brand-navy">{totalQuantity}</span>
-          </div>
-          <div className="flex items-center justify-between gap-3 text-sm">
-            <span className="text-brand-gray-500">Sipariş Durumu</span>
-            <OrderStatusBadge status={order.orderSyncStatus} variant="inline" />
-          </div>
-          {order.notes ? (
-            <div className="border-t border-brand-gray-100 pt-3">
-              <p className="text-xs text-brand-gray-500">Not</p>
-              <p className="mt-1 text-sm text-brand-navy">{order.notes}</p>
-            </div>
-          ) : null}
-          {order.syncError && order.orderSyncStatus === 'failed' ? (
-            <div className="rounded-lg bg-red-50 p-3">
-              <p className="text-xs font-medium text-red-800">Senkronizasyon Hatası</p>
-              <p className="mt-1 text-sm text-red-700">{order.syncError}</p>
-            </div>
-          ) : null}
+      <div className="space-y-3 p-3 pb-6">
+        {/* Cari Bilgileri */}
+        <Card padding="md" className="space-y-2.5">
+          <CustomerInfoRow
+            label="Cari Kod"
+            value={order.customerCode?.trim() || '—'}
+          />
+          <CustomerInfoRow label="Cari Ünvan" value={order.customerName} />
+          <CustomerInfoRow
+            label="Şube"
+            value={order.branchName?.trim() || 'Merkez'}
+          />
         </Card>
 
-        <Card padding="none">
-          <div className="border-b border-brand-gray-100 px-4 py-3">
-            <p className="text-sm font-semibold text-brand-navy">
-              Ürün Listesi ({lines.length})
-            </p>
+        {/* Sipariş Özeti — 4 kolon */}
+        <OrderSummaryCard
+          orderDate={order.orderDate}
+          lineCount={order.lineCount}
+          totalQuantity={totalQuantity}
+          status={order.orderSyncStatus}
+        />
+
+        {order.notes ? (
+          <Card padding="sm">
+            <p className="text-xs font-medium text-brand-gray-500">Not</p>
+            <p className="mt-1 break-words text-sm text-brand-navy">{order.notes}</p>
+          </Card>
+        ) : null}
+
+        {order.syncError && order.orderSyncStatus === 'failed' ? (
+          <div className="rounded-xl bg-red-50 p-3">
+            <p className="text-xs font-medium text-red-800">Senkronizasyon Hatası</p>
+            <p className="mt-1 text-sm text-red-700">{order.syncError}</p>
           </div>
-          <div className="divide-y divide-brand-gray-100">
-            {lines.map((line) => (
-              <OrderDetailLineItem
-                key={line.id}
-                line={line}
-                productInfo={productInfoByProductId[line.productId]}
-              />
-            ))}
-          </div>
-        </Card>
+        ) : null}
+
+        {/* Ürün Listesi */}
+        <div className="space-y-2">
+          <p className="px-0.5 text-sm font-semibold text-brand-navy">
+            Ürün Listesi ({lines.length})
+          </p>
+          {lines.map((line) => (
+            <OrderDetailLineItem
+              key={line.id}
+              line={line}
+              productInfo={productInfoByProductId[line.productId]}
+            />
+          ))}
+        </div>
 
         {order.orderSyncStatus === 'sent' ? (
           <Card padding="md">
