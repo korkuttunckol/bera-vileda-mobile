@@ -7,6 +7,7 @@ import {
   getRecentCustomers,
   type RecentCustomerPref,
 } from '@/features/orders/hooks/orderPrefs';
+import { visibleOrderPickerCustomers } from '@/features/orders/utils/customerPickerSearch';
 import { branchService } from '@/features/customers/services/branchService';
 import type { Customer, CustomerBranch } from '@/shared/types/customer.types';
 import { cn } from '@/shared/utils/cn';
@@ -228,7 +229,7 @@ export function MobileCustomerSection({
         />
       ) : (
         <ul className="max-h-56 space-y-1 overflow-y-auto">
-          {customers.slice(0, 40).map((customer) => (
+          {visibleOrderPickerCustomers(customers, search).map((customer) => (
             <li key={customer.id}>
               <button
                 type="button"

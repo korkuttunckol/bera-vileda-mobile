@@ -1,6 +1,7 @@
 import { db, type LocalCustomer } from '../db';
 import { BaseRepository } from './baseRepository';
 import type { SyncStatus } from '@/shared/types/base.types';
+import { normalizeSearchText } from '@/shared/utils/normalizeSearchText';
 
 export type CustomerActiveFilter = 'all' | 'active' | 'passive';
 
@@ -79,15 +80,17 @@ export function filterCustomers(
   }
 
   if (options.search?.trim()) {
-    const term = options.search.trim().toLocaleLowerCase('tr-TR');
-    result = result.filter(
-      (c) =>
-        c.code.toLocaleLowerCase('tr-TR').includes(term) ||
-        c.name.toLocaleLowerCase('tr-TR').includes(term),
-    );
+    const term = normalizeSearchText(options.search);
+    if (term) {
+      result = result.filter((c) => {
+        const code = normalizeSearchText(c.code);
+        const name = normalizeSearchText(c.name);
+        return code.includes(term) || name.includes(term);
+      });
+    }
   }
 
   return result.sort((a, b) =>
-    a.name.localeCompare(b.name, 'tr-TR', { sensitivity: 'base' }),
+    normalizeSearchText(a.name).localeCompare(normalizeSearchText(b.name), 'tr-TR'),
   );
 }
