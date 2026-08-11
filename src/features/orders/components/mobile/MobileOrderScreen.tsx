@@ -14,6 +14,10 @@ import {
   rememberRecentProduct,
   getLastBranchForCustomer,
 } from '@/features/orders/hooks/orderPrefs';
+import {
+  isValidOrderBranchSelection,
+  ORDER_CENTER_BRANCH,
+} from '@/features/orders/utils/orderBranchOptions';
 import { useVisualViewportKeyboard } from '@/shared/hooks/useVisualViewportKeyboard';
 import { shouldKeepCustomerPickerMounted } from '@/features/orders/utils/orderSearchVisibility';
 import { useOrderDraftStore } from '@/stores/orderDraftStore';
@@ -27,8 +31,6 @@ import { MobileCustomerSection } from './MobileCustomerSection';
 import { MobileProductSection } from './MobileProductSection';
 import { MobileStickyCartBar } from './MobileStickyCartBar';
 import { MobileQtyStepper } from './MobileQtyStepper';
-
-const CENTER_BRANCH = { id: 'main', name: 'Merkez' } as const;
 
 /**
  * Single-screen mobile order UI.
@@ -71,21 +73,30 @@ export function MobileOrderScreen() {
   }, [lines]);
 
   const resolveBranch = async (customer: Customer): Promise<void> => {
-    const remembered = getLastBranchForCustomer(customer.id);
-    if (remembered) {
-      selectBranch(remembered.branchId, remembered.branchName);
-      return;
-    }
-
-    selectBranch(CENTER_BRANCH.id, CENTER_BRANCH.name);
-    rememberLastBranch(customer.id, {
-      branchId: CENTER_BRANCH.id,
-      branchName: CENTER_BRANCH.name,
-    });
-
     try {
-      const branches = await branchService.listByCustomer(customer.id);
-      const active = branches.filter((b) => b.isActive && !b.isDeleted);
+      const rows = await branchService.listByCustomer(customer.id);
+      const active = rows
+        .filter((b) => b.isActive && !b.isDeleted)
+        .map((b) => ({ id: b.id, name: b.name }));
+
+      const remembered = getLastBranchForCustomer(customer.id);
+      if (
+        remembered &&
+        isValidOrderBranchSelection(remembered.branchId, active)
+      ) {
+        selectBranch(remembered.branchId, remembered.branchName);
+        return;
+      }
+
+      if (active.length === 0) {
+        selectBranch(ORDER_CENTER_BRANCH.id, ORDER_CENTER_BRANCH.name);
+        rememberLastBranch(customer.id, {
+          branchId: ORDER_CENTER_BRANCH.id,
+          branchName: ORDER_CENTER_BRANCH.name,
+        });
+        return;
+      }
+
       if (active.length === 1) {
         selectBranch(active[0].id, active[0].name);
         rememberLastBranch(customer.id, {
@@ -93,8 +104,10 @@ export function MobileOrderScreen() {
           branchName: active[0].name,
         });
       }
+      // Multiple registered branches: leave unset so the user picks from the list
+      // (do not inject synthetic Merkez alongside DEPO/MERKEZ).
     } catch {
-      // keep Merkez
+      selectBranch(ORDER_CENTER_BRANCH.id, ORDER_CENTER_BRANCH.name);
     }
   };
 
@@ -148,7 +161,7 @@ export function MobileOrderScreen() {
       return;
     }
     if (!branchId) {
-      selectBranch(CENTER_BRANCH.id, CENTER_BRANCH.name);
+      selectBranch(ORDER_CENTER_BRANCH.id, ORDER_CENTER_BRANCH.name);
     }
 
     setIsSaving(true);

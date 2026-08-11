@@ -8,11 +8,10 @@ import {
   type RecentCustomerPref,
 } from '@/features/orders/hooks/orderPrefs';
 import { visibleOrderPickerCustomers } from '@/features/orders/utils/customerPickerSearch';
+import { buildOrderBranchPickerOptions } from '@/features/orders/utils/orderBranchOptions';
 import { branchService } from '@/features/customers/services/branchService';
 import type { Customer, CustomerBranch } from '@/shared/types/customer.types';
 import { cn } from '@/shared/utils/cn';
-
-const CENTER_BRANCH = { id: 'main', name: 'Merkez' } as const;
 
 interface MobileCustomerSectionProps {
   selectedCustomerId?: string;
@@ -45,6 +44,14 @@ export function MobileCustomerSection({
 
   const { customers, allCustomers, isInitialLoading } =
     useCachedCustomers(search);
+
+  const branchOptions = useMemo(
+    () =>
+      buildOrderBranchPickerOptions(
+        branches.map((b) => ({ id: b.id, name: b.name })),
+      ),
+    [branches],
+  );
 
   useEffect(() => {
     onPickerOpenChange?.(pickerOpen);
@@ -122,7 +129,7 @@ export function MobileCustomerSection({
               Şube
             </p>
             <p className="truncate text-sm font-semibold text-brand-navy">
-              {selectedBranchName ?? 'Merkez'}
+              {selectedBranchName ?? 'Şube seçin'}
             </p>
           </div>
           <span className="text-xs font-semibold text-brand-navy">
@@ -135,41 +142,24 @@ export function MobileCustomerSection({
             {branchesLoading ? (
               <LoadingSpinner label="Şubeler..." />
             ) : (
-              <>
+              branchOptions.map((branch) => (
                 <button
+                  key={branch.id}
                   type="button"
                   onClick={() => {
-                    onSelectBranch(CENTER_BRANCH.id, CENTER_BRANCH.name);
+                    onSelectBranch(branch.id, branch.name);
                     setBranchPickerOpen(false);
                   }}
                   className={cn(
                     'flex min-h-12 w-full items-center rounded-xl px-3 text-left text-sm font-medium',
-                    selectedBranchId === CENTER_BRANCH.id
+                    selectedBranchId === branch.id
                       ? 'bg-brand-navy text-white'
                       : 'text-brand-navy active:bg-brand-gray-50',
                   )}
                 >
-                  Merkez
+                  {branch.name}
                 </button>
-                {branches.map((branch) => (
-                  <button
-                    key={branch.id}
-                    type="button"
-                    onClick={() => {
-                      onSelectBranch(branch.id, branch.name);
-                      setBranchPickerOpen(false);
-                    }}
-                    className={cn(
-                      'flex min-h-12 w-full items-center rounded-xl px-3 text-left text-sm font-medium',
-                      selectedBranchId === branch.id
-                        ? 'bg-brand-navy text-white'
-                        : 'text-brand-navy active:bg-brand-gray-50',
-                    )}
-                  >
-                    {branch.name}
-                  </button>
-                ))}
-              </>
+              ))
             )}
           </div>
         ) : null}
