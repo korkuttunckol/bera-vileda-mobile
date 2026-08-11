@@ -14,6 +14,9 @@
 # 2) push to cursor/capacitor-mlkit-barcode-poc-7d6c:
 #    Full checkout of that branch (existing working path — unchanged).
 #
+# 3) push to cursor/android-order-search-scroll-7d6c:
+#    Hybrid: this branch as web_ref + POC native_ref (APK artifact for UAT).
+#
 # Does NOT merge PR #14 / native sources into main.
 
 name: Android Debug APK
@@ -34,6 +37,7 @@ on:
   push:
     branches:
       - cursor/capacitor-mlkit-barcode-poc-7d6c
+      - cursor/android-order-search-scroll-7d6c
     paths:
       - '.github/workflows/android-debug.yml'
       - 'android/**'
@@ -79,6 +83,11 @@ jobs:
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "web_ref=${{ inputs.web_ref }}" >> "$GITHUB_OUTPUT"
             echo "native_ref=${{ inputs.native_ref }}" >> "$GITHUB_OUTPUT"
+            echo "hybrid=true" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.ref_name }}" = "cursor/android-order-search-scroll-7d6c" ]; then
+            # Feature UAT APK: this branch web + POC native shell.
+            echo "web_ref=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+            echo "native_ref=cursor/capacitor-mlkit-barcode-poc-7d6c" >> "$GITHUB_OUTPUT"
             echo "hybrid=true" >> "$GITHUB_OUTPUT"
           else
             echo "web_ref=${{ github.sha }}" >> "$GITHUB_OUTPUT"
