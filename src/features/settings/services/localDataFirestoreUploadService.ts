@@ -6,6 +6,7 @@ import {
 import { isFirebaseConfigured } from '@/config/env';
 import { customerLocalRepository } from '@/shared/lib/indexeddb/repositories/customerRepository';
 import { productLocalRepository } from '@/shared/lib/indexeddb/repositories/productRepository';
+import { branchLocalRepository } from '@/shared/lib/indexeddb/repositories/branchRepository';
 import { userLocalRepository } from '@/shared/lib/indexeddb/repositories/userRepository';
 import { getFirestoreDb } from '@/shared/lib/firebase/firestore';
 import {
@@ -14,11 +15,12 @@ import {
 } from '@/shared/lib/firebase/firestoreService';
 import { upsertUserToFirestore } from '@/shared/lib/firebase/userFirestoreService';
 import {
+  branchConverter,
   customerConverter,
   productConverter,
 } from '@/shared/lib/firebase/converters';
 import { getFirestoreErrorMessage } from '@/shared/lib/firebase/firestoreUtils';
-import type { Customer } from '@/shared/types/customer.types';
+import type { Customer, CustomerBranch } from '@/shared/types/customer.types';
 import type { Product } from '@/shared/types/product.types';
 import type { AppUser } from '@/shared/types/user.types';
 
@@ -41,6 +43,7 @@ export interface LocalDataFirestoreUploadResult {
   customers: FirestoreUploadEntityResult;
   products: FirestoreUploadEntityResult;
   users: FirestoreUploadEntityResult;
+  branches: FirestoreUploadEntityResult;
 }
 
 /** Normalize business keys the same way Excel import does. */
@@ -62,6 +65,11 @@ interface ResolvedCustomerWrite {
 interface ResolvedProductWrite {
   localRecordId: string;
   payload: Product;
+}
+
+interface ResolvedBranchWrite {
+  localRecordId: string;
+  payload: CustomerBranch;
 }
 
 function preferCustomer(a: Customer, b: Customer): Customer {
@@ -209,6 +217,42 @@ export function resolveProductsForUpload(
   return { writes, skipped };
 }
 
+/**
+ * Remap branch.customerId when the parent customer was uploaded under a
+ * different Firestore document id (business-key merge).
+ */
+export function resolveBranchesForUpload(
+  locals: CustomerBranch[],
+  customerIdMap: Map<string, string>,
+): { writes: ResolvedBranchWrite[]; skipped: FirestoreUploadFailure[] } {
+  const writes: ResolvedBranchWrite[] = [];
+  const skipped: FirestoreUploadFailure[] = [];
+
+  for (const local of locals) {
+    if (!local.customerId.trim()) {
+      skipped.push({
+        id: local.id,
+        label: local.name || local.id,
+        message: 'Şube müşteri kimliği boş olduğu için yüklenmedi.',
+      });
+      continue;
+    }
+
+    const targetCustomerId =
+      customerIdMap.get(local.customerId) ?? local.customerId;
+
+    writes.push({
+      localRecordId: local.id,
+      payload: {
+        ...local,
+        customerId: targetCustomerId,
+      },
+    });
+  }
+
+  return { writes, skipped };
+}
+
 async function commitCustomerChunk(
   chunk: ResolvedCustomerWrite[],
 ): Promise<FirestoreUploadFailure[]> {
@@ -335,6 +379,80 @@ async function markProductsSynced(localRecordIds: string[]): Promise<void> {
   }
 }
 
+async function markBranchesSynced(localRecordIds: string[]): Promise<void> {
+  if (localRecordIds.length === 0) return;
+  const now = new Date().toISOString();
+  const all = await branchLocalRepository.getAll();
+  const idSet = new Set(localRecordIds);
+  const toSave = all
+    .filter((branch) => idSet.has(branch.id))
+    .map((branch) => ({
+      ...branch,
+      syncStatus: 'synced' as const,
+      updatedAt: now,
+    }));
+  if (toSave.length > 0) {
+    await branchLocalRepository.saveMany(toSave);
+  }
+}
+
+async function commitBranchChunk(
+  chunk: ResolvedBranchWrite[],
+): Promise<FirestoreUploadFailure[]> {
+  const db = getFirestoreDb();
+  if (!db) {
+    return chunk.map((write) => ({
+      id: write.localRecordId,
+      label: write.payload.name,
+      message: 'Firestore bağlantısı kurulamadı.',
+    }));
+  }
+
+  const batch = writeBatch(db);
+  for (const write of chunk) {
+    batch.set(
+      doc(
+        db,
+        'customers',
+        write.payload.customerId,
+        'branches',
+        write.payload.id,
+      ).withConverter(branchConverter),
+      write.payload,
+    );
+  }
+
+  try {
+    await batch.commit();
+    return [];
+  } catch (batchError) {
+    console.error('[Upload] Firestore şube batch hatası:', batchError);
+
+    const failures: FirestoreUploadFailure[] = [];
+    for (const write of chunk) {
+      try {
+        await setDoc(
+          doc(
+            db,
+            'customers',
+            write.payload.customerId,
+            'branches',
+            write.payload.id,
+          ).withConverter(branchConverter),
+          write.payload,
+        );
+      } catch (error) {
+        failures.push({
+          id: write.localRecordId,
+          label: write.payload.name,
+          message: getFirestoreErrorMessage(error),
+        });
+      }
+    }
+    return failures;
+  }
+}
+
 async function uploadCustomers(
   customers: Customer[],
   remotes: Customer[],
@@ -395,6 +513,36 @@ async function uploadProducts(
   };
 }
 
+async function uploadBranches(
+  branches: CustomerBranch[],
+  customerIdMap: Map<string, string>,
+): Promise<FirestoreUploadEntityResult> {
+  const { writes, skipped } = resolveBranchesForUpload(branches, customerIdMap);
+  const failures: FirestoreUploadFailure[] = [...skipped];
+  const writtenLocalIds: string[] = [];
+
+  for (let index = 0; index < writes.length; index += FIRESTORE_BATCH_SIZE) {
+    const chunk = writes.slice(index, index + FIRESTORE_BATCH_SIZE);
+    const chunkFailures = await commitBranchChunk(chunk);
+    failures.push(...chunkFailures);
+    const failedIds = new Set(chunkFailures.map((failure) => failure.id));
+    writtenLocalIds.push(
+      ...chunk
+        .filter((write) => !failedIds.has(write.localRecordId))
+        .map((write) => write.localRecordId),
+    );
+  }
+
+  await markBranchesSynced(writtenLocalIds);
+
+  return {
+    total: branches.length,
+    written: writtenLocalIds.length,
+    failed: failures.length,
+    failures,
+  };
+}
+
 async function uploadUsers(users: AppUser[]): Promise<FirestoreUploadEntityResult> {
   const failures: FirestoreUploadFailure[] = [];
   const written: AppUser[] = [];
@@ -431,23 +579,34 @@ class LocalDataFirestoreUploadService {
       throw new Error('Firebase yapılandırması eksik.');
     }
 
-    const [customers, products, users, remoteCustomers, remoteProducts] =
+    const [customers, products, users, branches, remoteCustomers, remoteProducts] =
       await Promise.all([
         customerLocalRepository.getAll(),
         productLocalRepository.getAll(),
         userLocalRepository.findAll(),
+        branchLocalRepository.getAll(),
         pullAllCustomers(),
         pullAllProducts(),
       ]);
 
+    const customerWrites = resolveCustomersForUpload(customers, remoteCustomers);
+    const customerIdMap = new Map(
+      customerWrites.writes.map((write) => [
+        write.localRecordId,
+        write.payload.id,
+      ]),
+    );
+
     const customerResult = await uploadCustomers(customers, remoteCustomers);
     const productResult = await uploadProducts(products, remoteProducts);
+    const branchResult = await uploadBranches(branches, customerIdMap);
     const userResult = await uploadUsers(users);
 
     return {
       customers: customerResult,
       products: productResult,
       users: userResult,
+      branches: branchResult,
     };
   }
 }

@@ -1,5 +1,6 @@
 import {
   collection,
+  collectionGroup,
   doc,
   getDocs,
   query,
@@ -209,6 +210,51 @@ export async function pullAllProducts(): Promise<Product[]> {
       `[Firestore] getDocs products hata (${String(Date.now() - startedAt)} ms):`,
       error,
     );
+    throw new Error(getFirestoreErrorMessage(error));
+  }
+}
+
+/** Collection group: customers/{customerId}/branches/{branchId} */
+export async function pullAllBranches(): Promise<CustomerBranch[]> {
+  const db = getFirestoreDb();
+  if (!db) return [];
+
+  console.info('[Firestore] getDocs branches (collectionGroup) başladı');
+  const startedAt = Date.now();
+
+  try {
+    const snapshot = await getDocs(
+      collectionGroup(db, 'branches').withConverter(branchConverter),
+    );
+    console.info(
+      `[Firestore] getDocs branches bitti (${String(Date.now() - startedAt)} ms, ${String(snapshot.size)} kayıt)`,
+    );
+    return snapshot.docs.map((d) => d.data());
+  } catch (error) {
+    console.error(
+      `[Firestore] getDocs branches hata (${String(Date.now() - startedAt)} ms):`,
+      error,
+    );
+    throw new Error(getFirestoreErrorMessage(error));
+  }
+}
+
+export async function pullBranchesSince(
+  since: string,
+): Promise<CustomerBranch[]> {
+  const db = getFirestoreDb();
+  if (!db) return [];
+
+  try {
+    const sinceTimestamp = Timestamp.fromDate(new Date(since));
+    const q = query(
+      collectionGroup(db, 'branches').withConverter(branchConverter),
+      where('updatedAt', '>', sinceTimestamp),
+    );
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map((d) => d.data());
+  } catch (error) {
+    console.error('[Firestore] Şube çekme hatası:', error);
     throw new Error(getFirestoreErrorMessage(error));
   }
 }

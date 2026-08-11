@@ -47,10 +47,13 @@ vi.mock('firebase/firestore', async () => {
   );
   return {
     ...actual,
-    doc: (_db: unknown, collection: string, id: string) => ({
-      path: `${collection}/${id}`,
-      withConverter: () => ({ path: `${collection}/${id}` }),
-    }),
+    doc: (_db: unknown, ...pathSegments: string[]) => {
+      const path = pathSegments.join('/');
+      return {
+        path,
+        withConverter: () => ({ path }),
+      };
+    },
     setDoc: (...args: unknown[]) => setDoc(...args),
     writeBatch: () => writeBatch(),
   };
@@ -89,6 +92,17 @@ vi.mock('@/shared/lib/indexeddb/repositories/userRepository', () => ({
     },
     async upsert(row: { id: string; userCode: string; syncStatus: string }) {
       users.set(row.id, { ...row });
+    },
+  },
+}));
+
+vi.mock('@/shared/lib/indexeddb/repositories/branchRepository', () => ({
+  branchLocalRepository: {
+    async getAll() {
+      return [];
+    },
+    async saveMany() {
+      return undefined;
     },
   },
 }));

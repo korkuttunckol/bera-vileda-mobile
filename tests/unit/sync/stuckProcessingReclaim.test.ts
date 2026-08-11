@@ -169,8 +169,28 @@ vi.mock('@/shared/lib/indexeddb/repositories/customerRepository', () => ({
 
 vi.mock('@/shared/lib/indexeddb/repositories/branchRepository', () => ({
   branchLocalRepository: {
-    getById: vi.fn(),
-    save: vi.fn(),
+    async getById(id: string) {
+      if (id !== 'branch-1') return undefined;
+      return {
+        id: 'branch-1',
+        customerId: 'afm-1',
+        name: 'DEPO',
+        isActive: true,
+        isDeleted: false,
+        syncStatus: 'pending',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+        createdBy: 'rep-1',
+        updatedBy: 'rep-1',
+        version: 1,
+      };
+    },
+    async save() {
+      return undefined;
+    },
+    async getAll() {
+      return [];
+    },
   },
 }));
 
@@ -293,7 +313,7 @@ describe('Outbox stuck processing reclaim', () => {
     expect(orders.get('order-stuck-1')?.orderSyncStatus).toBe('sent');
   });
 
-  it('does not change order status when stale processing is not an order', async () => {
+  it('does not change order status when stale processing is a branch', async () => {
     const branchItem = stuckQueueItem({
       id: 'queue-branch-1',
       entityType: 'branch',
@@ -310,7 +330,7 @@ describe('Outbox stuck processing reclaim', () => {
     );
 
     const { outboxProcessor } = await import('@/shared/lib/sync/OutboxProcessor');
-    // Outbox is order-only: legacy master-data rows are dropped, not pushed.
+    // Branch outbox items are processed; unrelated orders stay untouched.
     await outboxProcessor.processAll();
 
     expect(orders.get('order-unrelated')?.orderSyncStatus).toBe('sending');

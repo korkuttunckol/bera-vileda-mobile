@@ -50,6 +50,7 @@ const metaTable = createTable('key');
 const META_KEYS = {
   LAST_PULL_CUSTOMERS: 'lastPullSyncAt:customers',
   LAST_PULL_PRODUCTS: 'lastPullSyncAt:products',
+  LAST_PULL_BRANCHES: 'lastPullSyncAt:branches',
   LAST_SYNC_AT: 'lastSyncAt',
   LAST_SYNC_REPORT_ID: 'lastSyncReportId',
   INITIAL_SYNC_COMPLETE: 'initialSyncComplete',
@@ -58,6 +59,8 @@ const META_KEYS = {
   DATA_SOURCE_USERS: 'dataSource:users',
   PROCESSED_PREFIX: 'processed:',
 } as const;
+
+const pullAllBranches = vi.fn(async (): Promise<CustomerBranch[]> => []);
 
 vi.mock('@/config/env', () => ({
   isFirebaseConfigured: () => true,
@@ -125,8 +128,10 @@ vi.mock('@/shared/lib/firebase/firestoreService', () => ({
       version: 1,
     } satisfies Product,
   ]),
+  pullAllBranches: () => pullAllBranches(),
   pullCustomersSince: vi.fn(async () => []),
   pullProductsSince: vi.fn(async () => []),
+  pullBranchesSince: vi.fn(async () => []),
 }));
 
 vi.mock('@/shared/lib/firebase/userFirestoreService', () => ({
@@ -174,13 +179,15 @@ const localBranch: CustomerBranch = {
   version: 1,
 };
 
-describe('PullSync full replace preserves local branches', () => {
+describe('PullSync full replace preserves pending local branches', () => {
   beforeEach(async () => {
     customersTable.store.clear();
     branchesTable.store.clear();
     productsTable.store.clear();
     usersTable.store.clear();
     metaTable.store.clear();
+    pullAllBranches.mockReset();
+    pullAllBranches.mockResolvedValue([]);
 
     vi.stubGlobal('navigator', { onLine: true });
 
@@ -219,7 +226,7 @@ describe('PullSync full replace preserves local branches', () => {
     });
   });
 
-  it('keeps local branches after pullAll({ full: true }) while replacing other master data', async () => {
+  it('keeps pending local branches after pullAll({ full: true }) while replacing other master data', async () => {
     const { pullSync } = await import('@/shared/lib/sync/PullSync');
 
     const stats = await pullSync.pullAll({ full: true });
@@ -248,5 +255,40 @@ describe('PullSync full replace preserves local branches', () => {
     const users = await usersTable.toArray();
     expect(users).toHaveLength(1);
     expect(users[0]?.id).toBe('ADMIN');
+  });
+
+  it('replaces synced local branches with remote AFM DEPO/MERKEZ', async () => {
+    await branchesTable.put({
+      ...localBranch,
+      id: 'stale-synced',
+      name: 'Eski',
+      syncStatus: 'synced',
+    });
+    pullAllBranches.mockResolvedValue([
+      {
+        ...localBranch,
+        id: 'depo',
+        customerId: 'cust-remote-1',
+        name: 'DEPO',
+        syncStatus: 'synced',
+      },
+      {
+        ...localBranch,
+        id: 'merkez',
+        customerId: 'cust-remote-1',
+        name: 'MERKEZ',
+        syncStatus: 'synced',
+      },
+    ]);
+
+    const { pullSync } = await import('@/shared/lib/sync/PullSync');
+    await pullSync.pullAll({ full: true });
+
+    const branches = await branchesTable.toArray();
+    expect(branches.map((b) => b.name).sort()).toEqual([
+      'Ankara Şube',
+      'DEPO',
+      'MERKEZ',
+    ]);
   });
 });

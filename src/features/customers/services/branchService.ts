@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { branchLocalRepository } from '@/shared/lib/indexeddb/repositories/branchRepository';
 import { customerLocalRepository } from '@/shared/lib/indexeddb/repositories/customerRepository';
+import { outboxProcessor } from '@/shared/lib/sync/OutboxProcessor';
 import type { CustomerBranch } from '@/shared/types/customer.types';
 import type { BranchFormValues } from '@/shared/types/customer.schema';
 
@@ -43,8 +44,13 @@ class BranchService {
       version: 1,
     };
 
-    // Master data sync uses Settings → Yerel Verileri Firestore'a Aktar (not outbox).
     await branchLocalRepository.save(branch);
+    await outboxProcessor.enqueue({
+      entityType: 'branch',
+      entityId: branch.id,
+      operation: 'create',
+      data: { branchId: branch.id, customerId },
+    });
     return branch;
   }
 
@@ -71,8 +77,13 @@ class BranchService {
       syncStatus: 'pending',
     };
 
-    // Master data sync uses Settings → Yerel Verileri Firestore'a Aktar (not outbox).
     await branchLocalRepository.save(branch);
+    await outboxProcessor.enqueue({
+      entityType: 'branch',
+      entityId: branch.id,
+      operation: 'update',
+      data: { branchId: branch.id, customerId: branch.customerId },
+    });
     return branch;
   }
 
@@ -91,8 +102,13 @@ class BranchService {
       syncStatus: 'pending',
     };
 
-    // Master data sync uses Settings → Yerel Verileri Firestore'a Aktar (not outbox).
     await branchLocalRepository.save(branch);
+    await outboxProcessor.enqueue({
+      entityType: 'branch',
+      entityId: branch.id,
+      operation: 'delete',
+      data: { branchId: branch.id, customerId: branch.customerId },
+    });
   }
 
   toFormValues(branch: CustomerBranch): BranchFormValues {
@@ -104,7 +120,6 @@ class BranchService {
       isActive: branch.isActive,
     };
   }
-
 }
 
 export const branchService = new BranchService();
