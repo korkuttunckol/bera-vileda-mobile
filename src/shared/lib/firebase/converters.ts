@@ -130,16 +130,23 @@ export const customerConverter: FirestoreDataConverter<Customer> = {
 
 export const branchConverter: FirestoreDataConverter<CustomerBranch> = {
   toFirestore(branch: CustomerBranch) {
-    return omitUndefinedDeep({ ...branch });
+    return omitUndefinedDeep({
+      ...branch,
+      createdAt: toTimestamp(branch.createdAt),
+      updatedAt: toTimestamp(branch.updatedAt),
+    });
   },
   fromFirestore(
     snapshot: QueryDocumentSnapshot,
     options: SnapshotOptions,
   ): CustomerBranch {
     const data = snapshot.data(options) as Record<string, unknown>;
+    const parentCustomerId = snapshot.ref.parent.parent?.id;
     return {
       ...(data as unknown as CustomerBranch),
       id: snapshot.id,
+      customerId:
+        (data.customerId as string | undefined) ?? parentCustomerId ?? '',
       createdAt: toIso(data.createdAt),
       updatedAt: toIso(data.updatedAt),
       isActive: (data.isActive as boolean | undefined) ?? true,

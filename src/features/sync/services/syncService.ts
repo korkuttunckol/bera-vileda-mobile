@@ -110,6 +110,7 @@ class SyncService {
       setMetaValue(META_KEYS.INITIAL_SYNC_COMPLETE, 'false'),
       setMetaValue(META_KEYS.LAST_PULL_CUSTOMERS, '1970-01-01T00:00:00.000Z'),
       setMetaValue(META_KEYS.LAST_PULL_PRODUCTS, '1970-01-01T00:00:00.000Z'),
+      setMetaValue(META_KEYS.LAST_PULL_BRANCHES, '1970-01-01T00:00:00.000Z'),
       setMetaValue(META_KEYS.DATA_SOURCE_CUSTOMERS, 'indexeddb'),
       setMetaValue(META_KEYS.DATA_SOURCE_PRODUCTS, 'indexeddb'),
       setMetaValue(META_KEYS.DATA_SOURCE_USERS, 'indexeddb'),
@@ -186,6 +187,7 @@ class SyncService {
             result.report.pull.customers +
             result.report.pull.products +
             result.report.pull.users +
+            (result.report.pull.branches ?? 0) +
             (result.report.pull.orders?.pulled ?? 0);
 
           if (pulledTotal > 0 || result.report.pull.full) {

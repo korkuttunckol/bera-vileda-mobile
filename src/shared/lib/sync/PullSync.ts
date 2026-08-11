@@ -7,6 +7,7 @@ import {
 } from '@/shared/lib/indexeddb/db';
 import { customerLocalRepository } from '@/shared/lib/indexeddb/repositories/customerRepository';
 import { productLocalRepository } from '@/shared/lib/indexeddb/repositories/productRepository';
+import { branchLocalRepository } from '@/shared/lib/indexeddb/repositories/branchRepository';
 import { userLocalRepository } from '@/shared/lib/indexeddb/repositories/userRepository';
 import { fetchAllUsersFromFirestore } from '@/shared/lib/firebase/userFirestoreService';
 import {
@@ -17,8 +18,10 @@ import {
 import {
   pullAllCustomers,
   pullAllProducts,
+  pullAllBranches,
   pullCustomersSince,
   pullProductsSince,
+  pullBranchesSince,
 } from '@/shared/lib/firebase/firestoreService';
 import { conflictResolver } from './ConflictResolver';
 import {
@@ -27,6 +30,8 @@ import {
   recordPullValidation,
 } from './syncPullValidation';
 import {
+  logBranchesFetchEnd,
+  logBranchesFetchStart,
   logCustomersFetchEnd,
   logCustomersFetchStart,
   logIndexedDbWriteEnd,
@@ -42,7 +47,7 @@ import {
   wrapCollectionError,
 } from './syncPullLogger';
 import type { SyncPullStats } from './types/sync.types';
-import type { Customer } from '@/shared/types/customer.types';
+import type { Customer, CustomerBranch } from '@/shared/types/customer.types';
 import type { Product } from '@/shared/types/product.types';
 
 const EPOCH = '1970-01-01T00:00:00.000Z';
@@ -65,11 +70,28 @@ function normalizeProduct(remote: Product): Product {
   };
 }
 
+function normalizeBranch(remote: CustomerBranch): CustomerBranch {
+  return {
+    ...remote,
+    syncStatus: 'synced',
+  };
+}
+
 function normalizeRemoteUser(remote: AppUser): AppUser {
   return normalizeAppUser({
     ...remote,
     syncStatus: 'synced',
   });
+}
+
+function preferLocalPendingBranch(
+  local: CustomerBranch,
+  remote: CustomerBranch,
+): boolean {
+  return (
+    (local.syncStatus === 'pending' || local.syncStatus === 'failed') &&
+    local.updatedAt >= remote.updatedAt
+  );
 }
 
 /**
@@ -169,11 +191,76 @@ async function mergeProductsBatch(remotes: Product[]): Promise<void> {
   await productLocalRepository.saveMany(toSave);
 }
 
+/**
+ * Incremental branch merge by id. Soft-deleted remotes are stored so local
+ * lists (which filter isDeleted) hide them. Pending/failed locals win when newer.
+ */
+export async function mergeBranchesBatch(
+  remotes: CustomerBranch[],
+): Promise<number> {
+  if (remotes.length === 0) return 0;
+
+  const locals = await branchLocalRepository.getAll();
+  const localById = new Map(locals.map((branch) => [branch.id, branch]));
+  const toSave: CustomerBranch[] = [];
+
+  for (const remote of remotes) {
+    const normalized = normalizeBranch(remote);
+    const local = localById.get(remote.id);
+    if (local && preferLocalPendingBranch(local, normalized)) {
+      toSave.push(local);
+    } else {
+      toSave.push(normalized);
+    }
+  }
+
+  await branchLocalRepository.saveMany(toSave);
+  return toSave.length;
+}
+
+/**
+ * Full branch replace from Firestore. Drops stale synced locals that are no
+ * longer remote; keeps newer pending/failed locals so outbox push can finish.
+ */
+export async function replaceBranchesFromFirestore(
+  remotes: CustomerBranch[],
+): Promise<number> {
+  const locals = await branchLocalRepository.getAll();
+  const remoteById = new Map(
+    remotes.map((branch) => [branch.id, normalizeBranch(branch)] as const),
+  );
+  const merged = new Map<string, CustomerBranch>();
+
+  for (const [id, remote] of remoteById) {
+    merged.set(id, remote);
+  }
+
+  for (const local of locals) {
+    if (local.syncStatus !== 'pending' && local.syncStatus !== 'failed') {
+      continue;
+    }
+    const remote = remoteById.get(local.id);
+    if (!remote || preferLocalPendingBranch(local, remote)) {
+      merged.set(local.id, local);
+    }
+  }
+
+  const rows = [...merged.values()];
+  await db.transaction('rw', [db.branches], async () => {
+    await db.branches.clear();
+    if (rows.length > 0) {
+      await db.branches.bulkPut(rows);
+    }
+  });
+  return rows.length;
+}
+
 async function replaceAllFromFirestore(
   remoteCustomers: Customer[],
   remoteProducts: Product[],
   remoteUsers: Awaited<ReturnType<typeof fetchAllUsersFromFirestore>>,
-): Promise<{ skippedEmptyRemote: boolean }> {
+  remoteBranches: CustomerBranch[],
+): Promise<{ skippedEmptyRemote: boolean; branchesWritten: number }> {
   const localCounts = await readLoadedCounts();
   const remoteMasterEmpty =
     remoteCustomers.length === 0 && remoteProducts.length === 0;
@@ -192,6 +279,7 @@ async function replaceAllFromFirestore(
     const startedAt = Date.now();
 
     // Users: merge when remote has rows; otherwise keep local users too.
+    // Branches stay local when master replace is skipped.
     if (remoteUsers.length > 0) {
       const userCount = await mergeUsersFromRemote(remoteUsers);
       logIndexedDbWriteEnd(
@@ -205,7 +293,7 @@ async function replaceAllFromFirestore(
       logIndexedDbWriteEnd(Date.now() - startedAt, 'master + users korundu (remote boş)');
     }
 
-    return { skippedEmptyRemote: true };
+    return { skippedEmptyRemote: true, branchesWritten: 0 };
   }
 
   const customers = remoteCustomers.map(normalizeCustomer);
@@ -215,7 +303,7 @@ async function replaceAllFromFirestore(
   const startedAt = Date.now();
 
   // Full replace refreshes customers/products. Users merge by userCode and keep
-  // pending local edits. Branches stay local until a dedicated branch pull exists.
+  // pending local edits. Branches replace from Firestore and keep pending locals.
   await db.transaction('rw', [db.customers, db.products], async () => {
     await db.customers.clear();
     await db.products.clear();
@@ -228,14 +316,15 @@ async function replaceAllFromFirestore(
     }
   });
 
+  const branchesWritten = await replaceBranchesFromFirestore(remoteBranches);
   const userCount = await mergeUsersFromRemote(remoteUsers);
 
   logIndexedDbWriteEnd(
     Date.now() - startedAt,
-    `${String(customers.length)} cari, ${String(products.length)} stok, ${String(userCount)} kullanıcı`,
+    `${String(customers.length)} cari, ${String(products.length)} stok, ${String(branchesWritten)} şube, ${String(userCount)} kullanıcı`,
   );
 
-  return { skippedEmptyRemote: false };
+  return { skippedEmptyRemote: false, branchesWritten };
 }
 
 async function pullUsersFromFirestore(): Promise<
@@ -250,6 +339,7 @@ async function fetchAllCollectionsSerial(): Promise<{
   customers: Customer[];
   products: Product[];
   users: Awaited<ReturnType<typeof fetchAllUsersFromFirestore>>;
+  branches: CustomerBranch[];
 }> {
   try {
     const remoteUsers = await runTimedFetch(
@@ -270,11 +360,18 @@ async function fetchAllCollectionsSerial(): Promise<{
       pullAllProducts,
       (rows) => rows.length,
     );
+    const remoteBranches = await runTimedFetch(
+      logBranchesFetchStart,
+      logBranchesFetchEnd,
+      pullAllBranches,
+      (rows) => rows.length,
+    );
 
     return {
       customers: remoteCustomers,
       products: remoteProducts,
       users: remoteUsers,
+      branches: remoteBranches,
     };
   } catch (error) {
     logSyncFailed(error);
@@ -286,6 +383,7 @@ async function fetchIncrementalCollections(): Promise<{
   customers: Customer[];
   products: Product[];
   users: Awaited<ReturnType<typeof fetchAllUsersFromFirestore>>;
+  branches: CustomerBranch[];
 }> {
   try {
     const remoteUsers = await runTimedFetch(
@@ -310,11 +408,20 @@ async function fetchIncrementalCollections(): Promise<{
       () => pullProductsSince(productSince),
       (rows) => rows.length,
     );
+    const branchSince =
+      (await getMetaValue(META_KEYS.LAST_PULL_BRANCHES)) ?? EPOCH;
+    const remoteBranches = await runTimedFetch(
+      logBranchesFetchStart,
+      logBranchesFetchEnd,
+      () => pullBranchesSince(branchSince),
+      (rows) => rows.length,
+    );
 
     return {
       customers: remoteCustomers,
       products: remoteProducts,
       users: remoteUsers,
+      branches: remoteBranches,
     };
   } catch (error) {
     logSyncFailed(error);
@@ -334,6 +441,7 @@ export class PullSync {
       customers: 0,
       products: 0,
       users: 0,
+      branches: 0,
       full,
     };
 
@@ -346,14 +454,20 @@ export class PullSync {
 
     try {
       if (full) {
-        const { customers: remoteCustomers, products: remoteProducts, users: remoteUsers } =
-          await fetchAllCollectionsSerial();
+        const {
+          customers: remoteCustomers,
+          products: remoteProducts,
+          users: remoteUsers,
+          branches: remoteBranches,
+        } = await fetchAllCollectionsSerial();
 
-        const { skippedEmptyRemote } = await replaceAllFromFirestore(
-          remoteCustomers,
-          remoteProducts,
-          remoteUsers,
-        );
+        const { skippedEmptyRemote, branchesWritten } =
+          await replaceAllFromFirestore(
+            remoteCustomers,
+            remoteProducts,
+            remoteUsers,
+            remoteBranches,
+          );
 
         const loaded = await readLoadedCounts();
         const validation = skippedEmptyRemote
@@ -398,6 +512,7 @@ export class PullSync {
 
         await setMetaValue(META_KEYS.LAST_PULL_CUSTOMERS, now);
         await setMetaValue(META_KEYS.LAST_PULL_PRODUCTS, now);
+        await setMetaValue(META_KEYS.LAST_PULL_BRANCHES, now);
         if (!skippedEmptyRemote) {
           await setMetaValue(META_KEYS.DATA_SOURCE_CUSTOMERS, 'firestore');
           await setMetaValue(META_KEYS.DATA_SOURCE_PRODUCTS, 'firestore');
@@ -405,6 +520,8 @@ export class PullSync {
         await setMetaValue(META_KEYS.INITIAL_SYNC_COMPLETE, 'true');
 
         logSyncComplete();
+
+        const localBranchCount = (await branchLocalRepository.getAll()).length;
 
         return {
           customers: skippedEmptyRemote
@@ -414,6 +531,7 @@ export class PullSync {
             ? loaded.products
             : remoteProducts.length,
           users: skippedEmptyRemote ? loaded.users : remoteUsers.length,
+          branches: skippedEmptyRemote ? localBranchCount : branchesWritten,
           validation,
           full: true,
           skippedEmptyRemote,
@@ -424,10 +542,12 @@ export class PullSync {
         customers: remoteCustomers,
         products: remoteProducts,
         users: remoteUsers,
+        branches: remoteBranches,
       } = await fetchIncrementalCollections();
 
       await mergeCustomersBatch(remoteCustomers);
       await mergeProductsBatch(remoteProducts);
+      const branchesWritten = await mergeBranchesBatch(remoteBranches);
 
       logIndexedDbWriteStart();
       const usersWriteStartedAt = Date.now();
@@ -460,6 +580,7 @@ export class PullSync {
 
       await setMetaValue(META_KEYS.LAST_PULL_CUSTOMERS, now);
       await setMetaValue(META_KEYS.LAST_PULL_PRODUCTS, now);
+      await setMetaValue(META_KEYS.LAST_PULL_BRANCHES, now);
       await setMetaValue(META_KEYS.DATA_SOURCE_CUSTOMERS, 'firestore');
       await setMetaValue(META_KEYS.DATA_SOURCE_PRODUCTS, 'firestore');
 
@@ -469,6 +590,7 @@ export class PullSync {
         customers: remoteCustomers.length,
         products: remoteProducts.length,
         users: remoteUsers.length,
+        branches: branchesWritten,
         validation,
         full: false,
       };

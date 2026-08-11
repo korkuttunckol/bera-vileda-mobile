@@ -6,6 +6,10 @@ class BranchLocalRepository {
     return db.branches.get(id);
   }
 
+  async getAll(): Promise<LocalBranch[]> {
+    return db.branches.toArray();
+  }
+
   async findByCustomerId(customerId: string): Promise<LocalBranch[]> {
     return db.branches
       .where('customerId')

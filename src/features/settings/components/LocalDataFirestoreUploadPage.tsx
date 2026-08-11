@@ -95,7 +95,8 @@ export function LocalDataFirestoreUploadPage() {
       const totalFailed =
         uploadResult.customers.failed +
         uploadResult.products.failed +
-        uploadResult.users.failed;
+        uploadResult.users.failed +
+        uploadResult.branches.failed;
 
       if (totalFailed === 0) {
         toast('Yerel veriler Firestore\'a aktarıldı.', 'success');
@@ -153,6 +154,7 @@ export function LocalDataFirestoreUploadPage() {
           <div className="space-y-4">
             <EntityUploadSummary title="Cari Kartları" result={result.customers} />
             <EntityUploadSummary title="Stok Kartları" result={result.products} />
+            <EntityUploadSummary title="Şubeler" result={result.branches} />
             <EntityUploadSummary title="Kullanıcılar" result={result.users} />
           </div>
         ) : null}
