@@ -81,14 +81,16 @@ export function filterCustomers(
 
   if (options.search?.trim()) {
     const term = normalizeSearchText(options.search);
-    result = result.filter((c) => {
-      const code = normalizeSearchText(c.code);
-      const name = normalizeSearchText(c.name);
-      return code.includes(term) || name.includes(term);
-    });
+    if (term) {
+      result = result.filter((c) => {
+        const code = normalizeSearchText(c.code);
+        const name = normalizeSearchText(c.name);
+        return code.includes(term) || name.includes(term);
+      });
+    }
   }
 
   return result.sort((a, b) =>
-    a.name.localeCompare(b.name, 'tr-TR', { sensitivity: 'base' }),
+    normalizeSearchText(a.name).localeCompare(normalizeSearchText(b.name), 'tr-TR'),
   );
 }

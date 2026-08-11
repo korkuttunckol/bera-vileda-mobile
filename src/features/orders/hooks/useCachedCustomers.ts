@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import { useSyncStore } from '@/stores/syncStore';
 import { customerService } from '@/features/customers/services/customerService';
-import { filterCustomers } from '@/shared/lib/indexeddb/repositories/customerRepository';
+import { filterCustomersForOrderPicker } from '@/features/orders/utils/customerPickerSearch';
 import type { Customer } from '@/shared/types/customer.types';
 import { useDebouncedValue } from './useDebouncedValue';
 
@@ -37,11 +37,7 @@ export function useCachedCustomers(search: string) {
   }, [reload, dataRevision]);
 
   const customers = useMemo(
-    () =>
-      filterCustomers(allCustomers, {
-        search: debouncedSearch,
-        activeFilter: 'active',
-      }),
+    () => filterCustomersForOrderPicker(allCustomers, debouncedSearch),
     [allCustomers, debouncedSearch],
   );
 
