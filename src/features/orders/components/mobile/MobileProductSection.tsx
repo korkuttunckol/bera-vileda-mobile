@@ -121,9 +121,8 @@ export function MobileProductSection({
         <>
           {takenProducts.length > 0 ? (
             <section className="rounded-2xl border border-brand-gray-200 bg-white px-2.5 py-1 shadow-sm">
-              <p className="px-0.5 py-1 text-[11px] font-medium uppercase tracking-wide text-brand-gray-500">
-                Alınan Siparişler
-                {` · ${String(takenProducts.length)}`}
+              <p className="px-0.5 py-1 text-[11px] font-bold uppercase tracking-wide text-brand-gray-500">
+                {`Alınan Siparişler (${String(takenProducts.length)})`}
               </p>
               <div className="max-h-48 overflow-y-auto overscroll-y-contain">
                 {takenProducts.map((product) => (
@@ -142,9 +141,8 @@ export function MobileProductSection({
           ) : null}
 
           <section className="rounded-2xl border border-brand-gray-200 bg-white px-2.5 py-1 shadow-sm">
-            <p className="px-0.5 py-1 text-[11px] font-medium uppercase tracking-wide text-brand-gray-500">
-              Ürün listesi
-              {search.trim() ? ` · ${String(products.length)}` : ''}
+            <p className="px-0.5 py-1 text-[11px] font-bold uppercase tracking-wide text-brand-gray-500">
+              {`Ürün Listesi (${String(products.length)})`}
             </p>
             {products.length === 0 ? (
               <EmptyState
