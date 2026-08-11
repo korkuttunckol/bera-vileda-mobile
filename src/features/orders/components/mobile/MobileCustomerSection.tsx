@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { SearchInput } from '@/shared/components/form/SearchInput';
 import { EmptyState } from '@/shared/components/feedback/EmptyState';
 import { LoadingSpinner } from '@/shared/components/feedback/LoadingSpinner';
@@ -8,11 +8,10 @@ import {
   type RecentCustomerPref,
 } from '@/features/orders/hooks/orderPrefs';
 import { visibleOrderPickerCustomers } from '@/features/orders/utils/customerPickerSearch';
+import { buildOrderBranchPickerOptions } from '@/features/orders/utils/orderBranchOptions';
 import { branchService } from '@/features/customers/services/branchService';
 import type { Customer, CustomerBranch } from '@/shared/types/customer.types';
 import { cn } from '@/shared/utils/cn';
-
-const CENTER_BRANCH = { id: 'main', name: 'Merkez' } as const;
 
 interface MobileCustomerSectionProps {
   selectedCustomerId?: string;
@@ -22,6 +21,8 @@ interface MobileCustomerSectionProps {
   onSelectCustomer: (customer: Customer) => void;
   onSelectBranch: (branchId: string, branchName: string) => void;
   onChangeCustomer: () => void;
+  /** Notifies parent when the cari picker is open (keeps it mounted under Android IME). */
+  onPickerOpenChange?: (open: boolean) => void;
 }
 
 export function MobileCustomerSection({
@@ -32,15 +33,36 @@ export function MobileCustomerSection({
   onSelectCustomer,
   onSelectBranch,
   onChangeCustomer,
+  onPickerOpenChange,
 }: MobileCustomerSectionProps) {
   const [search, setSearch] = useState('');
   const [pickerOpen, setPickerOpen] = useState(!selectedCustomerId);
   const [branchPickerOpen, setBranchPickerOpen] = useState(false);
   const [branches, setBranches] = useState<CustomerBranch[]>([]);
   const [branchesLoading, setBranchesLoading] = useState(false);
+  const resultsRef = useRef<HTMLUListElement>(null);
 
   const { customers, allCustomers, isInitialLoading } =
     useCachedCustomers(search);
+
+  const branchOptions = useMemo(
+    () =>
+      buildOrderBranchPickerOptions(
+        branches.map((b) => ({ id: b.id, name: b.name })),
+      ),
+    [branches],
+  );
+
+  useEffect(() => {
+    onPickerOpenChange?.(pickerOpen);
+  }, [pickerOpen, onPickerOpenChange]);
+
+  useEffect(() => {
+    if (!search.trim()) return;
+    if (resultsRef.current) {
+      resultsRef.current.scrollTop = 0;
+    }
+  }, [search, customers]);
 
   const recent = useMemo(() => {
     const prefs = getRecentCustomers(5);
@@ -107,7 +129,7 @@ export function MobileCustomerSection({
               Şube
             </p>
             <p className="truncate text-sm font-semibold text-brand-navy">
-              {selectedBranchName ?? 'Merkez'}
+              {selectedBranchName ?? 'Şube seçin'}
             </p>
           </div>
           <span className="text-xs font-semibold text-brand-navy">
@@ -120,41 +142,24 @@ export function MobileCustomerSection({
             {branchesLoading ? (
               <LoadingSpinner label="Şubeler..." />
             ) : (
-              <>
+              branchOptions.map((branch) => (
                 <button
+                  key={branch.id}
                   type="button"
                   onClick={() => {
-                    onSelectBranch(CENTER_BRANCH.id, CENTER_BRANCH.name);
+                    onSelectBranch(branch.id, branch.name);
                     setBranchPickerOpen(false);
                   }}
                   className={cn(
                     'flex min-h-12 w-full items-center rounded-xl px-3 text-left text-sm font-medium',
-                    selectedBranchId === CENTER_BRANCH.id
+                    selectedBranchId === branch.id
                       ? 'bg-brand-navy text-white'
                       : 'text-brand-navy active:bg-brand-gray-50',
                   )}
                 >
-                  Merkez
+                  {branch.name}
                 </button>
-                {branches.map((branch) => (
-                  <button
-                    key={branch.id}
-                    type="button"
-                    onClick={() => {
-                      onSelectBranch(branch.id, branch.name);
-                      setBranchPickerOpen(false);
-                    }}
-                    className={cn(
-                      'flex min-h-12 w-full items-center rounded-xl px-3 text-left text-sm font-medium',
-                      selectedBranchId === branch.id
-                        ? 'bg-brand-navy text-white'
-                        : 'text-brand-navy active:bg-brand-gray-50',
-                    )}
-                  >
-                    {branch.name}
-                  </button>
-                ))}
-              </>
+              ))
             )}
           </div>
         ) : null}
@@ -165,7 +170,11 @@ export function MobileCustomerSection({
   return (
     <div className="space-y-3 rounded-2xl border border-brand-gray-200 bg-white p-3 shadow-sm">
       <div className="flex items-center justify-between">
-        <p className="text-sm font-semibold text-brand-navy">Müşteri seç</p>
+        <p className="text-sm font-semibold text-brand-navy">
+          {search.trim()
+            ? `Müşteri seç · ${String(customers.length)}`
+            : 'Müşteri seç'}
+        </p>
         {selectedCustomerId ? (
           <button
             type="button"
@@ -228,7 +237,11 @@ export function MobileCustomerSection({
           description="Arama terimini değiştirin."
         />
       ) : (
-        <ul className="max-h-56 space-y-1 overflow-y-auto">
+        <ul
+          ref={resultsRef}
+          className="overflow-anchor-none max-h-56 space-y-1 overflow-y-auto overscroll-y-contain"
+          data-customer-search-results="true"
+        >
           {visibleOrderPickerCustomers(customers, search).map((customer) => (
             <li key={customer.id}>
               <button

@@ -52,3 +52,79 @@ describe('filterProducts', () => {
     expect(result.map((p) => p.id)).toEqual(['p1']);
   });
 });
+
+describe('filterProducts Turkish-normalized search', () => {
+  const catalog = [
+    makeProduct({
+      id: 'spino',
+      name: 'Spino Temizlik Bezi',
+      sku: 'SPN-01',
+      barcode: '8690123456789',
+    }),
+    makeProduct({
+      id: 'turbo',
+      name: 'Turbo Mop',
+      sku: 'TRB-22',
+      barcode: '8690987654321',
+    }),
+    makeProduct({
+      id: 'besler',
+      name: 'Beşler Mikrofiber',
+      sku: 'BSL-09',
+      barcode: '8690555666777',
+    }),
+    makeProduct({
+      id: 'other',
+      name: 'Zemin Bezi',
+      sku: 'ZB-1',
+    }),
+  ];
+
+  it('matches Spino / spıno / SPINO to the same product', () => {
+    for (const search of ['Spino', 'spıno', 'SPINO', 'spino']) {
+      expect(
+        filterProducts(catalog, { search }).map((p) => p.id),
+        search,
+      ).toEqual(['spino']);
+    }
+  });
+
+  it('matches Turkish diacritics in product name (Beşler / besler)', () => {
+    expect(
+      filterProducts(catalog, { search: 'Beşler' }).map((p) => p.id),
+    ).toEqual(['besler']);
+    expect(
+      filterProducts(catalog, { search: 'besler' }).map((p) => p.id),
+    ).toEqual(['besler']);
+    expect(
+      filterProducts(catalog, { search: 'BESLER' }).map((p) => p.id),
+    ).toEqual(['besler']);
+  });
+
+  it('matches product sku substring', () => {
+    expect(filterProducts(catalog, { search: 'spn' }).map((p) => p.id)).toEqual(
+      ['spino'],
+    );
+    expect(
+      filterProducts(catalog, { search: 'TRB-22' }).map((p) => p.id),
+    ).toEqual(['turbo']);
+  });
+
+  it('matches barcode substring and exact barcode', () => {
+    expect(
+      filterProducts(catalog, { search: '8690123' }).map((p) => p.id),
+    ).toEqual(['spino']);
+    expect(
+      filterProducts(catalog, { search: '8690123456789' }).map((p) => p.id),
+    ).toEqual(['spino']);
+  });
+
+  it('keeps existing Turbo search behavior', () => {
+    expect(
+      filterProducts(catalog, { search: 'turbo' }).map((p) => p.id),
+    ).toEqual(['turbo']);
+    expect(
+      filterProducts(catalog, { search: 'TURBO' }).map((p) => p.id),
+    ).toEqual(['turbo']);
+  });
+});

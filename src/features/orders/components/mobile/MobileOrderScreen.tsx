@@ -14,18 +14,23 @@ import {
   rememberRecentProduct,
   getLastBranchForCustomer,
 } from '@/features/orders/hooks/orderPrefs';
+import {
+  isValidOrderBranchSelection,
+  ORDER_CENTER_BRANCH,
+} from '@/features/orders/utils/orderBranchOptions';
+import { useVisualViewportKeyboard } from '@/shared/hooks/useVisualViewportKeyboard';
+import { shouldKeepCustomerPickerMounted } from '@/features/orders/utils/orderSearchVisibility';
 import { useOrderDraftStore } from '@/stores/orderDraftStore';
 import { useAuthStore } from '@/stores/authStore';
 import { toast } from '@/stores/toastStore';
 import { ROUTES } from '@/shared/constants/routes';
+import { cn } from '@/shared/utils/cn';
 import type { Customer } from '@/shared/types/customer.types';
 import type { Product } from '@/shared/types/product.types';
 import { MobileCustomerSection } from './MobileCustomerSection';
 import { MobileProductSection } from './MobileProductSection';
 import { MobileStickyCartBar } from './MobileStickyCartBar';
 import { MobileQtyStepper } from './MobileQtyStepper';
-
-const CENTER_BRANCH = { id: 'main', name: 'Merkez' } as const;
 
 /**
  * Single-screen mobile order UI.
@@ -36,6 +41,7 @@ export function MobileOrderScreen() {
 
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
+  const { keyboardOpen } = useVisualViewportKeyboard();
 
   const customerId = useOrderDraftStore((s) => s.customerId);
   const customerName = useOrderDraftStore((s) => s.customerName);
@@ -55,6 +61,8 @@ export function MobileOrderScreen() {
   const [isSaving, setIsSaving] = useState(false);
   const [lastSavedOrderId, setLastSavedOrderId] = useState<string | null>(null);
   const [showCartLines, setShowCartLines] = useState(false);
+  /** True while Müşteri seç picker UI is open (including initial empty draft). */
+  const [customerPickerOpen, setCustomerPickerOpen] = useState(!customerId);
 
   const cartQtyByProductId = useMemo(() => {
     const map: Record<string, number> = {};
@@ -65,21 +73,30 @@ export function MobileOrderScreen() {
   }, [lines]);
 
   const resolveBranch = async (customer: Customer): Promise<void> => {
-    const remembered = getLastBranchForCustomer(customer.id);
-    if (remembered) {
-      selectBranch(remembered.branchId, remembered.branchName);
-      return;
-    }
-
-    selectBranch(CENTER_BRANCH.id, CENTER_BRANCH.name);
-    rememberLastBranch(customer.id, {
-      branchId: CENTER_BRANCH.id,
-      branchName: CENTER_BRANCH.name,
-    });
-
     try {
-      const branches = await branchService.listByCustomer(customer.id);
-      const active = branches.filter((b) => b.isActive && !b.isDeleted);
+      const rows = await branchService.listByCustomer(customer.id);
+      const active = rows
+        .filter((b) => b.isActive && !b.isDeleted)
+        .map((b) => ({ id: b.id, name: b.name }));
+
+      const remembered = getLastBranchForCustomer(customer.id);
+      if (
+        remembered &&
+        isValidOrderBranchSelection(remembered.branchId, active)
+      ) {
+        selectBranch(remembered.branchId, remembered.branchName);
+        return;
+      }
+
+      if (active.length === 0) {
+        selectBranch(ORDER_CENTER_BRANCH.id, ORDER_CENTER_BRANCH.name);
+        rememberLastBranch(customer.id, {
+          branchId: ORDER_CENTER_BRANCH.id,
+          branchName: ORDER_CENTER_BRANCH.name,
+        });
+        return;
+      }
+
       if (active.length === 1) {
         selectBranch(active[0].id, active[0].name);
         rememberLastBranch(customer.id, {
@@ -87,8 +104,10 @@ export function MobileOrderScreen() {
           branchName: active[0].name,
         });
       }
+      // Multiple registered branches: leave unset so the user picks from the list
+      // (do not inject synthetic Merkez alongside DEPO/MERKEZ).
     } catch {
-      // keep Merkez
+      selectBranch(ORDER_CENTER_BRANCH.id, ORDER_CENTER_BRANCH.name);
     }
   };
 
@@ -142,7 +161,7 @@ export function MobileOrderScreen() {
       return;
     }
     if (!branchId) {
-      selectBranch(CENTER_BRANCH.id, CENTER_BRANCH.name);
+      selectBranch(ORDER_CENTER_BRANCH.id, ORDER_CENTER_BRANCH.name);
     }
 
     setIsSaving(true);
@@ -178,89 +197,118 @@ export function MobileOrderScreen() {
   };
 
   return (
-    <div className="pb-44">
-      <div className="space-y-3 p-3">
-        <MobileCustomerSection
-          selectedCustomerId={customerId}
-          selectedCustomerName={customerName}
-          selectedBranchId={branchId}
-          selectedBranchName={branchName}
-          onSelectCustomer={handleSelectCustomer}
-          onSelectBranch={handleSelectBranch}
-          onChangeCustomer={() => {
-            setShowCartLines(false);
-          }}
-        />
+    <div
+      className={cn(
+        'flex min-h-0 flex-1 flex-col',
+        keyboardOpen ? 'pb-2' : 'pb-44',
+      )}
+    >
+      {/*
+        Customer chrome:
+        - Always keep MobileCustomerSection mounted while picking a customer
+          (no customerId, or picker re-opened). POC previously rendered null
+          when keyboardOpen && !customerId, which destroyed cari search.
+        - Once a customer is selected and picker is closed, collapse to a one-line
+          summary while the product search keyboard is open.
+      */}
+      {shouldKeepCustomerPickerMounted({
+        keyboardOpen,
+        customerId,
+        customerPickerOpen,
+      }) ? (
+        <div className="shrink-0 space-y-3 p-3 pb-0">
+          <MobileCustomerSection
+            selectedCustomerId={customerId}
+            selectedCustomerName={customerName}
+            selectedBranchId={branchId}
+            selectedBranchName={branchName}
+            onSelectCustomer={handleSelectCustomer}
+            onSelectBranch={handleSelectBranch}
+            onChangeCustomer={() => {
+              setShowCartLines(false);
+            }}
+            onPickerOpenChange={setCustomerPickerOpen}
+          />
 
+          {showCartLines && lines.length > 0 ? (
+            <section className="space-y-3 rounded-2xl border border-brand-gray-200 bg-white p-3 shadow-sm">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold text-brand-navy">Sepet</p>
+                <button
+                  type="button"
+                  className="min-h-12 px-2 text-sm text-brand-gray-500"
+                  onClick={() => {
+                    setShowCartLines(false);
+                  }}
+                >
+                  Kapat
+                </button>
+              </div>
+              <ul className="space-y-1">
+                {lines.map((line) => (
+                  <li
+                    key={line.productId}
+                    className="flex items-center gap-2 border-b border-brand-gray-100 py-1.5"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-brand-navy">
+                        {line.productName}
+                      </p>
+                      <p className="truncate text-xs text-brand-gray-500">
+                        {line.productSku}
+                      </p>
+                    </div>
+                    <MobileQtyStepper
+                      value={line.quantity}
+                      min={1}
+                      onChange={(qty) => {
+                        updateLineQuantity(line.productId, qty);
+                      }}
+                    />
+                  </li>
+                ))}
+              </ul>
+              <Input
+                label="Not (opsiyonel)"
+                value={notes ?? ''}
+                onChange={(e) => {
+                  setNotes(e.target.value);
+                }}
+                placeholder="Teslimat notu..."
+              />
+            </section>
+          ) : null}
+
+          {lastSavedOrderId ? (
+            <div className="rounded-2xl border border-brand-navy/20 bg-brand-navy/5 p-3">
+              <p className="text-sm text-brand-navy">
+                Son sipariş kaydedildi. Yeni siparişe devam edebilir veya paylaşabilirsiniz.
+              </p>
+              <Button
+                variant="outline"
+                className="mt-2 min-h-12 w-full"
+                onClick={handleShare}
+              >
+                Paylaş
+              </Button>
+            </div>
+          ) : null}
+        </div>
+      ) : (
+        <div className="shrink-0 px-3 pt-2">
+          <p className="truncate text-xs text-brand-gray-500">
+            {customerName}
+            {branchName ? ` · ${branchName}` : ''}
+          </p>
+        </div>
+      )}
+
+      <div className="flex min-h-0 flex-1 flex-col px-3 pt-2">
         <MobileProductSection
           enabled={Boolean(customerId && branchId)}
           cartQtyByProductId={cartQtyByProductId}
           onQuantityChange={handleQuantityChange}
         />
-
-        {showCartLines && lines.length > 0 ? (
-          <section className="space-y-3 rounded-2xl border border-brand-gray-200 bg-white p-3 shadow-sm">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold text-brand-navy">Sepet</p>
-              <button
-                type="button"
-                className="min-h-12 px-2 text-sm text-brand-gray-500"
-                onClick={() => {
-                  setShowCartLines(false);
-                }}
-              >
-                Kapat
-              </button>
-            </div>
-            <ul className="space-y-1">
-              {lines.map((line) => (
-                <li
-                  key={line.productId}
-                  className="flex items-center gap-2 border-b border-brand-gray-100 py-1.5"
-                >
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-brand-navy">
-                      {line.productName}
-                    </p>
-                    <p className="truncate text-xs text-brand-gray-500">
-                      {line.productSku}
-                    </p>
-                  </div>
-                  <MobileQtyStepper
-                    value={line.quantity}
-                    min={1}
-                    onChange={(qty) => {
-                      updateLineQuantity(line.productId, qty);
-                    }}
-                  />
-                </li>
-              ))}
-            </ul>
-            <Input
-              label="Not (opsiyonel)"
-              value={notes ?? ''}
-              onChange={(e) => {
-                setNotes(e.target.value);
-              }}
-              placeholder="Teslimat notu..."
-            />
-          </section>
-        ) : null}
-
-        {lastSavedOrderId ? (
-          <div className="rounded-2xl border border-brand-navy/20 bg-brand-navy/5 p-3">
-            <p className="text-sm text-brand-navy">
-              Son sipariş kaydedildi. Yeni siparişe devam edebilir veya paylaşabilirsiniz.
-            </p>
-            <Button
-              variant="outline"
-              className="mt-2 min-h-12 w-full"
-              onClick={handleShare}
-            >
-              Paylaş
-            </Button>
-          </div>
-        ) : null}
       </div>
 
       <MobileStickyCartBar

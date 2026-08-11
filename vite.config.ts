@@ -3,10 +3,14 @@ import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 import path from 'path';
 
+/** Capacitor/APK builds must not ship a service worker (stale https WebView cache). */
+const capacitorBuild = process.env.CAPACITOR_BUILD === 'true';
+
 export default defineConfig({
   plugins: [
     react(),
     VitePWA({
+      disable: capacitorBuild,
       registerType: 'autoUpdate',
       includeAssets: ['icons/*.png'],
       manifest: {

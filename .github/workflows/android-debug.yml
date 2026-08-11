@@ -14,6 +14,9 @@
 # 2) push to cursor/capacitor-mlkit-barcode-poc-7d6c:
 #    Full checkout of that branch (existing working path — unchanged).
 #
+# 3) push to cursor/android-order-search-scroll-7d6c:
+#    Hybrid: this branch as web_ref + POC native_ref (APK artifact for UAT).
+#
 # Does NOT merge PR #14 / native sources into main.
 
 name: Android Debug APK
@@ -34,6 +37,7 @@ on:
   push:
     branches:
       - cursor/capacitor-mlkit-barcode-poc-7d6c
+      - cursor/android-order-search-scroll-7d6c
     paths:
       - '.github/workflows/android-debug.yml'
       - 'android/**'
@@ -79,6 +83,11 @@ jobs:
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "web_ref=${{ inputs.web_ref }}" >> "$GITHUB_OUTPUT"
             echo "native_ref=${{ inputs.native_ref }}" >> "$GITHUB_OUTPUT"
+            echo "hybrid=true" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.ref_name }}" = "cursor/android-order-search-scroll-7d6c" ]; then
+            # Feature UAT APK: this branch web + POC native shell.
+            echo "web_ref=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+            echo "native_ref=cursor/capacitor-mlkit-barcode-poc-7d6c" >> "$GITHUB_OUTPUT"
             echo "hybrid=true" >> "$GITHUB_OUTPUT"
           else
             echo "web_ref=${{ github.sha }}" >> "$GITHUB_OUTPUT"
@@ -199,7 +208,22 @@ jobs:
           node -e "const p=require('./package.json'); console.log('capacitor overlay ready');"
 
       - name: Build web assets (Vite)
-        run: npm run build
+        run: |
+          # Disable PWA service worker in the Capacitor WebView bundle.
+          # androidScheme=https can otherwise cache a stale JS chunk across APK installs.
+          CAPACITOR_BUILD=true npm run build
+          if [ -f dist/sw.js ] || [ -f dist/registerSW.js ]; then
+            echo "::error::Service worker artifacts present in Capacitor build (expected CAPACITOR_BUILD=true to disable PWA)"
+            ls -la dist | head -50
+            exit 1
+          fi
+          echo "Capacitor web build OK (no sw.js / registerSW.js)"
+          # Prove PR #18 + this layout land in the bundle that cap sync copies.
+          if ! grep -R -E -q 'normalizeSearchText|overflow-anchor-none|filterCustomersForOrderPicker' dist/assets; then
+            echo "::error::Expected search/layout markers missing from dist bundle"
+            exit 1
+          fi
+          echo "Bundle markers verified"
 
       - name: Capacitor sync Android
         run: npx cap sync android
