@@ -1,6 +1,7 @@
 import { db, type LocalProduct } from '../db';
 import { BaseRepository } from './baseRepository';
 import type { SyncStatus } from '@/shared/types/base.types';
+import { normalizeSearchText } from '@/shared/utils/normalizeSearchText';
 
 class ProductLocalRepository extends BaseRepository<LocalProduct> {
   protected tableName = 'products';
@@ -98,17 +99,24 @@ export function filterProducts(
   }
 
   if (options.search?.trim()) {
-    const term = options.search.trim().toLocaleLowerCase('tr-TR');
-    result = result.filter(
-      (p) =>
-        p.name.toLocaleLowerCase('tr-TR').includes(term) ||
-        p.sku.toLocaleLowerCase('tr-TR').includes(term) ||
-        (p.barcode?.toLocaleLowerCase('tr-TR').includes(term) ?? false) ||
-        p.barcode === options.search?.trim(),
-    );
+    const raw = options.search.trim();
+    const term = normalizeSearchText(raw);
+    result = result.filter((p) => {
+      if (!term) return true;
+      const name = normalizeSearchText(p.name);
+      const sku = normalizeSearchText(p.sku);
+      const barcode = normalizeSearchText(p.barcode);
+      // Exact raw barcode kept for scanner / paste paths.
+      return (
+        name.includes(term) ||
+        sku.includes(term) ||
+        barcode.includes(term) ||
+        p.barcode === raw
+      );
+    });
   }
 
   return result.sort((a, b) =>
-    a.name.localeCompare(b.name, 'tr-TR', { sensitivity: 'base' }),
+    normalizeSearchText(a.name).localeCompare(normalizeSearchText(b.name), 'tr-TR'),
   );
 }
