@@ -1,0 +1,241 @@
+# Android debug APK (no local Android Studio / SDK / keystore).
+#
+# Artifact: bera-vileda-android-debug / app-debug.apk
+# Toolchain: Capacitor 8.5 · AGP 8.13 · Gradle 8.14.3 · JDK 21 · SDK 36
+#
+# Modes
+# -----
+# 1) workflow_dispatch (recommended for main web + native shell):
+#    Actions → Android Debug APK → Run workflow
+#      web_ref    = main                         (latest app UI)
+#      native_ref = cursor/capacitor-mlkit-barcode-poc-7d6c
+#                   (android/ + capacitor.config.ts only — not merged to main)
+#
+# 2) push to cursor/capacitor-mlkit-barcode-poc-7d6c:
+#    Full checkout of that branch (existing working path — unchanged).
+#
+# Does NOT merge PR #14 / native sources into main.
+
+name: Android Debug APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      web_ref:
+        description: Git ref for web/app source (use main for latest UI)
+        required: true
+        default: main
+        type: string
+      native_ref:
+        description: Git ref that contains android/ + capacitor.config.ts
+        required: true
+        default: cursor/capacitor-mlkit-barcode-poc-7d6c
+        type: string
+  push:
+    branches:
+      - cursor/capacitor-mlkit-barcode-poc-7d6c
+    paths:
+      - '.github/workflows/android-debug.yml'
+      - 'android/**'
+      - 'capacitor.config.ts'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'src/**'
+      - 'index.html'
+      - 'vite.config.ts'
+      - 'tsconfig*.json'
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: android-debug-${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+jobs:
+  build-debug-apk:
+    name: Build debug APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    env:
+      VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+      VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
+      VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+      VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
+      VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+      VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
+      VITE_APP_ENV: ${{ secrets.VITE_APP_ENV || 'development' }}
+      GRADLE_OPTS: -Dorg.gradle.daemon=false -Dorg.gradle.jvmargs=-Xmx4g
+      # Pinned to Capacitor POC versions (install only for hybrid/main web builds).
+      CAPACITOR_CORE_VERSION: '8.5.0'
+      CAPACITOR_MLKIT_VERSION: '8.1.0'
+
+    steps:
+      - name: Resolve build refs
+        id: refs
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "web_ref=${{ inputs.web_ref }}" >> "$GITHUB_OUTPUT"
+            echo "native_ref=${{ inputs.native_ref }}" >> "$GITHUB_OUTPUT"
+            echo "hybrid=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "web_ref=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+            echo "native_ref=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+            echo "hybrid=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout web / app source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.refs.outputs.web_ref }}
+
+      - name: Overlay native Android project (hybrid only)
+        if: steps.refs.outputs.hybrid == 'true'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.refs.outputs.native_ref }}
+          path: _native_android
+          sparse-checkout: |
+            android
+            capacitor.config.ts
+          sparse-checkout-cone-mode: false
+
+      - name: Place android/ + capacitor.config.ts into workspace
+        if: steps.refs.outputs.hybrid == 'true'
+        run: |
+          set -euo pipefail
+          if [ ! -d _native_android/android ]; then
+            echo "::error::native_ref '${{ steps.refs.outputs.native_ref }}' has no android/ directory"
+            exit 1
+          fi
+          if [ ! -f _native_android/capacitor.config.ts ]; then
+            echo "::error::native_ref '${{ steps.refs.outputs.native_ref }}' has no capacitor.config.ts"
+            exit 1
+          fi
+          rm -rf android capacitor.config.ts
+          cp -a _native_android/android .
+          cp _native_android/capacitor.config.ts .
+          rm -rf _native_android
+          echo "Hybrid overlay OK"
+          echo "  web_ref=${{ steps.refs.outputs.web_ref }}"
+          echo "  native_ref=${{ steps.refs.outputs.native_ref }}"
+          test -f android/gradlew
+          test -f capacitor.config.ts
+
+      - name: Require android/ project
+        run: |
+          if [ ! -d android ] || [ ! -f android/gradlew ]; then
+            echo "::error::android/ Gradle project missing after checkout/overlay"
+            exit 1
+          fi
+          if [ ! -f capacitor.config.ts ]; then
+            echo "::error::capacitor.config.ts missing"
+            exit 1
+          fi
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Setup JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: >-
+            platform-tools
+            platforms;android-36
+            build-tools;35.0.0
+
+      - name: Print toolchain / refs
+        run: |
+          echo "=== Refs ==="
+          echo "event=${{ github.event_name }}"
+          echo "hybrid=${{ steps.refs.outputs.hybrid }}"
+          echo "web_ref=${{ steps.refs.outputs.web_ref }}"
+          echo "native_ref=${{ steps.refs.outputs.native_ref }}"
+          echo "=== Toolchain ==="
+          echo "Node: $(node -v)"
+          echo "npm:  $(npm -v)"
+          echo "Java: $(java -version 2>&1 | head -1)"
+          echo "ANDROID_HOME=${ANDROID_HOME:-unset}"
+          grep -E 'SdkVersion|compileSdk|minSdk' android/variables.gradle android/app/build.gradle || true
+
+      - name: Check Firebase env for APK (non-secret flags only)
+        run: |
+          missing=0
+          for key in VITE_FIREBASE_API_KEY VITE_FIREBASE_AUTH_DOMAIN VITE_FIREBASE_PROJECT_ID VITE_FIREBASE_STORAGE_BUCKET VITE_FIREBASE_MESSAGING_SENDER_ID VITE_FIREBASE_APP_ID; do
+            if [ -z "${!key}" ]; then
+              echo "::warning::$key is empty — Merch login may fail on device until this Actions secret is set."
+              missing=1
+            else
+              echo "$key is set"
+            fi
+          done
+          if [ "$missing" -eq 0 ]; then
+            echo "Firebase web config secrets look present for this build."
+          fi
+
+      - name: Install npm dependencies (web lockfile)
+        run: npm ci
+
+      - name: Install Capacitor packages for hybrid overlay
+        if: steps.refs.outputs.hybrid == 'true'
+        run: |
+          # main package.json has no Capacitor — install tooling without committing lockfile changes.
+          npm install --no-save \
+            "@capacitor/core@${CAPACITOR_CORE_VERSION}" \
+            "@capacitor/cli@${CAPACITOR_CORE_VERSION}" \
+            "@capacitor/android@${CAPACITOR_CORE_VERSION}" \
+            "@capacitor-mlkit/barcode-scanning@${CAPACITOR_MLKIT_VERSION}"
+          node -e "const p=require('./package.json'); console.log('capacitor overlay ready');"
+
+      - name: Build web assets (Vite)
+        run: npm run build
+
+      - name: Capacitor sync Android
+        run: npx cap sync android
+
+      - name: Assemble debug APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Verify APK exists
+        run: |
+          APK="android/app/build/outputs/apk/debug/app-debug.apk"
+          if [ ! -f "$APK" ]; then
+            echo "::error::Expected debug APK missing at $APK"
+            find android/app/build/outputs -type f 2>/dev/null | head -100 || true
+            exit 1
+          fi
+          ls -lh "$APK"
+
+      - name: Upload debug APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bera-vileda-android-debug
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Dump Gradle / Android logs on failure
+        if: failure()
+        run: |
+          echo "::group::Last Gradle logs"
+          find android -name '*.log' -type f 2>/dev/null | head -20
+          find /home/runner/.gradle -name '*.log' -type f 2>/dev/null | tail -5 | while read -r f; do
+            echo "----- $f -----"
+            tail -n 80 "$f" || true
+          done
+          echo "::endgroup::"
+          echo "::error::Android debug APK build failed. Check Assemble debug APK stacktrace above."
