@@ -1,0 +1,166 @@
+# Android debug APK for real-device UAT (native ML Kit barcode).
+# No Android Studio / local SDK / keystore required on the developer machine.
+#
+# Triggers:
+#   - workflow_dispatch (Actions → Android Debug APK → Run workflow → pick branch)
+#   - push to main (after merge)
+#   - push to Capacitor POC branch (existing path)
+# Artifact: bera-vileda-android-debug / app-debug.apk
+#
+# Matches project:
+#   Capacitor 8.5 · AGP 8.13 · Gradle 8.14.3 · JDK 21 · compile/target SDK 36 · minSdk 24
+#
+# Note: assembleDebug needs the `android/` Capacitor project on the checked-out
+# branch. For manual runs, select a branch that includes native Android (or main
+# once that project is merged).
+
+name: Android Debug APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - cursor/capacitor-mlkit-barcode-poc-7d6c
+    paths:
+      - '.github/workflows/android-debug.yml'
+      - 'android/**'
+      - 'capacitor.config.ts'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'src/**'
+      - 'index.html'
+      - 'vite.config.ts'
+      - 'tsconfig*.json'
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: android-debug-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-debug-apk:
+    name: Build debug APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    env:
+      # Optional: set these as GitHub Actions repository secrets so Merch login
+      # works on-device. Build still succeeds without them (app warns at runtime).
+      VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+      VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
+      VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+      VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
+      VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+      VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
+      VITE_APP_ENV: ${{ secrets.VITE_APP_ENV || 'development' }}
+      # CI Gradle memory (project default 1536m is tight on runners)
+      GRADLE_OPTS: -Dorg.gradle.daemon=false -Dorg.gradle.jvmargs=-Xmx4g
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Setup JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          # Capacitor Android 8 / AGP 8.13 compile with source/target 21
+          # (JDK 17 fails: "invalid source release: 21").
+          java-version: '21'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: >-
+            platform-tools
+            platforms;android-36
+            build-tools;35.0.0
+
+      - name: Print toolchain versions
+        run: |
+          echo "=== Toolchain ==="
+          echo "Node: $(node -v)"
+          echo "npm:  $(npm -v)"
+          echo "Java: $(java -version 2>&1 | head -1)"
+          echo "ANDROID_HOME=${ANDROID_HOME:-unset}"
+          echo "ANDROID_SDK_ROOT=${ANDROID_SDK_ROOT:-unset}"
+          sdkmanager --list_installed 2>/dev/null | head -40 || true
+          echo "=== Project Android targets ==="
+          grep -E 'SdkVersion|compileSdk|minSdk' android/variables.gradle android/app/build.gradle || true
+          echo "=== Capacitor / ML Kit (package.json) ==="
+          node -e "const p=require('./package.json'); const d={...p.dependencies,...p.devDependencies}; for (const k of Object.keys(d).filter(k=>k.includes('capacitor')).sort()) console.log(k+'@'+d[k]);"
+
+      - name: Check Firebase env for APK (non-secret flags only)
+        run: |
+          missing=0
+          for key in VITE_FIREBASE_API_KEY VITE_FIREBASE_AUTH_DOMAIN VITE_FIREBASE_PROJECT_ID VITE_FIREBASE_STORAGE_BUCKET VITE_FIREBASE_MESSAGING_SENDER_ID VITE_FIREBASE_APP_ID; do
+            if [ -z "${!key}" ]; then
+              echo "::warning::$key is empty — Merch login may fail on device until this Actions secret is set."
+              missing=1
+            else
+              echo "$key is set"
+            fi
+          done
+          if [ "$missing" -eq 0 ]; then
+            echo "Firebase web config secrets look present for this build."
+          fi
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Build web assets (Vite)
+        run: npm run build
+
+      - name: Capacitor sync Android
+        run: npx cap sync android
+
+      - name: Assemble debug APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Verify APK exists
+        run: |
+          APK="android/app/build/outputs/apk/debug/app-debug.apk"
+          if [ ! -f "$APK" ]; then
+            echo "::error::Expected debug APK missing at $APK"
+            echo "Listing android/app/build/outputs (if any):"
+            find android/app/build/outputs -type f 2>/dev/null | head -100 || true
+            exit 1
+          fi
+          ls -lh "$APK"
+          echo "APK_PATH=$APK" >> "$GITHUB_ENV"
+
+      - name: Upload debug APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bera-vileda-android-debug
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Dump Gradle / Android logs on failure
+        if: failure()
+        run: |
+          echo "::group::Last Gradle daemon / build logs"
+          find android -name '*.log' -type f 2>/dev/null | head -20
+          find /home/runner/.gradle -name '*.log' -type f 2>/dev/null | tail -5 | while read -r f; do
+            echo "----- $f -----"
+            tail -n 80 "$f" || true
+          done
+          echo "::endgroup::"
+          echo "::group::android/ tree (shallow)"
+          find android -maxdepth 3 -type d 2>/dev/null | head -80
+          echo "::endgroup::"
+          echo "::error::Android debug APK build failed. Check the Assemble debug APK step stacktrace above."
