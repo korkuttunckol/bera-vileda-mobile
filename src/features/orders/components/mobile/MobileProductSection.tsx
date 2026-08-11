@@ -2,7 +2,6 @@ import { useMemo, useState, type KeyboardEvent } from 'react';
 import { EmptyState } from '@/shared/components/feedback/EmptyState';
 import { LoadingSpinner } from '@/shared/components/feedback/LoadingSpinner';
 import { useCachedProducts } from '@/features/orders/hooks/useCachedProducts';
-import { getRecentProductIds } from '@/features/orders/hooks/orderPrefs';
 import { cn } from '@/shared/utils/cn';
 import { MobileProductRow } from './MobileProductRow';
 import type { Product } from '@/shared/types/product.types';
@@ -21,13 +20,14 @@ export function MobileProductSection({
   const [search, setSearch] = useState('');
   const { products, allProducts, isInitialLoading } = useCachedProducts(search);
 
-  const favorites = useMemo(() => {
-    if (search.trim()) return [];
+  /** Products currently on the order draft with qty > 0 (cart insertion order). */
+  const takenProducts = useMemo(() => {
     const byId = new Map(allProducts.map((p) => [p.id, p]));
-    return getRecentProductIds(6)
-      .map((id) => byId.get(id))
+    return Object.entries(cartQtyByProductId)
+      .filter(([, qty]) => qty > 0)
+      .map(([id]) => byId.get(id))
       .filter((p): p is Product => Boolean(p));
-  }, [allProducts, search]);
+  }, [allProducts, cartQtyByProductId]);
 
   const handleBarcodeKeyDown = (e: KeyboardEvent<HTMLInputElement>): void => {
     // Keep Enter hook for future scanner / camera flow; search filter already live.
@@ -119,29 +119,30 @@ export function MobileProductSection({
         <LoadingSpinner label="Ürünler yükleniyor..." />
       ) : (
         <>
-          {favorites.length > 0 ? (
+          {takenProducts.length > 0 ? (
             <section className="rounded-2xl border border-brand-gray-200 bg-white px-2.5 py-1 shadow-sm">
-              <p className="px-0.5 py-1 text-[11px] font-medium uppercase tracking-wide text-brand-gray-500">
-                Favoriler
+              <p className="px-0.5 py-1 text-[11px] font-bold uppercase tracking-wide text-brand-gray-500">
+                {`Alınan Siparişler (${String(takenProducts.length)})`}
               </p>
-              {favorites.map((product) => (
-                <MobileProductRow
-                  key={`fav-${product.id}`}
-                  product={product}
-                  quantity={cartQtyByProductId[product.id] ?? 0}
-                  onQuantityChange={(qty) => {
-                    onQuantityChange(product, qty);
-                  }}
-                  compact
-                />
-              ))}
+              <div className="max-h-48 overflow-y-auto overscroll-y-contain">
+                {takenProducts.map((product) => (
+                  <MobileProductRow
+                    key={`taken-${product.id}`}
+                    product={product}
+                    quantity={cartQtyByProductId[product.id] ?? 0}
+                    onQuantityChange={(qty) => {
+                      onQuantityChange(product, qty);
+                    }}
+                    compact
+                  />
+                ))}
+              </div>
             </section>
           ) : null}
 
           <section className="rounded-2xl border border-brand-gray-200 bg-white px-2.5 py-1 shadow-sm">
-            <p className="px-0.5 py-1 text-[11px] font-medium uppercase tracking-wide text-brand-gray-500">
-              Ürün listesi
-              {search.trim() ? ` · ${String(products.length)}` : ''}
+            <p className="px-0.5 py-1 text-[11px] font-bold uppercase tracking-wide text-brand-gray-500">
+              {`Ürün Listesi (${String(products.length)})`}
             </p>
             {products.length === 0 ? (
               <EmptyState
