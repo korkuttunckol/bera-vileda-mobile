@@ -1,6 +1,8 @@
 import { Button } from '@/shared/components/ui/Button';
 import { useOrderTotals } from '@/features/orders/hooks/useOrderTotals';
+import { useVisualViewportKeyboard } from '@/shared/hooks/useVisualViewportKeyboard';
 import { useOrderDraftStore } from '@/stores/orderDraftStore';
+import { cn } from '@/shared/utils/cn';
 
 interface MobileStickyCartBarProps {
   isSaving: boolean;
@@ -20,11 +22,18 @@ export function MobileStickyCartBar({
   const customerId = useOrderDraftStore((s) => s.customerId);
   const lineCount = useOrderDraftStore((s) => s.lines.length);
   const totals = useOrderTotals();
+  const { keyboardOpen } = useVisualViewportKeyboard();
 
   const canSave = Boolean(customerId) && lineCount > 0 && !isSaving;
 
   return (
-    <div className="fixed bottom-16 left-0 right-0 z-30 border-t border-brand-gray-200 bg-white px-3 py-2.5 shadow-lg safe-area-bottom">
+    <div
+      className={cn(
+        'fixed bottom-16 left-0 right-0 z-30 border-t border-brand-gray-200 bg-white px-3 py-2.5 shadow-lg safe-area-bottom transition-transform duration-200 ease-out',
+        keyboardOpen && 'pointer-events-none translate-y-[140%] opacity-0',
+      )}
+      aria-hidden={keyboardOpen}
+    >
       <div className="app-shell space-y-2">
         <button
           type="button"

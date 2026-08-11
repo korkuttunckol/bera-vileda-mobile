@@ -2,6 +2,7 @@ import { type ReactElement } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { usePermissions } from '@/features/auth/hooks/usePermissions';
 import { NAV_ITEMS, type NavIcon } from '@/shared/constants/app';
+import { useVisualViewportKeyboard } from '@/shared/hooks/useVisualViewportKeyboard';
 import { cn } from '@/shared/utils/cn';
 
 function NavIconSvg({ icon, active }: { icon: NavIcon; active: boolean }) {
@@ -68,6 +69,7 @@ function NavIconSvg({ icon, active }: { icon: NavIcon; active: boolean }) {
 export function BottomNav() {
   const location = useLocation();
   const { can } = usePermissions();
+  const { keyboardOpen } = useVisualViewportKeyboard();
 
   const primaryNav = NAV_ITEMS.filter((item) => {
     if (!['/', '/orders/new', '/customers', '/products', '/orders'].includes(item.path)) {
@@ -83,7 +85,13 @@ export function BottomNav() {
   });
 
   return (
-    <nav className="safe-area-bottom fixed bottom-0 left-0 right-0 z-50 border-t border-brand-gray-200/80 bg-white/95 shadow-nav backdrop-blur-md">
+    <nav
+      className={cn(
+        'safe-area-bottom fixed bottom-0 left-0 right-0 z-50 border-t border-brand-gray-200/80 bg-white/95 shadow-nav backdrop-blur-md transition-transform duration-200 ease-out',
+        keyboardOpen && 'pointer-events-none translate-y-full opacity-0',
+      )}
+      aria-hidden={keyboardOpen}
+    >
       <div className="app-shell flex min-w-0 items-stretch justify-around">
         {primaryNav.map((item) => {
           const isActive =

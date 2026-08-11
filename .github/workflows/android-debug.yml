@@ -199,7 +199,22 @@ jobs:
           node -e "const p=require('./package.json'); console.log('capacitor overlay ready');"
 
       - name: Build web assets (Vite)
-        run: npm run build
+        run: |
+          # Disable PWA service worker in the Capacitor WebView bundle.
+          # androidScheme=https can otherwise cache a stale JS chunk across APK installs.
+          CAPACITOR_BUILD=true npm run build
+          if [ -f dist/sw.js ] || [ -f dist/registerSW.js ]; then
+            echo "::error::Service worker artifacts present in Capacitor build (expected CAPACITOR_BUILD=true to disable PWA)"
+            ls -la dist | head -50
+            exit 1
+          fi
+          echo "Capacitor web build OK (no sw.js / registerSW.js)"
+          # Prove PR #18 + this layout land in the bundle that cap sync copies.
+          if ! grep -R -E -q 'normalizeSearchText|overflow-anchor-none|filterCustomersForOrderPicker' dist/assets; then
+            echo "::error::Expected search/layout markers missing from dist bundle"
+            exit 1
+          fi
+          echo "Bundle markers verified"
 
       - name: Capacitor sync Android
         run: npx cap sync android
