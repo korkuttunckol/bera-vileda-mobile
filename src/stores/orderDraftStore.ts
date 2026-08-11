@@ -19,7 +19,13 @@ interface OrderDraftState extends OrderDraft {
 
 const INITIAL: OrderDraft = {
   step: 'customer',
+  customerId: undefined,
+  customerName: undefined,
+  customerCode: undefined,
+  branchId: undefined,
+  branchName: undefined,
   lines: [],
+  notes: undefined,
 };
 
 function normalizeQuantity(quantity: number): number {
