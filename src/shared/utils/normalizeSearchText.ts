@@ -12,7 +12,16 @@
  */
 export function normalizeSearchText(value: unknown): string {
   if (value == null) return '';
-  return String(value)
+  // Avoid Object default stringification (`[object Object]`) for dirty rows.
+  if (typeof value === 'object') return '';
+  const text =
+    typeof value === 'string'
+      ? value
+      : typeof value === 'number' || typeof value === 'boolean'
+        ? String(value)
+        : '';
+  if (!text) return '';
+  return text
     .replace(/[\u200B-\u200D\uFEFF\u2060]/g, '')
     .normalize('NFKC')
     .trim()

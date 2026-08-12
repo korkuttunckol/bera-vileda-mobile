@@ -40,6 +40,7 @@ export function MobileStickyCartBar({
           onClick={onOpenCartLines}
           className="flex min-h-12 w-full items-center justify-center gap-4 rounded-xl bg-brand-gray-50 px-3 text-sm font-semibold text-brand-navy active:bg-brand-gray-100 disabled:opacity-50"
           disabled={lineCount === 0}
+          tabIndex={keyboardOpen ? -1 : undefined}
         >
           <span>{totals.lineCount} Kalem</span>
           <span className="text-brand-gray-300">·</span>
@@ -52,6 +53,7 @@ export function MobileStickyCartBar({
               variant="outline"
               className="min-h-12 flex-1"
               onClick={onShare}
+              tabIndex={keyboardOpen ? -1 : undefined}
             >
               Paylaş
             </Button>
@@ -62,6 +64,7 @@ export function MobileStickyCartBar({
             isLoading={isSaving}
             disabled={!canSave}
             onClick={onSave}
+            tabIndex={keyboardOpen ? -1 : undefined}
           >
             Siparişi Kaydet
           </Button>

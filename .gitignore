@@ -35,3 +35,16 @@ workbox-*.js
 *.tsbuildinfo
 .vercel
 .env*
+
+# Capacitor local IDE / build artifacts (keep android/ project tracked)
+android/.gradle
+android/app/build
+android/build
+android/captures
+android/local.properties
+*.apk
+*.aab
+*.keystore
+ios/App/Pods
+ios/App/Podfile.lock
+.capacitor

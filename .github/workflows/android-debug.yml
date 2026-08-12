@@ -17,7 +17,7 @@
 # 3) push to cursor/android-order-search-scroll-7d6c:
 #    Hybrid: this branch as web_ref + POC native_ref (APK artifact for UAT).
 #
-# Does NOT merge PR #14 / native sources into main.
+# After PR #14 merges, native android/ lives on main; hybrid still supports POC refs.
 
 name: Android Debug APK
 

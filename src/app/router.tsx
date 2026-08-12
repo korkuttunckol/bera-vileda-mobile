@@ -36,12 +36,17 @@ import {
 import { OrderDetailPage } from '@/features/orders/components/OrderDetailPage';
 import { SendOrderPage } from '@/features/orders/components/SendOrderPage';
 import { DiagnosticsPage } from '@/features/diagnostics';
+import { NativeBarcodePocPage } from '@/features/nativeBarcodePoc';
 import { ROUTES } from '@/shared/constants/routes';
 
 export const router = createBrowserRouter([
   {
     path: '/diagnostics',
     element: <DiagnosticsPage />,
+  },
+  {
+    path: ROUTES.NATIVE_BARCODE_POC,
+    element: <NativeBarcodePocPage />,
   },
   {
     path: ROUTES.LOGIN,

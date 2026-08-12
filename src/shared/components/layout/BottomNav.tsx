@@ -103,6 +103,7 @@ export function BottomNav() {
             <NavLink
               key={item.path}
               to={item.path}
+              tabIndex={keyboardOpen ? -1 : undefined}
               className="touch-feedback flex flex-1 flex-col items-center gap-0.5 py-2.5"
             >
               <span

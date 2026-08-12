@@ -98,6 +98,21 @@
   .text-balance {
     text-wrap: balance;
   }
+
+  /*
+   * Fill the WebView (html/body/#root are height:100%).
+   * On Android adjustResize the WebView shrinks with the keyboard, so %
+   * tracks usable height. Prefer this over 100vh/100dvh (often ignore IME).
+   */
+  .app-shell-height {
+    height: 100%;
+    max-height: 100%;
+  }
+
+  /* Prevent browser scroll-anchoring jumps when search results reflow. */
+  .overflow-anchor-none {
+    overflow-anchor: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

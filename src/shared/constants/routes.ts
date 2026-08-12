@@ -32,6 +32,8 @@ export const ROUTES = {
   SETTINGS_USERS: '/settings/users',
   SETTINGS_USER_NEW: '/settings/users/new',
   SETTINGS_USER_EDIT: '/settings/users/:userCode/edit',
+  /** Capacitor + ML Kit Android barcode POC (no order wiring). */
+  NATIVE_BARCODE_POC: '/dev/native-barcode-poc',
 } as const;
 
 export type BranchFormReturnTo = 'order';
