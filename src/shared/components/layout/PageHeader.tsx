@@ -8,7 +8,7 @@ interface PageHeaderProps {
   backButton?: ReactNode;
   className?: string;
   variant?: 'default' | 'transparent';
-  /** Default true. Set false when the page owns a pinned flex layout (Yeni Sipariş). */
+  /** When false, header is not position:sticky (Yeni Sipariş pinned layout). */
   sticky?: boolean;
 }
 

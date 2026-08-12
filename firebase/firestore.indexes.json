@@ -29,6 +29,13 @@
       "fields": [
         { "fieldPath": "updatedAt", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "branches",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "updatedAt", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

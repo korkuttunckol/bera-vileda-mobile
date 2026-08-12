@@ -88,7 +88,6 @@ export function BottomNav() {
     <nav
       className={cn(
         'safe-area-bottom fixed bottom-0 left-0 right-0 z-50 border-t border-brand-gray-200/80 bg-white/95 shadow-nav backdrop-blur-md transition-transform duration-200 ease-out',
-        // Free vertical space for search/results while the soft keyboard is open.
         keyboardOpen && 'pointer-events-none translate-y-full opacity-0',
       )}
       aria-hidden={keyboardOpen}

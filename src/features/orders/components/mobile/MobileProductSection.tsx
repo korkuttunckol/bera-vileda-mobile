@@ -1,8 +1,8 @@
-import { useMemo, useState, type KeyboardEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { EmptyState } from '@/shared/components/feedback/EmptyState';
 import { LoadingSpinner } from '@/shared/components/feedback/LoadingSpinner';
 import { useCachedProducts } from '@/features/orders/hooks/useCachedProducts';
-import { getRecentProductIds } from '@/features/orders/hooks/orderPrefs';
+import { shouldShowTakenProductsSection } from '@/features/orders/utils/orderSearchVisibility';
 import { cn } from '@/shared/utils/cn';
 import { MobileProductRow } from './MobileProductRow';
 import type { Product } from '@/shared/types/product.types';
@@ -21,6 +21,8 @@ interface MobileProductSectionProps {
  * Product search is pinned (shrink-0). Only the results list scrolls.
  * No scrollIntoView on focus/change — Android IME + list reflow must not
  * move the search field out of view.
+ * Hides "Alınan Siparişler" while searching so matches stay at the top of
+ * the visible results (Android page-scroll was leaving them below fold).
  */
 export function MobileProductSection({
   enabled,
@@ -31,14 +33,23 @@ export function MobileProductSection({
 }: MobileProductSectionProps) {
   const [search, setSearch] = useState('');
   const { products, allProducts, isInitialLoading } = useCachedProducts(search);
+  const listRef = useRef<HTMLDivElement>(null);
 
-  const favorites = useMemo(() => {
-    if (search.trim()) return [];
+  /** Products on the draft with qty > 0. Hidden while searching. */
+  const takenProducts = useMemo(() => {
+    if (!shouldShowTakenProductsSection(search)) return [];
     const byId = new Map(allProducts.map((p) => [p.id, p]));
-    return getRecentProductIds(6)
-      .map((id) => byId.get(id))
+    return Object.entries(cartQtyByProductId)
+      .filter(([, qty]) => qty > 0)
+      .map(([id]) => byId.get(id))
       .filter((p): p is Product => Boolean(p));
-  }, [allProducts, search]);
+  }, [allProducts, cartQtyByProductId, search]);
+
+  useEffect(() => {
+    if (listRef.current) {
+      listRef.current.scrollTop = 0;
+    }
+  }, [search]);
 
   const handleBarcodeKeyDown = (e: KeyboardEvent<HTMLInputElement>): void => {
     if (e.key === 'Enter') {
@@ -124,34 +135,40 @@ export function MobileProductSection({
         )}
       </div>
 
-      <div className="overflow-anchor-none min-h-0 flex-1 overflow-y-auto overscroll-y-contain">
+      <div
+        ref={listRef}
+        className="overflow-anchor-none min-h-0 flex-1 overflow-y-auto overscroll-y-contain"
+      >
         {isInitialLoading ? (
           <LoadingSpinner label="Ürünler yükleniyor..." />
         ) : (
           <div className="space-y-2.5 pb-3">
-            {favorites.length > 0 ? (
+            {takenProducts.length > 0 ? (
               <section className="rounded-2xl border border-brand-gray-200 bg-white px-2.5 py-1 shadow-sm">
-                <p className="px-0.5 py-1 text-[11px] font-medium uppercase tracking-wide text-brand-gray-500">
-                  Favoriler
+                <p className="px-0.5 py-1 text-[11px] font-bold uppercase tracking-wide text-brand-gray-500">
+                  {`Alınan Siparişler (${String(takenProducts.length)})`}
                 </p>
-                {favorites.map((product) => (
-                  <MobileProductRow
-                    key={`fav-${product.id}`}
-                    product={product}
-                    quantity={cartQtyByProductId[product.id] ?? 0}
-                    onQuantityChange={(qty) => {
-                      onQuantityChange(product, qty);
-                    }}
-                    compact
-                  />
-                ))}
+                <div className="max-h-48 overflow-y-auto overscroll-y-contain">
+                  {takenProducts.map((product) => (
+                    <MobileProductRow
+                      key={`taken-${product.id}`}
+                      product={product}
+                      quantity={cartQtyByProductId[product.id] ?? 0}
+                      onQuantityChange={(qty) => {
+                        onQuantityChange(product, qty);
+                      }}
+                      compact
+                    />
+                  ))}
+                </div>
               </section>
             ) : null}
 
             <section className="rounded-2xl border border-brand-gray-200 bg-white px-2.5 py-1 shadow-sm">
-              <p className="px-0.5 py-1 text-[11px] font-medium uppercase tracking-wide text-brand-gray-500">
-                Ürün listesi
-                {search.trim() ? ` · ${String(products.length)}` : ''}
+              <p className="px-0.5 py-1 text-[11px] font-bold uppercase tracking-wide text-brand-gray-500">
+                {search.trim()
+                  ? `Ürün Listesi · ${String(products.length)}`
+                  : `Ürün Listesi (${String(products.length)})`}
               </p>
               {products.length === 0 ? (
                 <EmptyState

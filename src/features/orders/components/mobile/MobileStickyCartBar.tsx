@@ -30,8 +30,6 @@ export function MobileStickyCartBar({
     <div
       className={cn(
         'fixed bottom-16 left-0 right-0 z-30 border-t border-brand-gray-200 bg-white px-3 py-2.5 shadow-lg safe-area-bottom transition-transform duration-200 ease-out',
-        // Hide while keyboard is open so search/results keep usable height.
-        // Summary + save restore when the keyboard closes (logic unchanged).
         keyboardOpen && 'pointer-events-none translate-y-[140%] opacity-0',
       )}
       aria-hidden={keyboardOpen}

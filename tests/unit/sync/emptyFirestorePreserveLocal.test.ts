@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Customer } from '@/shared/types/customer.types';
+import type { Customer, CustomerBranch } from '@/shared/types/customer.types';
 import type { Product } from '@/shared/types/product.types';
 import type { AppUser } from '@/shared/types/user.types';
 
@@ -50,6 +50,7 @@ const metaTable = createTable('key');
 const META_KEYS = {
   LAST_PULL_CUSTOMERS: 'lastPullSyncAt:customers',
   LAST_PULL_PRODUCTS: 'lastPullSyncAt:products',
+  LAST_PULL_BRANCHES: 'lastPullSyncAt:branches',
   LAST_SYNC_AT: 'lastSyncAt',
   LAST_SYNC_REPORT_ID: 'lastSyncReportId',
   INITIAL_SYNC_COMPLETE: 'initialSyncComplete',
@@ -90,13 +91,16 @@ vi.mock('@/shared/lib/indexeddb/db', () => ({
 
 const pullAllCustomers = vi.fn(async (): Promise<Customer[]> => []);
 const pullAllProducts = vi.fn(async (): Promise<Product[]> => []);
+const pullAllBranches = vi.fn(async (): Promise<CustomerBranch[]> => []);
 const fetchAllUsersFromFirestore = vi.fn(async (): Promise<AppUser[]> => []);
 
 vi.mock('@/shared/lib/firebase/firestoreService', () => ({
   pullAllCustomers: () => pullAllCustomers(),
   pullAllProducts: () => pullAllProducts(),
+  pullAllBranches: () => pullAllBranches(),
   pullCustomersSince: vi.fn(async () => []),
   pullProductsSince: vi.fn(async () => []),
+  pullBranchesSince: vi.fn(async () => []),
 }));
 
 vi.mock('@/shared/lib/firebase/userFirestoreService', () => ({
@@ -148,9 +152,11 @@ describe('PullSync empty Firestore preserves local master data', () => {
     metaTable.store.clear();
     pullAllCustomers.mockReset();
     pullAllProducts.mockReset();
+    pullAllBranches.mockReset();
     fetchAllUsersFromFirestore.mockReset();
     pullAllCustomers.mockResolvedValue([]);
     pullAllProducts.mockResolvedValue([]);
+    pullAllBranches.mockResolvedValue([]);
     fetchAllUsersFromFirestore.mockResolvedValue([]);
     vi.stubGlobal('navigator', { onLine: true });
 

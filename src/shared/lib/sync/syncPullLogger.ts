@@ -44,6 +44,15 @@ export function logProductsFetchEnd(durationMs: number, count?: number): void {
   console.info(`[Sync] PRODUCTS FETCH END (${String(durationMs)} ms)${detail}`);
 }
 
+export function logBranchesFetchStart(): void {
+  console.info('[Sync] BRANCHES FETCH START');
+}
+
+export function logBranchesFetchEnd(durationMs: number, count?: number): void {
+  const detail = count !== undefined ? ` (${String(count)} kayıt)` : '';
+  console.info(`[Sync] BRANCHES FETCH END (${String(durationMs)} ms)${detail}`);
+}
+
 export function logIndexedDbWriteStart(): void {
   console.info('[Sync] INDEXEDDB WRITE START');
 }

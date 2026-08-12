@@ -37,6 +37,7 @@ export type LocalUser = AppUser;
 export const META_KEYS = {
   LAST_PULL_CUSTOMERS: 'lastPullSyncAt:customers',
   LAST_PULL_PRODUCTS: 'lastPullSyncAt:products',
+  LAST_PULL_BRANCHES: 'lastPullSyncAt:branches',
   LAST_SYNC_AT: 'lastSyncAt',
   LAST_SYNC_REPORT_ID: 'lastSyncReportId',
   INITIAL_SYNC_COMPLETE: 'initialSyncComplete',

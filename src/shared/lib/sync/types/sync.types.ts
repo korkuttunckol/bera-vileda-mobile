@@ -31,6 +31,8 @@ export interface SyncPullStats {
   customers: number;
   products: number;
   users: number;
+  /** Customer branch docs pulled into IndexedDB `branches`. */
+  branches?: number;
   /** Present only when Admin order pull ran. */
   orders?: SyncOrderPullStats;
   validation?: SyncPullValidation;

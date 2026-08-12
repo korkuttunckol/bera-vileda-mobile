@@ -66,8 +66,8 @@ export function MainLayout() {
 
       {/*
         Default pages: main is the scroll owner.
-        Yeni Sipariş: overflow hidden + flex so the page pins search and
-        scrolls only the product list (avoids Android IME scroll jumps).
+        Yeni Sipariş: overflow hidden + flex so product search stays pinned and
+        only the results list scrolls (Android IME + overflow-anchor fix).
       */}
       <main
         className={cn(

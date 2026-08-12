@@ -39,14 +39,16 @@ export class OutboxProcessor {
     const retryableFailed = failed.filter((item) =>
       retryPolicy.isFailedRetryEligible(item, nowMs),
     );
-    // Outbox is order-only. Drop legacy master-data queue rows (customer/branch/product).
+    // Outbox handles orders + customer branches. Drop legacy customer/product rows.
     const combined = [...pending, ...retryableFailed];
     for (const item of combined) {
-      if (item.entityType !== 'order') {
+      if (item.entityType !== 'order' && item.entityType !== 'branch') {
         await syncQueueRepository.remove(item.id);
       }
     }
-    const items = combined.filter((item) => item.entityType === 'order');
+    const items = combined.filter(
+      (item) => item.entityType === 'order' || item.entityType === 'branch',
+    );
     stats.total = items.length;
 
     for (const item of items) {
@@ -64,10 +66,10 @@ export class OutboxProcessor {
   }
 
   async enqueue(payload: SyncQueuePayload): Promise<void> {
-    if (payload.entityType !== 'order') {
+    if (payload.entityType !== 'order' && payload.entityType !== 'branch') {
       throw new Error(
-        `Outbox yalnızca siparişler içindir (entityType=${payload.entityType}). ` +
-          'Master data için Yerel Verileri Firestore\'a Aktar kullanın.',
+        `Outbox yalnızca sipariş ve şube içindir (entityType=${payload.entityType}). ` +
+          'Cari/stok master data için Yerel Verileri Firestore\'a Aktar kullanın.',
       );
     }
 

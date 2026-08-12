@@ -20,7 +20,12 @@ import {
   scanNativeBarcode,
 } from '@/shared/nativeBarcode/scanNativeBarcode';
 import { resolveScannedProduct } from '@/features/orders/utils/barcodeScanOrder';
+import {
+  isValidOrderBranchSelection,
+  ORDER_CENTER_BRANCH,
+} from '@/features/orders/utils/orderBranchOptions';
 import { useVisualViewportKeyboard } from '@/shared/hooks/useVisualViewportKeyboard';
+import { shouldKeepCustomerPickerMounted } from '@/features/orders/utils/orderSearchVisibility';
 import { useOrderDraftStore } from '@/stores/orderDraftStore';
 import { useAuthStore } from '@/stores/authStore';
 import { toast } from '@/stores/toastStore';
@@ -33,8 +38,6 @@ import { MobileProductSection } from './MobileProductSection';
 import { MobileNativeBarcodeConfirmSheet } from './MobileNativeBarcodeConfirmSheet';
 import { MobileStickyCartBar } from './MobileStickyCartBar';
 import { MobileQtyStepper } from './MobileQtyStepper';
-
-const CENTER_BRANCH = { id: 'main', name: 'Merkez' } as const;
 
 /**
  * Single-screen mobile order UI.
@@ -68,6 +71,8 @@ export function MobileOrderScreen() {
   const [isScanningBarcode, setIsScanningBarcode] = useState(false);
   const [confirmProduct, setConfirmProduct] = useState<Product | null>(null);
   const [scannedBarcode, setScannedBarcode] = useState('');
+  /** True while Müşteri seç picker UI is open (including initial empty draft). */
+  const [customerPickerOpen, setCustomerPickerOpen] = useState(!customerId);
 
   const cartQtyByProductId = useMemo(() => {
     const map: Record<string, number> = {};
@@ -78,21 +83,30 @@ export function MobileOrderScreen() {
   }, [lines]);
 
   const resolveBranch = async (customer: Customer): Promise<void> => {
-    const remembered = getLastBranchForCustomer(customer.id);
-    if (remembered) {
-      selectBranch(remembered.branchId, remembered.branchName);
-      return;
-    }
-
-    selectBranch(CENTER_BRANCH.id, CENTER_BRANCH.name);
-    rememberLastBranch(customer.id, {
-      branchId: CENTER_BRANCH.id,
-      branchName: CENTER_BRANCH.name,
-    });
-
     try {
-      const branches = await branchService.listByCustomer(customer.id);
-      const active = branches.filter((b) => b.isActive && !b.isDeleted);
+      const rows = await branchService.listByCustomer(customer.id);
+      const active = rows
+        .filter((b) => b.isActive && !b.isDeleted)
+        .map((b) => ({ id: b.id, name: b.name }));
+
+      const remembered = getLastBranchForCustomer(customer.id);
+      if (
+        remembered &&
+        isValidOrderBranchSelection(remembered.branchId, active)
+      ) {
+        selectBranch(remembered.branchId, remembered.branchName);
+        return;
+      }
+
+      if (active.length === 0) {
+        selectBranch(ORDER_CENTER_BRANCH.id, ORDER_CENTER_BRANCH.name);
+        rememberLastBranch(customer.id, {
+          branchId: ORDER_CENTER_BRANCH.id,
+          branchName: ORDER_CENTER_BRANCH.name,
+        });
+        return;
+      }
+
       if (active.length === 1) {
         selectBranch(active[0].id, active[0].name);
         rememberLastBranch(customer.id, {
@@ -100,8 +114,10 @@ export function MobileOrderScreen() {
           branchName: active[0].name,
         });
       }
+      // Multiple registered branches: leave unset so the user picks from the list
+      // (do not inject synthetic Merkez alongside DEPO/MERKEZ).
     } catch {
-      // keep Merkez
+      selectBranch(ORDER_CENTER_BRANCH.id, ORDER_CENTER_BRANCH.name);
     }
   };
 
@@ -208,7 +224,7 @@ export function MobileOrderScreen() {
       return;
     }
     if (!branchId) {
-      selectBranch(CENTER_BRANCH.id, CENTER_BRANCH.name);
+      selectBranch(ORDER_CENTER_BRANCH.id, ORDER_CENTER_BRANCH.name);
     }
 
     setIsSaving(true);
@@ -247,25 +263,22 @@ export function MobileOrderScreen() {
     <div
       className={cn(
         'flex min-h-0 flex-1 flex-col',
-        // Reserve space for fixed cart bar only when keyboard chrome is visible.
         keyboardOpen ? 'pb-2' : 'pb-44',
       )}
     >
       {/*
-        Customer / cart panels sit above the pinned search.
-        While the keyboard is open, collapse them so search + results stay in view
-        without forcing the user to manually scroll.
+        Customer chrome:
+        - Always keep MobileCustomerSection mounted while picking a customer
+          (no customerId, or picker re-opened). POC previously rendered null
+          when keyboardOpen && !customerId, which destroyed cari search.
+        - Once a customer is selected and picker is closed, collapse to a one-line
+          summary while the product search keyboard is open.
       */}
-      {keyboardOpen ? (
-        customerId ? (
-          <div className="shrink-0 px-3 pt-2">
-            <p className="truncate text-xs text-brand-gray-500">
-              {customerName}
-              {branchName ? ` · ${branchName}` : ''}
-            </p>
-          </div>
-        ) : null
-      ) : (
+      {shouldKeepCustomerPickerMounted({
+        keyboardOpen,
+        customerId,
+        customerPickerOpen,
+      }) ? (
         <div className="shrink-0 space-y-3 p-3 pb-0">
           <MobileCustomerSection
             selectedCustomerId={customerId}
@@ -277,6 +290,7 @@ export function MobileOrderScreen() {
             onChangeCustomer={() => {
               setShowCartLines(false);
             }}
+            onPickerOpenChange={setCustomerPickerOpen}
           />
 
           {showCartLines && lines.length > 0 ? (
@@ -342,6 +356,13 @@ export function MobileOrderScreen() {
               </Button>
             </div>
           ) : null}
+        </div>
+      ) : (
+        <div className="shrink-0 px-3 pt-2">
+          <p className="truncate text-xs text-brand-gray-500">
+            {customerName}
+            {branchName ? ` · ${branchName}` : ''}
+          </p>
         </div>
       )}
 

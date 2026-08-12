@@ -6,7 +6,7 @@ interface MobileProductRowProps {
   product: Product;
   quantity: number;
   onQuantityChange: (quantity: number) => void;
-  /** Tighter row for favorites strip. */
+  /** Tighter row for Alınan Siparişler strip. */
   compact?: boolean;
 }
 

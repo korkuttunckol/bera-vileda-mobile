@@ -1,22 +1,43 @@
-# Android debug APK for real-device UAT (native ML Kit barcode).
-# No Android Studio / local SDK / keystore required on the developer machine.
+# Android debug APK (no local Android Studio / SDK / keystore).
 #
-# Trigger: Actions → "Android Debug APK" → Run workflow → pick branch
 # Artifact: bera-vileda-android-debug / app-debug.apk
+# Toolchain: Capacitor 8.5 · AGP 8.13 · Gradle 8.14.3 · JDK 21 · SDK 36
 #
-# Matches project:
-#   Capacitor 8.5 · AGP 8.13 · Gradle 8.14.3 · JDK 21 · compile/target SDK 36 · minSdk 24
+# Modes
+# -----
+# 1) workflow_dispatch (recommended for main web + native shell):
+#    Actions → Android Debug APK → Run workflow
+#      web_ref    = main                         (latest app UI)
+#      native_ref = cursor/capacitor-mlkit-barcode-poc-7d6c
+#                   (android/ + capacitor.config.ts only — not merged to main)
+#
+# 2) push to cursor/capacitor-mlkit-barcode-poc-7d6c:
+#    Full checkout of that branch (existing working path — unchanged).
+#
+# 3) push to cursor/android-order-search-scroll-7d6c:
+#    Hybrid: this branch as web_ref + POC native_ref (APK artifact for UAT).
+#
+# After PR #14 merges, native android/ lives on main; hybrid still supports POC refs.
 
 name: Android Debug APK
 
 on:
-  # Manual: Actions → Android Debug APK → Run workflow → select branch
-  # (Requires this file on the repo default branch for the UI dispatch picker.
-  #  Until then, pushes to the native barcode branch also build a debug APK.)
   workflow_dispatch:
+    inputs:
+      web_ref:
+        description: Git ref for web/app source (use main for latest UI)
+        required: true
+        default: main
+        type: string
+      native_ref:
+        description: Git ref that contains android/ + capacitor.config.ts
+        required: true
+        default: cursor/capacitor-mlkit-barcode-poc-7d6c
+        type: string
   push:
     branches:
       - cursor/capacitor-mlkit-barcode-poc-7d6c
+      - cursor/android-order-search-scroll-7d6c
     paths:
       - '.github/workflows/android-debug.yml'
       - 'android/**'
@@ -33,7 +54,7 @@ permissions:
   actions: write
 
 concurrency:
-  group: android-debug-${{ github.ref }}
+  group: android-debug-${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 jobs:
@@ -43,8 +64,6 @@ jobs:
     timeout-minutes: 45
 
     env:
-      # Optional: set these as GitHub Actions repository secrets so Merch login
-      # works on-device. Build still succeeds without them (app warns at runtime).
       VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
       VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
       VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
@@ -52,12 +71,78 @@ jobs:
       VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
       VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
       VITE_APP_ENV: ${{ secrets.VITE_APP_ENV || 'development' }}
-      # CI Gradle memory (project default 1536m is tight on runners)
       GRADLE_OPTS: -Dorg.gradle.daemon=false -Dorg.gradle.jvmargs=-Xmx4g
+      # Pinned to Capacitor POC versions (install only for hybrid/main web builds).
+      CAPACITOR_CORE_VERSION: '8.5.0'
+      CAPACITOR_MLKIT_VERSION: '8.1.0'
 
     steps:
-      - name: Checkout
+      - name: Resolve build refs
+        id: refs
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "web_ref=${{ inputs.web_ref }}" >> "$GITHUB_OUTPUT"
+            echo "native_ref=${{ inputs.native_ref }}" >> "$GITHUB_OUTPUT"
+            echo "hybrid=true" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.ref_name }}" = "cursor/android-order-search-scroll-7d6c" ]; then
+            # Feature UAT APK: this branch web + POC native shell.
+            echo "web_ref=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+            echo "native_ref=cursor/capacitor-mlkit-barcode-poc-7d6c" >> "$GITHUB_OUTPUT"
+            echo "hybrid=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "web_ref=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+            echo "native_ref=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+            echo "hybrid=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout web / app source
         uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.refs.outputs.web_ref }}
+
+      - name: Overlay native Android project (hybrid only)
+        if: steps.refs.outputs.hybrid == 'true'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.refs.outputs.native_ref }}
+          path: _native_android
+          sparse-checkout: |
+            android
+            capacitor.config.ts
+          sparse-checkout-cone-mode: false
+
+      - name: Place android/ + capacitor.config.ts into workspace
+        if: steps.refs.outputs.hybrid == 'true'
+        run: |
+          set -euo pipefail
+          if [ ! -d _native_android/android ]; then
+            echo "::error::native_ref '${{ steps.refs.outputs.native_ref }}' has no android/ directory"
+            exit 1
+          fi
+          if [ ! -f _native_android/capacitor.config.ts ]; then
+            echo "::error::native_ref '${{ steps.refs.outputs.native_ref }}' has no capacitor.config.ts"
+            exit 1
+          fi
+          rm -rf android capacitor.config.ts
+          cp -a _native_android/android .
+          cp _native_android/capacitor.config.ts .
+          rm -rf _native_android
+          echo "Hybrid overlay OK"
+          echo "  web_ref=${{ steps.refs.outputs.web_ref }}"
+          echo "  native_ref=${{ steps.refs.outputs.native_ref }}"
+          test -f android/gradlew
+          test -f capacitor.config.ts
+
+      - name: Require android/ project
+        run: |
+          if [ ! -d android ] || [ ! -f android/gradlew ]; then
+            echo "::error::android/ Gradle project missing after checkout/overlay"
+            exit 1
+          fi
+          if [ ! -f capacitor.config.ts ]; then
+            echo "::error::capacitor.config.ts missing"
+            exit 1
+          fi
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -69,8 +154,6 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          # Capacitor Android 8 / AGP 8.13 compile with source/target 21
-          # (JDK 17 fails: "invalid source release: 21").
           java-version: '21'
 
       - name: Setup Android SDK
@@ -81,19 +164,19 @@ jobs:
             platforms;android-36
             build-tools;35.0.0
 
-      - name: Print toolchain versions
+      - name: Print toolchain / refs
         run: |
+          echo "=== Refs ==="
+          echo "event=${{ github.event_name }}"
+          echo "hybrid=${{ steps.refs.outputs.hybrid }}"
+          echo "web_ref=${{ steps.refs.outputs.web_ref }}"
+          echo "native_ref=${{ steps.refs.outputs.native_ref }}"
           echo "=== Toolchain ==="
           echo "Node: $(node -v)"
           echo "npm:  $(npm -v)"
           echo "Java: $(java -version 2>&1 | head -1)"
           echo "ANDROID_HOME=${ANDROID_HOME:-unset}"
-          echo "ANDROID_SDK_ROOT=${ANDROID_SDK_ROOT:-unset}"
-          sdkmanager --list_installed 2>/dev/null | head -40 || true
-          echo "=== Project Android targets ==="
           grep -E 'SdkVersion|compileSdk|minSdk' android/variables.gradle android/app/build.gradle || true
-          echo "=== Capacitor / ML Kit (package.json) ==="
-          node -e "const p=require('./package.json'); const d={...p.dependencies,...p.devDependencies}; for (const k of Object.keys(d).filter(k=>k.includes('capacitor')).sort()) console.log(k+'@'+d[k]);"
 
       - name: Check Firebase env for APK (non-secret flags only)
         run: |
@@ -110,11 +193,37 @@ jobs:
             echo "Firebase web config secrets look present for this build."
           fi
 
-      - name: Install npm dependencies
+      - name: Install npm dependencies (web lockfile)
         run: npm ci
 
+      - name: Install Capacitor packages for hybrid overlay
+        if: steps.refs.outputs.hybrid == 'true'
+        run: |
+          # main package.json has no Capacitor — install tooling without committing lockfile changes.
+          npm install --no-save \
+            "@capacitor/core@${CAPACITOR_CORE_VERSION}" \
+            "@capacitor/cli@${CAPACITOR_CORE_VERSION}" \
+            "@capacitor/android@${CAPACITOR_CORE_VERSION}" \
+            "@capacitor-mlkit/barcode-scanning@${CAPACITOR_MLKIT_VERSION}"
+          node -e "const p=require('./package.json'); console.log('capacitor overlay ready');"
+
       - name: Build web assets (Vite)
-        run: npm run build
+        run: |
+          # Disable PWA service worker in the Capacitor WebView bundle.
+          # androidScheme=https can otherwise cache a stale JS chunk across APK installs.
+          CAPACITOR_BUILD=true npm run build
+          if [ -f dist/sw.js ] || [ -f dist/registerSW.js ]; then
+            echo "::error::Service worker artifacts present in Capacitor build (expected CAPACITOR_BUILD=true to disable PWA)"
+            ls -la dist | head -50
+            exit 1
+          fi
+          echo "Capacitor web build OK (no sw.js / registerSW.js)"
+          # Prove PR #18 + this layout land in the bundle that cap sync copies.
+          if ! grep -R -E -q 'normalizeSearchText|overflow-anchor-none|filterCustomersForOrderPicker' dist/assets; then
+            echo "::error::Expected search/layout markers missing from dist bundle"
+            exit 1
+          fi
+          echo "Bundle markers verified"
 
       - name: Capacitor sync Android
         run: npx cap sync android
@@ -130,12 +239,10 @@ jobs:
           APK="android/app/build/outputs/apk/debug/app-debug.apk"
           if [ ! -f "$APK" ]; then
             echo "::error::Expected debug APK missing at $APK"
-            echo "Listing android/app/build/outputs (if any):"
             find android/app/build/outputs -type f 2>/dev/null | head -100 || true
             exit 1
           fi
           ls -lh "$APK"
-          echo "APK_PATH=$APK" >> "$GITHUB_ENV"
 
       - name: Upload debug APK artifact
         uses: actions/upload-artifact@v4
@@ -148,14 +255,11 @@ jobs:
       - name: Dump Gradle / Android logs on failure
         if: failure()
         run: |
-          echo "::group::Last Gradle daemon / build logs"
+          echo "::group::Last Gradle logs"
           find android -name '*.log' -type f 2>/dev/null | head -20
           find /home/runner/.gradle -name '*.log' -type f 2>/dev/null | tail -5 | while read -r f; do
             echo "----- $f -----"
             tail -n 80 "$f" || true
           done
           echo "::endgroup::"
-          echo "::group::android/ tree (shallow)"
-          find android -maxdepth 3 -type d 2>/dev/null | head -80
-          echo "::endgroup::"
-          echo "::error::Android debug APK build failed. Check the Assemble debug APK step stacktrace above."
+          echo "::error::Android debug APK build failed. Check Assemble debug APK stacktrace above."
