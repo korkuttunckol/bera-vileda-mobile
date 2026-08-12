@@ -1,7 +1,7 @@
 import {
   BarcodeFormat,
   BarcodeScanner,
-  GoogleBarcodeScannerModuleInstallState,
+  LensFacing,
 } from '@capacitor-mlkit/barcode-scanning';
 import type { PluginListenerHandle } from '@capacitor/core';
 import { Capacitor } from '@capacitor/core';
@@ -15,15 +15,8 @@ export const NATIVE_ORDER_BARCODE_FORMATS: BarcodeFormat[] = [
   BarcodeFormat.Code128,
 ];
 
-/** Default wait for Google Play barcode_ui module download + install. */
-export const GOOGLE_BARCODE_MODULE_INSTALL_TIMEOUT_MS = 120_000;
-
-export type ScanNativeBarcodeOptions = {
-  /** Visible status for the user while camera / module prepares. */
-  onStatus?: (message: string) => void;
-  /** Override install wait (tests). */
-  moduleInstallTimeoutMs?: number;
-};
+/** Body/html class while CameraX preview is shown behind the WebView. */
+export const NATIVE_BARCODE_SCANNING_CLASS = 'native-barcode-scanning';
 
 export type NativeBarcodeScanResult =
   | { status: 'success'; rawValue: string; format: string }
@@ -48,155 +41,139 @@ function isUserCancelled(error: unknown): boolean {
 }
 
 /**
- * Ensures the Android Google Code Scanner (barcode_ui) module is ready.
- *
- * `installGoogleBarcodeScannerModule()` only *starts* installation — callers
- * must wait for `googleBarcodeScannerModuleInstallProgress` COMPLETED (or
- * availability) before calling `scan()`.
+ * CameraX preview sits behind the WebView. Hide app chrome and show a cancel
+ * control so the native camera is visible immediately.
  */
-export async function ensureGoogleBarcodeScannerModule(options: {
-  onStatus?: (message: string) => void;
-  timeoutMs?: number;
-} = {}): Promise<void> {
-  const {
-    onStatus,
-    timeoutMs = GOOGLE_BARCODE_MODULE_INSTALL_TIMEOUT_MS,
-  } = options;
-
-  const initial = await BarcodeScanner.isGoogleBarcodeScannerModuleAvailable();
-  if (initial.available) {
-    return;
+export function mountNativeBarcodeScanOverlay(onCancel: () => void): () => void {
+  if (typeof document === 'undefined') {
+    return () => undefined;
   }
 
-  onStatus?.('Barkod tarayıcı hazırlanıyor...');
+  document.documentElement.classList.add(NATIVE_BARCODE_SCANNING_CLASS);
+  document.body.classList.add(NATIVE_BARCODE_SCANNING_CLASS);
 
-  await new Promise<void>((resolve, reject) => {
-    let settled = false;
-    let handle: PluginListenerHandle | undefined;
+  const overlay = document.createElement('div');
+  overlay.className = 'native-barcode-scan-overlay';
+  overlay.setAttribute('role', 'dialog');
+  overlay.setAttribute('aria-label', 'Barkod tarama');
 
-    const finish = (action: () => void): void => {
+  const hint = document.createElement('p');
+  hint.className = 'native-barcode-scan-overlay__hint';
+  hint.textContent = 'Barkodu kameraya gösterin';
+
+  const cancelButton = document.createElement('button');
+  cancelButton.type = 'button';
+  cancelButton.className = 'native-barcode-scan-overlay__cancel';
+  cancelButton.textContent = 'İptal';
+  cancelButton.addEventListener('click', onCancel);
+
+  overlay.append(hint, cancelButton);
+  document.body.appendChild(overlay);
+
+  return () => {
+    cancelButton.removeEventListener('click', onCancel);
+    overlay.remove();
+    document.documentElement.classList.remove(NATIVE_BARCODE_SCANNING_CLASS);
+    document.body.classList.remove(NATIVE_BARCODE_SCANNING_CLASS);
+  };
+}
+
+async function runStartScanSession(): Promise<NativeBarcodeScanResult> {
+  let settled = false;
+  let barcodesListener: PluginListenerHandle | undefined;
+  let errorListener: PluginListenerHandle | undefined;
+  let unmountOverlay: (() => void) | undefined;
+
+  const cleanup = async (): Promise<void> => {
+    unmountOverlay?.();
+    unmountOverlay = undefined;
+    try {
+      await barcodesListener?.remove();
+    } catch {
+      // ignore
+    }
+    try {
+      await errorListener?.remove();
+    } catch {
+      // ignore
+    }
+    barcodesListener = undefined;
+    errorListener = undefined;
+    try {
+      await BarcodeScanner.stopScan();
+    } catch {
+      // ignore — camera may already be stopped
+    }
+  };
+
+  return new Promise<NativeBarcodeScanResult>((resolve) => {
+    const finish = (result: NativeBarcodeScanResult): void => {
       if (settled) return;
       settled = true;
-      clearTimeout(timeoutId);
-      clearInterval(pollId);
-      void handle?.remove().catch(() => undefined);
-      action();
+      void cleanup().finally(() => {
+        resolve(result);
+      });
     };
 
-    const timeoutId = setTimeout(() => {
-      finish(() => {
-        reject(
-          new Error(
-            'Google Barkod Tarayıcı modülü kurulumu zaman aşımına uğradı. İnternet bağlantınızı kontrol edip tekrar deneyin.',
-          ),
-        );
-      });
-    }, timeoutMs);
-
-    const pollId = setInterval(() => {
-      void (async () => {
-        if (settled) return;
-        try {
-          const status =
-            await BarcodeScanner.isGoogleBarcodeScannerModuleAvailable();
-          if (status.available) {
-            finish(() => {
-              resolve();
-            });
-          }
-        } catch {
-          // Ignore transient poll errors while install is in progress.
-        }
-      })();
-    }, 1500);
+    unmountOverlay = mountNativeBarcodeScanOverlay(() => {
+      finish({ status: 'cancelled' });
+    });
 
     void (async () => {
       try {
-        // Register listener before install() so early COMPLETED events are not missed.
-        handle = await BarcodeScanner.addListener(
-          'googleBarcodeScannerModuleInstallProgress',
+        barcodesListener = await BarcodeScanner.addListener(
+          'barcodesScanned',
           (event) => {
             if (settled) return;
-
-            if (
-              event.state ===
-                GoogleBarcodeScannerModuleInstallState.DOWNLOADING ||
-              event.state ===
-                GoogleBarcodeScannerModuleInstallState.INSTALLING ||
-              event.state === GoogleBarcodeScannerModuleInstallState.PENDING ||
-              event.state ===
-                GoogleBarcodeScannerModuleInstallState.DOWNLOAD_PAUSED
-            ) {
-              onStatus?.('Barkod tarayıcı hazırlanıyor...');
-            }
-
-            if (
-              event.state === GoogleBarcodeScannerModuleInstallState.COMPLETED
-            ) {
-              finish(() => {
-                resolve();
-              });
-              return;
-            }
-
-            if (
-              event.state === GoogleBarcodeScannerModuleInstallState.FAILED
-            ) {
-              finish(() => {
-                reject(
-                  new Error(
-                    'Google Barkod Tarayıcı modülü kurulumu başarısız oldu. Google Play Servisleri ve internet bağlantısını kontrol edip tekrar deneyin.',
-                  ),
-                );
-              });
-              return;
-            }
-
-            if (
-              event.state === GoogleBarcodeScannerModuleInstallState.CANCELED
-            ) {
-              finish(() => {
-                reject(
-                  new Error(
-                    'Google Barkod Tarayıcı modülü kurulumu iptal edildi.',
-                  ),
-                );
-              });
-            }
+            if (event.barcodes.length === 0) return;
+            const first = event.barcodes[0];
+            const rawValue = (first.rawValue ?? '').trim();
+            if (!rawValue) return;
+            finish({
+              status: 'success',
+              rawValue,
+              format: first.format,
+            });
           },
         );
 
-        await BarcodeScanner.installGoogleBarcodeScannerModule();
-      } catch (error) {
-        finish(() => {
-          reject(
-            error instanceof Error
-              ? error
-              : new Error(getErrorMessage(error)),
-          );
+        errorListener = await BarcodeScanner.addListener(
+          'scanError',
+          (event) => {
+            if (settled) return;
+            const message = event.message.trim();
+            if (isUserCancelled(message)) {
+              finish({ status: 'cancelled' });
+              return;
+            }
+            finish({
+              status: 'error',
+              message: message || 'Barkod taranamadı.',
+            });
+          },
+        );
+
+        await BarcodeScanner.startScan({
+          formats: NATIVE_ORDER_BARCODE_FORMATS,
+          lensFacing: LensFacing.Back,
         });
+      } catch (error) {
+        if (isUserCancelled(error)) {
+          finish({ status: 'cancelled' });
+          return;
+        }
+        finish({ status: 'error', message: getErrorMessage(error) });
       }
     })();
   });
-
-  const after = await BarcodeScanner.isGoogleBarcodeScannerModuleAvailable();
-  if (!after.available) {
-    throw new Error(
-      'Google Barkod Tarayıcı modülü kuruldu ancak henüz kullanıma hazır değil. Lütfen birkaç saniye sonra tekrar deneyin.',
-    );
-  }
 }
 
 /**
- * Opens the native ML Kit ready-to-use scanner UI.
- * Auto-detects a barcode (no in-app "scan now" button). Returns one raw string.
- * Browser/PWA: unsupported (no getUserMedia / ZXing path).
+ * Opens the device camera via CameraX (`startScan`) behind the WebView.
+ * Does NOT use `BarcodeScanner.scan()` / Google Barcode Scanner module.
+ * Browser/PWA: unsupported.
  */
-export async function scanNativeBarcode(
-  options: ScanNativeBarcodeOptions = {},
-): Promise<NativeBarcodeScanResult> {
-  const { onStatus, moduleInstallTimeoutMs } = options;
-
+export async function scanNativeBarcode(): Promise<NativeBarcodeScanResult> {
   if (!Capacitor.isNativePlatform()) {
     return {
       status: 'unsupported',
@@ -204,8 +181,6 @@ export async function scanNativeBarcode(
         'Kamera ile barkod tarama yalnızca BERA VİLEDA mobil uygulamasında kullanılabilir.',
     };
   }
-
-  onStatus?.('Kamera hazırlanıyor...');
 
   try {
     const supported = await BarcodeScanner.isSupported();
@@ -216,25 +191,8 @@ export async function scanNativeBarcode(
       };
     }
   } catch {
-    // Continue — some devices still support scan().
+    // Continue — some devices still support startScan().
   }
-
-  // Android Google Play Services module (required for scan() UI).
-  if (Capacitor.getPlatform() === 'android') {
-    try {
-      await ensureGoogleBarcodeScannerModule({
-        onStatus,
-        timeoutMs: moduleInstallTimeoutMs,
-      });
-    } catch (error) {
-      return {
-        status: 'error',
-        message: getErrorMessage(error),
-      };
-    }
-  }
-
-  onStatus?.('Kamera hazırlanıyor...');
 
   try {
     let permission = await BarcodeScanner.checkPermissions();
@@ -255,36 +213,7 @@ export async function scanNativeBarcode(
     };
   }
 
-  try {
-    const { barcodes } = await BarcodeScanner.scan({
-      formats: NATIVE_ORDER_BARCODE_FORMATS,
-      autoZoom: true,
-    });
-    if (barcodes.length === 0) {
-      return {
-        status: 'error',
-        message: 'Barkod algılanamadı. Tekrar deneyin.',
-      };
-    }
-    const first = barcodes[0];
-    const rawValue = (first.rawValue ?? '').trim();
-    if (!rawValue) {
-      return {
-        status: 'error',
-        message: 'Barkod algılanamadı. Tekrar deneyin.',
-      };
-    }
-    return {
-      status: 'success',
-      rawValue,
-      format: first.format,
-    };
-  } catch (error) {
-    if (isUserCancelled(error)) {
-      return { status: 'cancelled' };
-    }
-    return { status: 'error', message: getErrorMessage(error) };
-  }
+  return runStartScanSession();
 }
 
 /** UPC-A (12 digit) → EAN-13 style for Product.barcode lookup when needed. */

@@ -4,7 +4,7 @@ import { Button } from '@/shared/components/ui/Button';
 import { scanNativeBarcodeForPoc } from '@/features/nativeBarcodePoc/scanNativeBarcodeForPoc';
 
 /**
- * Isolated Capacitor + ML Kit Android barcode POC.
+ * Isolated Capacitor + ML Kit Android barcode POC (startScan / CameraX).
  * No Product lookup / cart / order / sync wiring.
  */
 export function NativeBarcodePocPage() {
@@ -18,13 +18,9 @@ export function NativeBarcodePocPage() {
 
   const handleScan = useCallback(async (): Promise<void> => {
     setIsScanning(true);
-    setStatusMessage('Kamera hazırlanıyor...');
+    setStatusMessage(null);
     try {
-      const result = await scanNativeBarcodeForPoc({
-        onStatus: (message) => {
-          setStatusMessage(message);
-        },
-      });
+      const result = await scanNativeBarcodeForPoc();
       if (result.status === 'success') {
         setRawBarcode(result.rawValue);
         setFormat(result.format);
@@ -32,7 +28,7 @@ export function NativeBarcodePocPage() {
         return;
       }
       if (result.status === 'cancelled') {
-        setStatusMessage('Tarama iptal edildi.');
+        setStatusMessage(null);
         return;
       }
       setStatusMessage(result.message);
@@ -48,19 +44,17 @@ export function NativeBarcodePocPage() {
   return (
     <div className="mx-auto flex min-h-dvh max-w-lg flex-col gap-6 bg-brand-surface px-4 py-8">
       <header className="space-y-1">
-        <p className="text-xs font-semibold uppercase tracking-wide text-brand-gray-500">
-          Capacitor · ML Kit · Android POC
-        </p>
         <h1 className="text-2xl font-bold text-brand-navy">Barkod Testi</h1>
         <p className="text-sm text-brand-gray-500">
-          Native kamera ile gerçek barkodu okutup yalnızca string gösterir.
-          Sipariş / ürün lookup yok.
+          Native Android kamera (CameraX / startScan). Google Barcode Scanner
+          modülü kullanılmaz.
         </p>
       </header>
 
       <div className="rounded-2xl border border-brand-gray-200 bg-white p-4 text-sm text-brand-gray-600">
         <p>
-          Platform: <span className="font-semibold text-brand-navy">{platform}</span>
+          Platform:{' '}
+          <span className="font-semibold text-brand-navy">{platform}</span>
         </p>
         <p>
           Native:{' '}
@@ -80,7 +74,7 @@ export function NativeBarcodePocPage() {
           void handleScan();
         }}
       >
-        BARKODU TARA
+        Kamerayı Aç / Barkod Tara
       </Button>
 
       <section className="rounded-2xl border border-brand-gray-200 bg-white p-4 shadow-card">
@@ -106,18 +100,6 @@ export function NativeBarcodePocPage() {
           {statusMessage}
         </p>
       ) : null}
-
-      <Button
-        type="button"
-        variant="outline"
-        fullWidth
-        disabled={isScanning}
-        onClick={() => {
-          void handleScan();
-        }}
-      >
-        Tekrar Tara
-      </Button>
     </div>
   );
 }

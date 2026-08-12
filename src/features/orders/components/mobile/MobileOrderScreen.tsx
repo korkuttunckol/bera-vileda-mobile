@@ -178,11 +178,7 @@ export function MobileOrderScreen() {
     void (async () => {
       setIsScanningBarcode(true);
       try {
-        const result = await scanNativeBarcode({
-          onStatus: (message) => {
-            toast(message, 'info');
-          },
-        });
+        const result = await scanNativeBarcode();
         if (result.status === 'cancelled') return;
         if (result.status === 'denied' || result.status === 'unsupported') {
           toast(result.message, 'warning');
