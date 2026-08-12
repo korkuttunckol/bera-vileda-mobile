@@ -385,9 +385,10 @@ describe('Branch device sync', () => {
     const customers = await customerLocalRepository.getAll();
     const afm = customers.find((c) => c.code === 'AFM');
     expect(afm).toBeTruthy();
+    if (!afm) return;
 
     const branches = await branchLocalRepository.findByCustomerIdSorted(
-      afm!.id,
+      afm.id,
     );
     expect(branches.map((b) => b.name)).toEqual(['DEPO', 'MERKEZ']);
   });
