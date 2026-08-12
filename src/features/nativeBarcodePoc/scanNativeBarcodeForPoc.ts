@@ -11,7 +11,7 @@ export type NativeBarcodePocScanResult = NativeBarcodeScanResult;
 
 /**
  * Native-only ML Kit barcode scan for Android/iOS POC.
- * Thin wrapper around shared `scanNativeBarcode` (no getUserMedia / ZXing).
+ * Thin wrapper around shared `scanNativeBarcode` (CameraX startScan).
  */
 export async function scanNativeBarcodeForPoc(): Promise<NativeBarcodePocScanResult> {
   return scanNativeBarcode();

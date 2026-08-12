@@ -211,6 +211,11 @@ export function MobileOrderScreen() {
 
         setScannedBarcode(result.rawValue);
         setConfirmProduct(resolved.product);
+      } catch (error) {
+        toast(
+          error instanceof Error ? error.message : 'Barkod taranamadı.',
+          'error',
+        );
       } finally {
         setIsScanningBarcode(false);
       }

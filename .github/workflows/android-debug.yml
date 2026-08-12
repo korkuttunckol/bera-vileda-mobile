@@ -38,6 +38,7 @@ on:
     branches:
       - cursor/capacitor-mlkit-barcode-poc-7d6c
       - cursor/android-order-search-scroll-7d6c
+      - cursor/fix-mlkit-barcode-module-wait-7d6c
     paths:
       - '.github/workflows/android-debug.yml'
       - 'android/**'
