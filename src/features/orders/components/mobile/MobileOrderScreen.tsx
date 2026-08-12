@@ -178,7 +178,11 @@ export function MobileOrderScreen() {
     void (async () => {
       setIsScanningBarcode(true);
       try {
-        const result = await scanNativeBarcode();
+        const result = await scanNativeBarcode({
+          onStatus: (message) => {
+            toast(message, 'info');
+          },
+        });
         if (result.status === 'cancelled') return;
         if (result.status === 'denied' || result.status === 'unsupported') {
           toast(result.message, 'warning');
@@ -211,6 +215,11 @@ export function MobileOrderScreen() {
 
         setScannedBarcode(result.rawValue);
         setConfirmProduct(resolved.product);
+      } catch (error) {
+        toast(
+          error instanceof Error ? error.message : 'Barkod taranamadı.',
+          'error',
+        );
       } finally {
         setIsScanningBarcode(false);
       }

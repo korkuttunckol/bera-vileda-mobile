@@ -18,9 +18,13 @@ export function NativeBarcodePocPage() {
 
   const handleScan = useCallback(async (): Promise<void> => {
     setIsScanning(true);
-    setStatusMessage(null);
+    setStatusMessage('Kamera hazırlanıyor...');
     try {
-      const result = await scanNativeBarcodeForPoc();
+      const result = await scanNativeBarcodeForPoc({
+        onStatus: (message) => {
+          setStatusMessage(message);
+        },
+      });
       if (result.status === 'success') {
         setRawBarcode(result.rawValue);
         setFormat(result.format);
