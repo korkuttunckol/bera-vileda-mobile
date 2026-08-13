@@ -37,28 +37,61 @@ export function MobileNativeBarcodeConfirmSheet({
   useEffect(() => {
     if (!open || !product) return;
     setQtyText('1');
-    // iOS: do not autofocus — opening the keyboard after native camera → WebView
-    // resizes the viewport and can push the qty field under the keyboard.
-    // Android keeps autofocus (manual tap still works on iOS).
-    if (Capacitor.getPlatform() !== 'android') return;
 
+    // Wait for sheet mount / layout after native camera → WebView, then autofocus.
+    // iOS: temporary readOnly so focus does not open the keyboard (preventScroll alone
+    // is not enough). Unlock on user touch so the numeric keyboard opens normally.
+    // Android: unchanged focus + select (no readOnly).
     let cancelled = false;
     let raf1 = 0;
     let raf2 = 0;
+    const unlockCleanups: Array<() => void> = [];
+
     const timeoutId = window.setTimeout(() => {
       raf1 = window.requestAnimationFrame(() => {
         raf2 = window.requestAnimationFrame(() => {
           if (cancelled) return;
-          qtyInputRef.current?.focus();
-          qtyInputRef.current?.select();
+          const input = qtyInputRef.current;
+          if (!input) return;
+
+          const isIos = Capacitor.getPlatform() === 'ios';
+          if (isIos) {
+            input.readOnly = true;
+            input.focus({ preventScroll: true });
+            input.select();
+
+            const unlock = (): void => {
+              input.readOnly = false;
+            };
+            input.addEventListener('touchstart', unlock, {
+              once: true,
+              passive: true,
+              capture: true,
+            });
+            input.addEventListener('mousedown', unlock, {
+              once: true,
+              capture: true,
+            });
+            unlockCleanups.push(() => {
+              input.removeEventListener('touchstart', unlock, true);
+              input.removeEventListener('mousedown', unlock, true);
+              input.readOnly = false;
+            });
+            return;
+          }
+
+          input.focus();
+          input.select();
         });
       });
     }, 50);
+
     return () => {
       cancelled = true;
       window.clearTimeout(timeoutId);
       if (raf1 !== 0) window.cancelAnimationFrame(raf1);
       if (raf2 !== 0) window.cancelAnimationFrame(raf2);
+      for (const cleanup of unlockCleanups) cleanup();
     };
   }, [open, product]);
 
