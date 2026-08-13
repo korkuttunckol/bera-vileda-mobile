@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react';
+import { Capacitor } from '@capacitor/core';
 import { Button } from '@/shared/components/ui/Button';
 import { Input } from '@/shared/components/ui/Input';
 import { toast } from '@/stores/toastStore';
@@ -36,8 +37,11 @@ export function MobileNativeBarcodeConfirmSheet({
   useEffect(() => {
     if (!open || !product) return;
     setQtyText('1');
-    // After native camera → WebView (esp. iOS), wait for layout to settle
-    // before focusing so the keyboard does not create a duplicate bottom chrome.
+    // iOS: do not autofocus — opening the keyboard after native camera → WebView
+    // resizes the viewport and can push the qty field under the keyboard.
+    // Android keeps autofocus (manual tap still works on iOS).
+    if (Capacitor.getPlatform() !== 'android') return;
+
     let cancelled = false;
     let raf1 = 0;
     let raf2 = 0;
