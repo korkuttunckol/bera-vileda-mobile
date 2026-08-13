@@ -36,12 +36,25 @@ export function MobileNativeBarcodeConfirmSheet({
   useEffect(() => {
     if (!open || !product) return;
     setQtyText('1');
-    const id = window.setTimeout(() => {
-      qtyInputRef.current?.focus();
-      qtyInputRef.current?.select();
+    // After native camera → WebView (esp. iOS), wait for layout to settle
+    // before focusing so the keyboard does not create a duplicate bottom chrome.
+    let cancelled = false;
+    let raf1 = 0;
+    let raf2 = 0;
+    const timeoutId = window.setTimeout(() => {
+      raf1 = window.requestAnimationFrame(() => {
+        raf2 = window.requestAnimationFrame(() => {
+          if (cancelled) return;
+          qtyInputRef.current?.focus();
+          qtyInputRef.current?.select();
+        });
+      });
     }, 50);
     return () => {
-      window.clearTimeout(id);
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+      if (raf1 !== 0) window.cancelAnimationFrame(raf1);
+      if (raf2 !== 0) window.cancelAnimationFrame(raf2);
     };
   }, [open, product]);
 
