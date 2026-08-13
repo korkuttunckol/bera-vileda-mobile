@@ -54,6 +54,22 @@ class OrderLocalRepository extends BaseRepository<LocalOrder> {
       .toArray();
   }
 
+  /**
+   * Non-admin visibility: only orders this user created.
+   * Missing/empty createdBy → excluded (legacy rows stay admin-only).
+   * createdBy is not an IndexedDB index; filter scan is intentional.
+   */
+  async findByCreatedBy(createdBy: string): Promise<LocalOrder[]> {
+    return db.orders
+      .filter(
+        (o) =>
+          !o.isDeleted &&
+          typeof o.createdBy === 'string' &&
+          o.createdBy === createdBy,
+      )
+      .toArray();
+  }
+
   async findAllForUser(
     userId: string,
     isAdmin: boolean,
@@ -61,7 +77,7 @@ class OrderLocalRepository extends BaseRepository<LocalOrder> {
     if (isAdmin) {
       return db.orders.filter((o) => !o.isDeleted).toArray();
     }
-    return this.findBySalesRepId(userId);
+    return this.findByCreatedBy(userId);
   }
 
   async updateSyncStatus(
