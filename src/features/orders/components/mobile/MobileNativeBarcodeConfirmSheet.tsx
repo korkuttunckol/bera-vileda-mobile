@@ -1,8 +1,8 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
+import { Keyboard } from '@capacitor/keyboard';
 import { Button } from '@/shared/components/ui/Button';
 import { Input } from '@/shared/components/ui/Input';
-import { useVisualViewportKeyboard } from '@/shared/hooks/useVisualViewportKeyboard';
 import { toast } from '@/stores/toastStore';
 import {
   parseScanQuantity,
@@ -34,13 +34,8 @@ export function MobileNativeBarcodeConfirmSheet({
   const qtyInputRef = useRef<HTMLInputElement | null>(null);
   const [qtyText, setQtyText] = useState('1');
   const [isAdding, setIsAdding] = useState(false);
-  const { keyboardOpen, keyboardInset } = useVisualViewportKeyboard();
-  // iOS WKWebView: fixed bottom sheet stays under the soft keyboard unless lifted.
-  // Android adjustResize already shrinks the WebView — do not add a second offset.
-  const iosKeyboardLiftPx =
-    Capacitor.getPlatform() === 'ios' && keyboardOpen
-      ? Math.max(0, Math.round(keyboardInset))
-      : 0;
+  /** iOS-only: native keyboard height from Capacitor Keyboard events. */
+  const [iosKeyboardHeightPx, setIosKeyboardHeightPx] = useState(0);
 
   useEffect(() => {
     if (!open || !product) return;
@@ -103,6 +98,38 @@ export function MobileNativeBarcodeConfirmSheet({
     };
   }, [open, product]);
 
+  // Sheet-scoped iOS keyboard lift (native height). No global keyboard store.
+  useEffect(() => {
+    if (!open || Capacitor.getPlatform() !== 'ios') {
+      setIosKeyboardHeightPx(0);
+      return;
+    }
+
+    let removed = false;
+    const showHandlePromise = Keyboard.addListener(
+      'keyboardWillShow',
+      (event) => {
+        if (removed) return;
+        setIosKeyboardHeightPx(Math.max(0, Math.round(event.keyboardHeight)));
+      },
+    );
+    const hideHandlePromise = Keyboard.addListener('keyboardWillHide', () => {
+      if (removed) return;
+      setIosKeyboardHeightPx(0);
+    });
+
+    return () => {
+      removed = true;
+      setIosKeyboardHeightPx(0);
+      void showHandlePromise.then((handle) => {
+        void handle.remove();
+      });
+      void hideHandlePromise.then((handle) => {
+        void handle.remove();
+      });
+    };
+  }, [open]);
+
   if (!open || !product) return null;
 
   const handleConfirm = (): void => {
@@ -136,11 +163,6 @@ export function MobileNativeBarcodeConfirmSheet({
       role="dialog"
       aria-modal="true"
       aria-labelledby={titleId}
-      style={
-        iosKeyboardLiftPx > 0
-          ? { paddingBottom: iosKeyboardLiftPx }
-          : undefined
-      }
     >
       <button
         type="button"
@@ -149,10 +171,11 @@ export function MobileNativeBarcodeConfirmSheet({
         onClick={onClose}
       />
       <div
-        className={
-          iosKeyboardLiftPx > 0
-            ? 'rounded-t-2xl bg-white px-4 pb-4 pt-3 shadow-[0_-8px_24px_rgba(0,0,0,0.25)]'
-            : 'safe-area-bottom rounded-t-2xl bg-white px-4 pb-4 pt-3 shadow-[0_-8px_24px_rgba(0,0,0,0.25)]'
+        className="safe-area-bottom rounded-t-2xl bg-white px-4 pb-4 pt-3 shadow-[0_-8px_24px_rgba(0,0,0,0.25)]"
+        style={
+          iosKeyboardHeightPx > 0
+            ? { transform: `translateY(-${String(iosKeyboardHeightPx)}px)` }
+            : undefined
         }
       >
         <p id={titleId} className="text-xs text-brand-gray-500">

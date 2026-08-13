@@ -1,4 +1,5 @@
 import type { CapacitorConfig } from '@capacitor/cli';
+import { KeyboardResize } from '@capacitor/keyboard';
 
 /**
  * Native shell for BERA VİLEDA.
@@ -13,6 +14,13 @@ const config: CapacitorConfig = {
   },
   android: {
     allowMixedContent: false,
+  },
+  plugins: {
+    // Do not resize the WKWebView/app shell globally. Confirm sheet lifts itself
+    // on iOS via keyboardWillShow height; other screens keep existing layout.
+    Keyboard: {
+      resize: KeyboardResize.None,
+    },
   },
 };
 

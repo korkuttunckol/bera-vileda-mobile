@@ -22,6 +22,7 @@
   "dependencies": {
     "@capacitor-mlkit/barcode-scanning": "^8.1.0",
     "@capacitor/core": "^8.5.0",
+    "@capacitor/keyboard": "^8.0.5",
     "bcryptjs": "^3.0.3",
     "dexie": "^4.0.11",
     "exceljs": "^4.4.0",
