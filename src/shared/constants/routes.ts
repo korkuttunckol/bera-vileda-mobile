@@ -29,6 +29,8 @@ export const ROUTES = {
   SETTINGS_PRODUCT_DISPLAY: '/settings/display/products',
   SETTINGS_ORDER: '/settings/order',
   SETTINGS_APP_INFO: '/settings/app-info',
+  /** DEV: Logo ORFICHE/ORFLINE export preview (IndexedDB read-only). */
+  SETTINGS_LOGO_EXPORT_PREVIEW: '/settings/logo-export-preview',
   SETTINGS_USERS: '/settings/users',
   SETTINGS_USER_NEW: '/settings/users/new',
   SETTINGS_USER_EDIT: '/settings/users/:userCode/edit',

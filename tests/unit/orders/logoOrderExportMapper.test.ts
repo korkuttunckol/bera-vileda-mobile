@@ -126,7 +126,7 @@ describe('mapOrderToLogoExport', () => {
       CLIENTREF: 1001,
       SOURCEINDEX: 0,
       SPECODE: 'DEPO',
-      GENEXP1: 'DEPO',
+      GENEXP1: 'not-used-for-genexp1',
       CUSTORDNO: 'LOCAL-ABC',
     });
 
@@ -147,6 +147,7 @@ describe('mapOrderToLogoExport', () => {
       TRCODE: 1,
       currentBarcode: '9',
       currentSku: '141111',
+      matchedBy: 'erpId',
       beraLineId: 'line-1',
     });
   });

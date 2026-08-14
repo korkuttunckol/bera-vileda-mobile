@@ -23,6 +23,7 @@ import {
   ImportReportsPage,
   ClearOrdersPage,
   AppInfoPage,
+  LogoExportPreviewPage,
   CustomerDisplaySettingsPage,
   ProductDisplaySettingsPage,
   OrderSettingsPage,
@@ -243,6 +244,14 @@ export const router = createBrowserRouter([
           {
             path: ROUTES.SETTINGS_APP_INFO,
             element: <AppInfoPage />,
+          },
+          {
+            path: ROUTES.SETTINGS_LOGO_EXPORT_PREVIEW,
+            element: (
+              <AdminRoute>
+                <LogoExportPreviewPage />
+              </AdminRoute>
+            ),
           },
           {
             path: ROUTES.SETTINGS_USERS,

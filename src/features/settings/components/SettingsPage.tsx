@@ -47,7 +47,13 @@ const ADMIN_SETTINGS_SECTIONS: SettingsSection[] = [
   },
   {
     title: 'Hakkında',
-    items: [{ label: 'Uygulama Bilgileri', path: ROUTES.SETTINGS_APP_INFO }],
+    items: [
+      { label: 'Uygulama Bilgileri', path: ROUTES.SETTINGS_APP_INFO },
+      {
+        label: 'Logo Aktarım Önizleme (DEV)',
+        path: ROUTES.SETTINGS_LOGO_EXPORT_PREVIEW,
+      },
+    ],
   },
 ];
 

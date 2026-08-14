@@ -41,6 +41,8 @@ export interface LogoOrflineDto {
   currentBarcode: string;
   /** Current PRODUCERCODE from resolver */
   currentSku: string;
+  /** How the line was matched to the catalog */
+  matchedBy: 'erpId' | 'sku' | 'barcode';
   /** BERA OrderLine id (trace only; not a Logo column) */
   beraLineId: string;
 }
