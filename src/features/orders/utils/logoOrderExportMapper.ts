@@ -7,7 +7,7 @@
  *
  * ORFICHE:
  *   TRCODE=1, CLIENTREF=Customer.erpId, SOURCEINDEX=0,
- *   SPECODE=branchName, GENEXP1=branchName
+ *   SPECODE=branchName, GENEXP1=order.notes (fiş açıklaması)
  *
  * ORFLINE:
  *   STOCKREF=Product.erpId, AMOUNT=quantity, PRICE=unitPrice,
@@ -143,6 +143,7 @@ export function mapOrderToLogoExport(
       TRCODE: 1,
       currentBarcode: resolved.barcode,
       currentSku: resolved.sku,
+      matchedBy: resolved.matchedBy,
       beraLineId: line.id,
     });
   }
@@ -165,7 +166,7 @@ export function mapOrderToLogoExport(
     CLIENTREF: clientRef,
     SOURCEINDEX: 0,
     SPECODE: branchName,
-    GENEXP1: branchName,
+    GENEXP1: norm(order.notes),
     CUSTORDNO: order.localOrderNumber ?? order.orderNumber,
     orderDateIso: order.orderDate,
   };
