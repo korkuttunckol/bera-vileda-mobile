@@ -25,6 +25,11 @@ import {
 } from '@/shared/lib/firebase/firestoreService';
 import { conflictResolver } from './ConflictResolver';
 import {
+  applyLogoStockOverlays,
+  buildLogoStockOverlayIndex,
+  preserveLogoStockFields,
+} from './logoStockAuthority';
+import {
   buildPullValidation,
   readLoadedCounts,
   recordPullValidation,
@@ -169,19 +174,22 @@ async function mergeProductsBatch(remotes: Product[]): Promise<void> {
     const normalized = normalizeProduct(remote);
     const localByIdMatch = localById.get(remote.id);
     if (localByIdMatch) {
-      toSave.push(conflictResolver.resolve(localByIdMatch, normalized).resolved);
+      const resolved = conflictResolver.resolve(
+        localByIdMatch,
+        normalized,
+      ).resolved;
+      toSave.push(preserveLogoStockFields(localByIdMatch, resolved));
       continue;
     }
 
     const localBySkuMatch = localBySku.get(remote.sku);
     if (localBySkuMatch) {
-      toSave.push(
-        conflictResolver.resolve(localBySkuMatch, {
-          ...normalized,
-          id: localBySkuMatch.id,
-          localId: localBySkuMatch.localId,
-        }).resolved,
-      );
+      const resolved = conflictResolver.resolve(localBySkuMatch, {
+        ...normalized,
+        id: localBySkuMatch.id,
+        localId: localBySkuMatch.localId,
+      }).resolved;
+      toSave.push(preserveLogoStockFields(localBySkuMatch, resolved));
       continue;
     }
 
@@ -297,13 +305,19 @@ async function replaceAllFromFirestore(
   }
 
   const customers = remoteCustomers.map(normalizeCustomer);
-  const products = remoteProducts.map(normalizeProduct);
+  const localProducts = await productLocalRepository.getAll();
+  const logoStockIndex = buildLogoStockOverlayIndex(localProducts);
+  const products = applyLogoStockOverlays(
+    remoteProducts.map(normalizeProduct),
+    logoStockIndex,
+  );
 
   logIndexedDbWriteStart();
   const startedAt = Date.now();
 
   // Full replace refreshes customers/products. Users merge by userCode and keep
   // pending local edits. Branches replace from Firestore and keep pending locals.
+  // Logo-authoritative stockQuantity is restored via logoStockIndex after clear.
   await db.transaction('rw', [db.customers, db.products], async () => {
     await db.customers.clear();
     await db.products.clear();
