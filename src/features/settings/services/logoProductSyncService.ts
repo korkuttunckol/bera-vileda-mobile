@@ -374,7 +374,7 @@ class LogoProductSyncService {
         }
 
         // create
-        const domain = logoFieldsForNewProduct(mapped);
+        const domain = logoFieldsForNewProduct(mapped, now);
         const createdProduct: LocalProduct = {
           id: uuidv4(),
           localId: uuidv4(),
@@ -478,7 +478,7 @@ class LogoProductSyncService {
         applyIndexMutation(byBarcode, bySku, plan.product, saved);
         updated++;
       } else {
-        const domain = logoFieldsForNewProduct(mapped);
+        const domain = logoFieldsForNewProduct(mapped, now);
         const createdProduct: LocalProduct = {
           id: uuidv4(),
           localId: uuidv4(),

@@ -87,10 +87,15 @@ describe('logoProductMapper', () => {
     const updated = applyLogoFieldsToProduct(existing, mapped, 'now');
     expect(updated.category).toBe('ExcelKategori');
     expect(updated.groupCode).toBe('MARKA');
+    expect(updated.stockSource).toBe('logo');
+    expect(updated.lastLogoSyncedAt).toBe('now');
+    expect(updated.stockQuantity).toBe(1);
 
-    const createdFields = logoFieldsForNewProduct(mapped);
+    const createdFields = logoFieldsForNewProduct(mapped, 'now');
     expect(createdFields.category).toBe('Genel');
     expect(createdFields.groupCode).toBe('MARKA');
     expect(createdFields.stockQuantity).toBe(1);
+    expect(createdFields.stockSource).toBe('logo');
+    expect(createdFields.lastLogoSyncedAt).toBe('now');
   });
 });

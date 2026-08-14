@@ -17,8 +17,15 @@ export interface Product extends BaseEntity {
   erpId?: string;
   minOrderQty?: number;
   packSize?: number;
-  /** Depo Stok Miktarı (Logo MERKEZ) */
+  /** Depo Stok Miktarı (Logo MERKEZ when stockSource === 'logo') */
   stockQuantity: number;
+  /**
+   * Who last authored stockQuantity.
+   * When 'logo', Firestore PullSync must not overwrite stockQuantity.
+   */
+  stockSource?: 'logo' | 'excel' | 'firestore' | 'manual';
+  /** ISO timestamp of last successful Logo stock sync for this product */
+  lastLogoSyncedAt?: string;
   /** Logo STGRPCODE — ana grup / marka (category ile birleştirilmez) */
   groupCode?: string;
   /** Logo SPECODE — özel kod */

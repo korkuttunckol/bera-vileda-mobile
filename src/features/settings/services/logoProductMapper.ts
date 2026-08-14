@@ -97,6 +97,8 @@ export function applyLogoFieldsToProduct(
     specialCode2: mapped.specialCode2,
     vatRate: mapped.vatRate,
     stockQuantity: mapped.stockQuantity,
+    stockSource: 'logo',
+    lastLogoSyncedAt: now,
     listPrice: mapped.listPrice,
     // category intentionally unchanged
     updatedAt: now,
@@ -110,6 +112,7 @@ export function applyLogoFieldsToProduct(
  */
 export function logoFieldsForNewProduct(
   mapped: LogoMappedProductFields,
+  syncedAt: string = new Date().toISOString(),
 ): Pick<
   Product,
   | 'sku'
@@ -123,6 +126,8 @@ export function logoFieldsForNewProduct(
   | 'listPrice'
   | 'vatRate'
   | 'stockQuantity'
+  | 'stockSource'
+  | 'lastLogoSyncedAt'
   | 'isActive'
 > {
   return {
@@ -137,6 +142,8 @@ export function logoFieldsForNewProduct(
     listPrice: mapped.listPrice,
     vatRate: mapped.vatRate,
     stockQuantity: mapped.stockQuantity,
+    stockSource: 'logo',
+    lastLogoSyncedAt: syncedAt,
     isActive: true,
   };
 }
