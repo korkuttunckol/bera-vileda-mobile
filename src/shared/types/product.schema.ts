@@ -15,6 +15,9 @@ export const productFormSchema = z.object({
   listPrice: z.coerce.number().min(0, 'Fiyat 0 veya üzeri olmalıdır'),
   vatRate: z.coerce.number().min(0).max(100),
   stockQuantity: z.coerce.number().min(0, 'Stok 0 veya üzeri olmalıdır'),
+  groupCode: z.string().max(80).optional().or(z.literal('')),
+  specialCode: z.string().max(80).optional().or(z.literal('')),
+  specialCode2: z.string().max(80).optional().or(z.literal('')),
   isActive: z.boolean(),
 });
 
