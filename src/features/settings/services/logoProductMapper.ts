@@ -15,7 +15,7 @@
  * CODE and PRODUCERCODE must never be swapped.
  */
 
-import type { Product } from '@/shared/types';
+import type { Product } from '@/shared/types/product.types';
 import type { LogoStockRow } from './logoApiClient';
 
 export interface LogoMappedProductFields {

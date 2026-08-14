@@ -4,7 +4,7 @@ import {
   logoFieldsForNewProduct,
   mapLogoRowToProductFields,
 } from '@/features/settings/services/logoProductMapper';
-import type { Product } from '@/shared/types';
+import type { Product } from '@/shared/types/product.types';
 
 describe('logoProductMapper', () => {
   it('maps Logo fields with locked CODE/PRODUCERCODE meanings', () => {
