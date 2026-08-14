@@ -124,6 +124,11 @@ export const customerConverter: FirestoreDataConverter<Customer> = {
       isActive: (data.isActive as boolean | undefined) ?? true,
       isDeleted: (data.isDeleted as boolean | undefined) ?? false,
       source: (data.source as Customer['source'] | undefined) ?? 'excel',
+      // Logo CLCARD optional fields — absent on older Firestore docs
+      logoSalesRepCode:
+        (data.logoSalesRepCode as string | undefined) ?? undefined,
+      specialCode2: (data.specialCode2 as string | undefined) ?? undefined,
+      erpId: (data.erpId as string | undefined) ?? undefined,
     };
   },
 };

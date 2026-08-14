@@ -1,6 +1,6 @@
 import type { BaseEntity, SyncStatus } from './base.types';
 
-export type CustomerSource = 'manual' | 'excel';
+export type CustomerSource = 'manual' | 'excel' | 'logo';
 
 export interface CustomerAddress {
   city?: string;
@@ -16,16 +16,32 @@ export interface Customer extends BaseEntity {
   contactPerson?: string;
   phone?: string;
   email?: string;
+  /**
+   * BERA kullanıcı / audit alanı (uid).
+   * Logo CLCARD.SPECODE buraya YAZILMAZ — bkz. logoSalesRepCode.
+   */
   salesRepId: string;
+  /**
+   * Logo CLCARD.SPECODE — satış elemanı kodu (şube değildir).
+   * ORFICHE.SPECODE ile karıştırılmaz (siparişte branchName kullanılır).
+   */
+  logoSalesRepCode?: string;
+  /** Logo CLCARD.SPECODE2 — ayrı alan; bu aşamada filtre kuralına bağlı değil. */
+  specialCode2?: string;
   priceListId?: string;
   creditLimit?: number;
   isActive: boolean;
   isDeleted: boolean;
   source: CustomerSource;
+  /** Logo CLCARD.LOGICALREF */
   erpId?: string;
   erpSyncStatus?: 'pending' | 'synced' | 'error';
 }
 
+/**
+ * BERA-local şube. Logo cari sync okumaz / yazmaz / silmez.
+ * Sipariş aktarımında ORFICHE.SPECODE = branchName.
+ */
 export interface CustomerBranch {
   id: string;
   customerId: string;
