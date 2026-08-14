@@ -63,8 +63,20 @@ export interface OrderLine {
   id: string;
   orderId: string;
   productId: string;
+  /** Snapshot: PRODUCERCODE / sku at order time */
   productSku: string;
+  /**
+   * Snapshot: product display name at order time (legacy field; always written).
+   * Prefer `productNameAtOrder` when present for explicit snapshot reads.
+   */
   productName: string;
+  /**
+   * Explicit name snapshot at order time (same value as productName on new orders).
+   * Undefined on legacy lines — fall back to productName.
+   */
+  productNameAtOrder?: string;
+  /** Snapshot: CODE / barcode at order time. Undefined on legacy lines. */
+  barcodeAtOrder?: string;
   quantity: number;
   unitPrice: number;
   discountRate: number;
@@ -72,5 +84,6 @@ export interface OrderLine {
   lineTotal: number;
   sortOrder: number;
   unit?: string;
+  /** Snapshot: product erpId / Logo LOGICALREF at order time */
   erpId?: string;
 }
