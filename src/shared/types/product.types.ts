@@ -1,14 +1,14 @@
 import type { BaseEntity } from './base.types';
 
 export interface Product extends BaseEntity {
-  /** Ürün Kodu */
+  /** Ürün Kodu (Logo PRODUCERCODE) */
   sku: string;
-  /** Ürün Adı */
+  /** Ürün Adı (Logo NAME) */
   name: string;
   category: string;
   /** Birim (Adet, Koli, vb.) */
   unit: string;
-  /** Barkod */
+  /** Barkod (Logo CODE) — asla sku ile karıştırılmaz */
   barcode?: string;
   listPrice: number;
   vatRate: number;
@@ -17,8 +17,14 @@ export interface Product extends BaseEntity {
   erpId?: string;
   minOrderQty?: number;
   packSize?: number;
-  /** Depo Stok Miktarı */
+  /** Depo Stok Miktarı (Logo MERKEZ) */
   stockQuantity: number;
+  /** Logo STGRPCODE — ana grup / marka (category ile birleştirilmez) */
+  groupCode?: string;
+  /** Logo SPECODE — özel kod */
+  specialCode?: string;
+  /** Logo SPECODE2 — özel kod 2 */
+  specialCode2?: string;
   isDeleted?: boolean;
 }
 
