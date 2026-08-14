@@ -8,8 +8,10 @@ const envSchema = z.object({
   VITE_FIREBASE_MESSAGING_SENDER_ID: z.string().min(1),
   VITE_FIREBASE_APP_ID: z.string().min(1),
   VITE_APP_ENV: z.enum(['development', 'staging', 'production']).default('development'),
-  /** Optional Logo Wings stock API (LAN). Empty = Logo sync disabled. */
+  /** Optional Logo Wings stock API (LAN). Empty = Logo product sync disabled. */
   VITE_LOGO_API_URL: z.string().optional().default(''),
+  /** Optional Logo Wings customers (CLCARD) API. Empty = Logo customer sync disabled. */
+  VITE_LOGO_CUSTOMERS_API_URL: z.string().optional().default(''),
 });
 
 export type Env = z.infer<typeof envSchema>;
@@ -33,6 +35,7 @@ function parseEnv(): Env {
       VITE_FIREBASE_APP_ID: raw.VITE_FIREBASE_APP_ID ?? '',
       VITE_APP_ENV: raw.VITE_APP_ENV ?? 'development',
       VITE_LOGO_API_URL: raw.VITE_LOGO_API_URL ?? '',
+      VITE_LOGO_CUSTOMERS_API_URL: raw.VITE_LOGO_CUSTOMERS_API_URL ?? '',
     };
   }
 
@@ -46,3 +49,6 @@ export const isFirebaseConfigured = (): boolean =>
 
 export const isLogoApiConfigured = (): boolean =>
   Boolean(env.VITE_LOGO_API_URL.trim());
+
+export const isLogoCustomersApiConfigured = (): boolean =>
+  Boolean(env.VITE_LOGO_CUSTOMERS_API_URL.trim());

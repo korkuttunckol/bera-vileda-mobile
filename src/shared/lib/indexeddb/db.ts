@@ -45,6 +45,7 @@ export const META_KEYS = {
   DATA_SOURCE_PRODUCTS: 'dataSource:products',
   DATA_SOURCE_USERS: 'dataSource:users',
   LAST_LOGO_PRODUCT_SYNC_AT: 'lastLogoProductSyncAt',
+  LAST_LOGO_CUSTOMER_SYNC_AT: 'lastLogoCustomerSyncAt',
   PROCESSED_PREFIX: 'processed:',
 } as const;
 
@@ -167,7 +168,7 @@ class BeraViledaDatabase extends Dexie {
     });
 
     // v8 — Logo group / special-code fields on products (optional indexes)
-    this.version(DB_CONFIG.version).stores({
+    this.version(8).stores({
       meta: 'key',
       syncQueue:
         'id, entityType, entityId, idempotencyKey, status, createdAt',
@@ -179,6 +180,25 @@ class BeraViledaDatabase extends Dexie {
       orderLines: 'id, orderId, productId, erpId',
       customers:
         'id, code, name, salesRepId, syncStatus, erpId, isActive, isDeleted',
+      branches:
+        'id, customerId, name, isActive, isDeleted, syncStatus, erpId',
+      products:
+        'id, sku, name, syncStatus, erpId, barcode, groupCode, specialCode, specialCode2',
+    });
+
+    // v9 — Logo CLCARD fields: logoSalesRepCode index (SPECODE ≠ şube)
+    this.version(DB_CONFIG.version).stores({
+      meta: 'key',
+      syncQueue:
+        'id, entityType, entityId, idempotencyKey, status, createdAt',
+      syncReports: 'id, startedAt, success',
+      importLogs: 'id, type, startedAt, success',
+      users: 'id, userCode, role, active, syncStatus, isDeleted',
+      orders:
+        'id, localId, customerId, branchId, salesRepId, status, syncStatus, orderSyncStatus, erpId, isDeleted, createdAt',
+      orderLines: 'id, orderId, productId, erpId',
+      customers:
+        'id, code, name, salesRepId, syncStatus, erpId, isActive, isDeleted, logoSalesRepCode',
       branches:
         'id, customerId, name, isActive, isDeleted, syncStatus, erpId',
       products:
