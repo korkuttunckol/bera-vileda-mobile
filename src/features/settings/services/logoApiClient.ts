@@ -2,10 +2,15 @@
  * Logo Stok API client
  *
  * Fetches stock/product rows from the Logo endpoint as a JSON array.
+ * LAN-first; falls back to external URL when LAN fails.
  * Does not mutate local data — callers decide how to apply results.
  */
 
 import { env, isLogoApiConfigured } from '@/config/env';
+import {
+  fetchLogoJsonWithFallback,
+  LogoHttpFetchError,
+} from '@/features/settings/services/logoApiFetch';
 
 /** Raw Logo API row field names (exact API keys). */
 export interface LogoStockRow {
@@ -34,6 +39,16 @@ export class LogoApiError extends Error {
   }
 }
 
+function toLogoApiError(err: unknown): never {
+  if (err instanceof DOMException && err.name === 'AbortError') {
+    throw err;
+  }
+  if (err instanceof LogoHttpFetchError) {
+    throw new LogoApiError(err.message, err.statusCode, err.cause);
+  }
+  throw err;
+}
+
 /**
  * Fetch Logo stock rows.
  * Throws LogoApiError on missing config, network, non-OK, empty, or invalid response.
@@ -48,48 +63,32 @@ export async function fetchLogoStockRows(
     );
   }
 
-  const url = env.VITE_LOGO_API_URL.trim();
-
-  let response: Response;
-  try {
-    response = await fetch(url, {
-      method: 'GET',
-      headers: { Accept: 'application/json' },
-      signal,
-    });
-  } catch (err) {
-    if (err instanceof DOMException && err.name === 'AbortError') {
-      throw err;
-    }
-    throw new LogoApiError(
-      'Logo API erişilemedi. Yerel ürün/stok verileri korunur.',
-      undefined,
-      err
-    );
-  }
-
-  if (!response.ok) {
-    throw new LogoApiError(
-      `Logo API hata döndürdü (HTTP ${response.status}). Yerel veriler korunur.`,
-      response.status
-    );
-  }
-
   let data: unknown;
+  let status: number | undefined;
+
   try {
-    data = await response.json();
+    const result = await fetchLogoJsonWithFallback({
+      channel: 'stock',
+      lanUrl: env.VITE_LOGO_API_URL,
+      externalUrl: env.VITE_LOGO_API_EXTERNAL_URL,
+      signal,
+      networkErrorMessage:
+        'Logo API erişilemedi. Yerel ürün/stok verileri korunur.',
+      httpErrorMessage: (httpStatus) =>
+        `Logo API hata döndürdü (HTTP ${httpStatus}). Yerel veriler korunur.`,
+      jsonErrorMessage:
+        'Logo API yanıtı JSON olarak okunamadı. Yerel veriler korunur.',
+    });
+    data = result.data;
+    status = result.status;
   } catch (err) {
-    throw new LogoApiError(
-      'Logo API yanıtı JSON olarak okunamadı. Yerel veriler korunur.',
-      response.status,
-      err
-    );
+    toLogoApiError(err);
   }
 
   if (!Array.isArray(data)) {
     throw new LogoApiError(
       'Logo API beklenen dizi formatında veri döndürmedi. Yerel veriler korunur.',
-      response.status
+      status
     );
   }
 
@@ -97,7 +96,7 @@ export async function fetchLogoStockRows(
   if (data.length === 0) {
     throw new LogoApiError(
       'Logo stok API boş dizi döndürdü. Yerel ürünler korunur (pasifleştirme/silme yok).',
-      response.status
+      status
     );
   }
 
