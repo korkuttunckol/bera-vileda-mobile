@@ -20,6 +20,7 @@ import {
   scanNativeBarcode,
 } from '@/shared/nativeBarcode/scanNativeBarcode';
 import { resolveScannedProduct } from '@/features/orders/utils/barcodeScanOrder';
+import { isProductOutOfStock } from '@/features/orders/utils/stockControl';
 import {
   isValidOrderBranchSelection,
   ORDER_CENTER_BRANCH,
@@ -153,8 +154,16 @@ export function MobileOrderScreen() {
         return;
       }
 
+      if (isProductOutOfStock(product) && current === 0) {
+        toast('Bu ürünün stoğu bulunmuyor.', 'warning');
+        return;
+      }
+
       if (current === 0) {
-        addToCart(product, quantity);
+        if (!addToCart(product, quantity)) {
+          toast('Bu ürünün stoğu bulunmuyor.', 'warning');
+          return;
+        }
         rememberRecentProduct(product.id);
         return;
       }
@@ -166,7 +175,10 @@ export function MobileOrderScreen() {
 
   const handleScanAddToCart = useCallback(
     (product: Product, quantity: number): void => {
-      addToCart(product, quantity);
+      if (!addToCart(product, quantity)) {
+        toast('Bu ürünün stoğu bulunmuyor.', 'warning');
+        return;
+      }
       rememberRecentProduct(product.id);
     },
     [addToCart],

@@ -4,13 +4,18 @@ import {
   buildDraftLine,
   recalculateLine,
 } from '@/features/orders/utils/orderCalculations';
+import { isProductOutOfStock } from '@/features/orders/utils/stockControl';
 import type { Product } from '@/shared/types/product.types';
 
 interface OrderDraftState extends OrderDraft {
   setStep: (step: OrderFlowStep) => void;
   selectCustomer: (id: string, name: string, code: string) => void;
   selectBranch: (id: string, name: string) => void;
-  addToCart: (product: Product, quantity?: number) => void;
+  /**
+   * Adds product to cart. Returns false when stockQuantity <= 0
+   * (Logo MERKEZ / Product.stockQuantity) — product is not added.
+   */
+  addToCart: (product: Product, quantity?: number) => boolean;
   updateLineQuantity: (productId: string, quantity: number) => void;
   removeLine: (productId: string) => void;
   setNotes: (notes: string) => void;
@@ -48,6 +53,11 @@ export const useOrderDraftStore = create<OrderDraftState>((set, get) => ({
   selectBranch: (branchId, branchName) =>
     { set({ branchId, branchName, step: 'products' }); },
   addToCart: (product, quantity = 1) => {
+    // Logo MERKEZ → stockQuantity; zero stock cannot enter the order.
+    if (isProductOutOfStock(product)) {
+      return false;
+    }
+
     const qty = normalizeQuantity(quantity);
     const { lines } = get();
     const existing = lines.find((l) => l.productId === product.id);
@@ -67,6 +77,7 @@ export const useOrderDraftStore = create<OrderDraftState>((set, get) => ({
     } else {
       set({ lines: [...lines, buildDraftLine(product, qty)] });
     }
+    return true;
   },
   updateLineQuantity: (productId, quantity) => {
     if (quantity < 1) return;

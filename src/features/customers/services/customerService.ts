@@ -179,6 +179,9 @@ class CustomerService {
           : undefined,
       erpId: base.erpId,
       erpSyncStatus: base.erpSyncStatus,
+      /** Preserve Logo CLCARD fields across form edit (SPECODE / SPECODE2). */
+      logoSalesRepCode: base.logoSalesRepCode,
+      specialCode2: base.specialCode2,
       priceListId: base.priceListId,
       creditLimit: base.creditLimit,
     };

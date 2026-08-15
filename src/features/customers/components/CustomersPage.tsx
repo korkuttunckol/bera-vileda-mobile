@@ -51,7 +51,7 @@ export function CustomersPage() {
             description={
               search
                 ? 'Farklı bir arama terimi deneyin.'
-                : 'Yeni müşteri ekleyerek başlayın.'
+                : "Yeni müşteri ekleyin veya Ayarlar → Logo'dan Cari Verilerini Al."
             }
             action={
               !search ? (

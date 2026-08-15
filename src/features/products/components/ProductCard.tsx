@@ -2,6 +2,7 @@ import { Card } from '@/shared/components/ui/Card';
 import { NumericQuantityInput } from '@/shared/components/form/NumericQuantityInput';
 import { Button } from '@/shared/components/ui/Button';
 import { cn } from '@/shared/utils/cn';
+import { isProductOutOfStock } from '@/features/orders/utils/stockControl';
 import { ProductInfoDisplay } from './ProductInfoDisplay';
 import type { Product } from '@/shared/types/product.types';
 
@@ -26,6 +27,8 @@ export function ProductCard({
   inCartQty = 0,
   selected = false,
 }: ProductCardProps) {
+  const outOfStock = isProductOutOfStock(product);
+
   return (
     <Card
       padding="md"
@@ -55,8 +58,13 @@ export function ProductCard({
             onChange={onQuantityChange}
             size="sm"
           />
-          <Button size="sm" className="w-full sm:w-auto" onClick={onAdd}>
-            Ekle
+          <Button
+            size="sm"
+            className="w-full sm:w-auto"
+            onClick={onAdd}
+            disabled={outOfStock}
+          >
+            {outOfStock ? 'Stok Yok' : 'Ekle'}
           </Button>
         </div>
       ) : null}
