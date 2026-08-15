@@ -3,7 +3,6 @@ import {
   fetchLogoCustomerRows,
   LogoCustomerApiError,
 } from '@/features/settings/services/logoCustomerApiClient';
-import { resetLogoApiEndpointPreferenceForTests } from '@/features/settings/services/logoApiFetch';
 
 const LAN = 'http://lan.test/LogoApi/cariler.ashx';
 const EXTERNAL = 'http://wan.test/LogoApi/cariler.ashx';
@@ -45,7 +44,6 @@ describe('fetchLogoCustomerRows', () => {
   beforeEach(() => {
     envState.lan = LAN;
     envState.external = EXTERNAL;
-    resetLogoApiEndpointPreferenceForTests();
   });
 
   afterEach(() => {
@@ -64,7 +62,6 @@ describe('fetchLogoCustomerRows', () => {
   });
 
   it('throws on HTTP error without touching callers locals', async () => {
-    envState.external = '';
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
@@ -74,9 +71,12 @@ describe('fetchLogoCustomerRows', () => {
       }),
     );
 
+    const fetchMock = vi.mocked(fetch);
     await expect(fetchLogoCustomerRows()).rejects.toBeInstanceOf(
       LogoCustomerApiError,
     );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toBe(LAN);
   });
 
   it('throws on empty array (unsafe incomplete response)', async () => {
@@ -97,23 +97,22 @@ describe('fetchLogoCustomerRows', () => {
     await expect(fetchLogoCustomerRows()).rejects.toThrow(/dizi formatında/);
   });
 
-  it('throws when JSON parse fails', async () => {
-    envState.external = '';
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        ok: true,
-        status: 200,
-        json: async () => {
-          throw new SyntaxError('bad json');
-        },
-      }),
-    );
+  it('H) LAN JSON parse error → external not called', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => {
+        throw new SyntaxError('bad json');
+      },
+    });
+    vi.stubGlobal('fetch', fetchMock);
 
     await expect(fetchLogoCustomerRows()).rejects.toThrow(/JSON/);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toBe(LAN);
   });
 
-  it('C) LAN success → external is not called', async () => {
+  it('A) LAN success → external is not called', async () => {
     const fetchMock = vi.fn().mockImplementation(async (url: string) => {
       if (url === LAN) return okJson([sampleRow]);
       throw new Error(`unexpected URL ${url}`);
@@ -126,7 +125,7 @@ describe('fetchLogoCustomerRows', () => {
     expect(fetchMock.mock.calls[0][0]).toBe(LAN);
   });
 
-  it('D) LAN fail → external cari API called and succeeds', async () => {
+  it('B) LAN network fail → external cari API called and succeeds', async () => {
     const fetchMock = vi.fn().mockImplementation(async (url: string) => {
       if (url === LAN) throw new TypeError('Failed to fetch');
       if (url === EXTERNAL) {
@@ -142,20 +141,21 @@ describe('fetchLogoCustomerRows', () => {
     expect(fetchMock.mock.calls.map((c) => c[0])).toEqual([LAN, EXTERNAL]);
   });
 
-  it('E) LAN + external both fail → preserves error behaviour', async () => {
+  it('LAN HTTP 502 → external not called; LogoCustomerApiError preserved', async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValue({ ok: false, status: 502, json: async () => ({}) });
     vi.stubGlobal('fetch', fetchMock);
 
-    await expect(fetchLogoCustomerRows()).rejects.toBeInstanceOf(
-      LogoCustomerApiError,
+    await expect(fetchLogoCustomerRows()).rejects.toSatisfy(
+      (err: unknown) =>
+        err instanceof LogoCustomerApiError && /HTTP 502/.test(err.message),
     );
-    await expect(fetchLogoCustomerRows()).rejects.toThrow(/HTTP 502/);
-    expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(2);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toBe(LAN);
   });
 
-  it('F) no external URL → LAN-only behaviour unchanged', async () => {
+  it('K) no external URL → LAN-only behaviour unchanged', async () => {
     envState.external = '';
     const fetchMock = vi.fn().mockImplementation(async (url: string) => {
       if (url === LAN) return okJson([sampleRow]);

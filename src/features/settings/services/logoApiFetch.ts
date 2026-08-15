@@ -1,9 +1,9 @@
 /**
- * Logo master-data HTTP helper: LAN-first with optional external (WAN) fallback.
+ * Logo master-data HTTP helper: always LAN-first with optional external (WAN)
+ * fallback only when the LAN endpoint is unreachable (network / timeout).
  *
- * Session-level preference remembers the last successful endpoint so subsequent
- * syncs in the same runtime can try that endpoint first. App restart → LAN-first.
- * No persistent cache.
+ * HTTP 4xx/5xx and JSON parse failures do NOT fall back — the reachable
+ * endpoint's error is returned immediately.
  */
 
 export type LogoApiChannel = 'stock' | 'customers';
@@ -11,19 +11,6 @@ export type LogoEndpointKind = 'lan' | 'external';
 
 /** Default per-attempt timeout so LAN probes do not hang forever off-site. */
 export const LOGO_API_ATTEMPT_TIMEOUT_MS = 8_000;
-
-const lastSuccessfulEndpoint = new Map<LogoApiChannel, LogoEndpointKind>();
-
-/** Test-only: clear session preference between cases. */
-export function resetLogoApiEndpointPreferenceForTests(): void {
-  lastSuccessfulEndpoint.clear();
-}
-
-export function getLastSuccessfulLogoEndpointForTests(
-  channel: LogoApiChannel,
-): LogoEndpointKind | undefined {
-  return lastSuccessfulEndpoint.get(channel);
-}
 
 export class LogoHttpFetchError extends Error {
   constructor(
@@ -39,11 +26,8 @@ export class LogoHttpFetchError extends Error {
 
 type Attempt = { url: string; endpoint: LogoEndpointKind };
 
-function buildAttempts(
-  channel: LogoApiChannel,
-  lanUrl: string,
-  externalUrl: string,
-): Attempt[] {
+/** Always LAN first, then external when configured. No session preference. */
+function buildAttempts(lanUrl: string, externalUrl: string): Attempt[] {
   const lan = lanUrl.trim()
     ? ({ url: lanUrl.trim(), endpoint: 'lan' as const } satisfies Attempt)
     : null;
@@ -54,12 +38,6 @@ function buildAttempts(
       } satisfies Attempt)
     : null;
 
-  const preferred = lastSuccessfulEndpoint.get(channel);
-  if (preferred === 'external' && external && lan) {
-    return [external, lan];
-  }
-
-  // Default / restart: LAN-first when both are set.
   return [lan, external].filter((a): a is Attempt => a !== null);
 }
 
@@ -100,6 +78,7 @@ async function fetchOnce(
 }
 
 export interface FetchLogoJsonWithFallbackOptions {
+  /** Retained for caller clarity (stock vs customers); does not affect order. */
   channel: LogoApiChannel;
   lanUrl: string;
   externalUrl: string;
@@ -112,26 +91,26 @@ export interface FetchLogoJsonWithFallbackOptions {
 }
 
 /**
- * Try LAN then external (or session-preferred order). Returns parsed JSON body on
- * first HTTP OK. Does not validate array shape — callers do that.
+ * Try LAN then external. External is used only after a network/timeout failure
+ * on the previous attempt. HTTP errors and JSON parse errors fail immediately.
+ * Does not validate array shape — callers do that.
  */
 export async function fetchLogoJsonWithFallback(
   options: FetchLogoJsonWithFallbackOptions,
 ): Promise<{ data: unknown; endpoint: LogoEndpointKind; status: number }> {
-  const attempts = buildAttempts(
-    options.channel,
-    options.lanUrl,
-    options.externalUrl,
-  );
+  const attempts = buildAttempts(options.lanUrl, options.externalUrl);
 
   if (attempts.length === 0) {
     throw new LogoHttpFetchError(options.networkErrorMessage);
   }
 
   const timeoutMs = options.timeoutMs ?? LOGO_API_ATTEMPT_TIMEOUT_MS;
-  let lastError: LogoHttpFetchError | undefined;
+  let lastNetworkError: LogoHttpFetchError | undefined;
 
-  for (const attempt of attempts) {
+  for (let i = 0; i < attempts.length; i++) {
+    const attempt = attempts[i];
+    const hasNext = i < attempts.length - 1;
+
     if (isUserAbort(options.signal)) {
       throw new DOMException('Aborted', 'AbortError');
     }
@@ -144,59 +123,54 @@ export async function fetchLogoJsonWithFallback(
         if (isUserAbort(options.signal)) {
           throw err;
         }
-        // Per-attempt timeout (or network abort) → try next endpoint.
-        lastError = new LogoHttpFetchError(
+        // Per-attempt timeout → try next endpoint if any.
+        lastNetworkError = new LogoHttpFetchError(
           options.networkErrorMessage,
           undefined,
           err,
           'network',
         );
-        continue;
+        if (hasNext) continue;
+        throw lastNetworkError;
       }
-      lastError = new LogoHttpFetchError(
+      lastNetworkError = new LogoHttpFetchError(
         options.networkErrorMessage,
         undefined,
         err,
         'network',
       );
-      continue;
+      if (hasNext) continue;
+      throw lastNetworkError;
     }
 
+    // Reached a server — do not fall back on HTTP status errors.
     if (!response.ok) {
-      lastError = new LogoHttpFetchError(
+      throw new LogoHttpFetchError(
         options.httpErrorMessage(response.status),
         response.status,
         undefined,
         'http',
       );
-      continue;
     }
 
     let data: unknown;
     try {
       data = await response.json();
     } catch (err) {
-      // Reached a server but body is not JSON — do not silently try the other URL
-      // as a different parse failure; still allow fallback so WAN can succeed if
-      // LAN returned a non-JSON error page.
-      lastError = new LogoHttpFetchError(
+      // Reached a server — do not fall back on JSON parse failure.
+      throw new LogoHttpFetchError(
         options.jsonErrorMessage,
         response.status,
         err,
         'json',
       );
-      continue;
     }
 
-    // Only prefer an endpoint after a non-empty JSON array (usable master data).
-    if (Array.isArray(data) && data.length > 0) {
-      lastSuccessfulEndpoint.set(options.channel, attempt.endpoint);
-    }
     return { data, endpoint: attempt.endpoint, status: response.status };
   }
 
   throw (
-    lastError ??
+    lastNetworkError ??
     new LogoHttpFetchError(options.networkErrorMessage)
   );
 }
