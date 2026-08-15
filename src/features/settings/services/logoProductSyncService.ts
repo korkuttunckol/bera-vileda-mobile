@@ -1,10 +1,12 @@
 /**
- * Logo → IndexedDB product sync (Stage 1).
+ * Logo → IndexedDB product sync (Stage 1 / 3C-4).
  *
  * - Writes only to local IndexedDB products.
  * - Does not push to Firestore / outbox / PullSync / PushSync.
- * - On API failure: preserves all local product/stock data.
- * - Match: primary CODE→barcode; fallback PRODUCERCODE→sku (controlled).
+ * - On API failure / empty / invalid: preserves all local product/stock data.
+ * - Match: erpId←LOGICALREF primary; barcode (CODE) required; controlled sku
+ *   (PRODUCERCODE) fallback when PRODUCERCODE is non-empty.
+ * - PRODUCERCODE empty is valid — sku stays empty; product is still synced.
  * - Conflicts are reported; products are never auto-deleted or merged.
  * - category is never overwritten by STGRPCODE (groupCode only).
  */
@@ -12,6 +14,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import {
   META_KEYS,
+  getMetaValue,
   setMetaValue,
   type LocalProduct,
 } from '@/shared/lib/indexeddb/db';
@@ -30,13 +33,14 @@ export type LogoSyncConflictType =
   | 'sku_owned_by_other'
   | 'sku_fallback_barcode_mismatch'
   | 'duplicate_logo_barcode'
-  | 'missing_producer_code';
+  | 'duplicate_logo_erp_id';
 
 export interface LogoSyncConflict {
   type: LogoSyncConflictType;
   barcode: string;
   sku: string;
   name?: string;
+  erpId?: string;
   existingProductId?: string;
   otherProductId?: string;
   message: string;
@@ -64,11 +68,18 @@ export interface LogoProductSyncOptions {
 }
 
 function buildIndexes(products: LocalProduct[]) {
+  const byErpId = new Map<string, LocalProduct[]>();
   const byBarcode = new Map<string, LocalProduct[]>();
   const bySku = new Map<string, LocalProduct[]>();
 
   for (const p of products) {
     if (p.isDeleted) continue;
+    const erpId = (p.erpId ?? '').trim();
+    if (erpId) {
+      const list = byErpId.get(erpId) ?? [];
+      list.push(p);
+      byErpId.set(erpId, list);
+    }
     const barcode = (p.barcode ?? '').trim();
     if (barcode) {
       const list = byBarcode.get(barcode) ?? [];
@@ -83,7 +94,7 @@ function buildIndexes(products: LocalProduct[]) {
     }
   }
 
-  return { byBarcode, bySku };
+  return { byErpId, byBarcode, bySku };
 }
 
 function pickOne(list: LocalProduct[] | undefined): LocalProduct | undefined {
@@ -94,19 +105,42 @@ function pickOne(list: LocalProduct[] | undefined): LocalProduct | undefined {
 type MatchPlan =
   | { action: 'skip'; reason: string }
   | { action: 'conflict'; conflict: LogoSyncConflict }
-  | { action: 'update'; product: LocalProduct; matchedBy: 'barcode' | 'sku' }
+  | {
+      action: 'update';
+      product: LocalProduct;
+      matchedBy: 'erpId' | 'barcode' | 'sku';
+    }
   | { action: 'create' };
 
 /**
  * Pure matching for one mapped Logo row against local indexes.
  * Exported for unit tests.
+ *
+ * Order: LOGICALREF/erpId → CODE/barcode → PRODUCERCODE/sku fallback (sku optional).
  */
 export function planLogoRowMatch(
   mapped: LogoMappedProductFields,
+  byErpId: Map<string, LocalProduct[]>,
   byBarcode: Map<string, LocalProduct[]>,
   bySku: Map<string, LocalProduct[]>,
   seenLogoBarcodes: Set<string>,
+  seenLogoErpIds: Set<string> = new Set(),
 ): MatchPlan {
+  if (seenLogoErpIds.has(mapped.erpId)) {
+    return {
+      action: 'conflict',
+      conflict: {
+        type: 'duplicate_logo_erp_id',
+        barcode: mapped.barcode,
+        sku: mapped.sku,
+        erpId: mapped.erpId,
+        name: mapped.name,
+        message: `Logo yanıtında aynı LOGICALREF birden fazla: ${mapped.erpId}`,
+      },
+    };
+  }
+  seenLogoErpIds.add(mapped.erpId);
+
   if (seenLogoBarcodes.has(mapped.barcode)) {
     return {
       action: 'conflict',
@@ -114,6 +148,7 @@ export function planLogoRowMatch(
         type: 'duplicate_logo_barcode',
         barcode: mapped.barcode,
         sku: mapped.sku,
+        erpId: mapped.erpId,
         name: mapped.name,
         message: `Logo yanıtında aynı CODE (barkod) birden fazla: ${mapped.barcode}`,
       },
@@ -121,21 +156,51 @@ export function planLogoRowMatch(
   }
   seenLogoBarcodes.add(mapped.barcode);
 
-  if (!mapped.sku) {
+  const erpHits = byErpId.get(mapped.erpId) ?? [];
+  const barcodeHits = byBarcode.get(mapped.barcode) ?? [];
+  // PRODUCERCODE optional — empty sku skips sku index / sku-fallback conflicts
+  const skuHits = mapped.sku ? (bySku.get(mapped.sku) ?? []) : [];
+
+  // Primary: erpId === LOGICALREF
+  if (erpHits.length > 1) {
     return {
       action: 'conflict',
       conflict: {
-        type: 'missing_producer_code',
+        type: 'duplicate_logo_erp_id',
         barcode: mapped.barcode,
-        sku: '',
+        sku: mapped.sku,
+        erpId: mapped.erpId,
         name: mapped.name,
-        message: `PRODUCERCODE (ürün kodu) boş; CODE=${mapped.barcode} işlenmedi.`,
+        existingProductId: erpHits[0]?.id,
+        otherProductId: erpHits[1]?.id,
+        message: `Yerelde aynı erpId (LOGICALREF) birden fazla ürün: ${mapped.erpId}`,
       },
     };
   }
 
-  const barcodeHits = byBarcode.get(mapped.barcode) ?? [];
-  const skuHits = bySku.get(mapped.sku) ?? [];
+  const byErpHit = pickOne(erpHits);
+  if (byErpHit) {
+    const barcodeOther = pickOne(
+      barcodeHits.filter((p) => p.id !== byErpHit.id),
+    );
+    if (barcodeOther) {
+      return {
+        action: 'conflict',
+        conflict: {
+          type: 'barcode_sku_cross_match',
+          barcode: mapped.barcode,
+          sku: mapped.sku,
+          erpId: mapped.erpId,
+          name: mapped.name,
+          existingProductId: byErpHit.id,
+          otherProductId: barcodeOther.id,
+          message:
+            `LOGICALREF→erpId ürün ${byErpHit.id}; CODE→barcode başka ürün ${barcodeOther.id}. Birleştirilmedi.`,
+        },
+      };
+    }
+    return { action: 'update', product: byErpHit, matchedBy: 'erpId' };
+  }
 
   if (barcodeHits.length > 1) {
     return {
@@ -144,6 +209,7 @@ export function planLogoRowMatch(
         type: 'barcode_sku_cross_match',
         barcode: mapped.barcode,
         sku: mapped.sku,
+        erpId: mapped.erpId,
         name: mapped.name,
         existingProductId: barcodeHits[0]?.id,
         otherProductId: barcodeHits[1]?.id,
@@ -156,7 +222,6 @@ export function planLogoRowMatch(
   const bySkuHit = pickOne(skuHits.filter((p) => p.id !== byBarcodeHit?.id));
 
   if (byBarcodeHit) {
-    // Barcode matches product A; sku owned by different product B → conflict
     if (bySkuHit && bySkuHit.id !== byBarcodeHit.id) {
       return {
         action: 'conflict',
@@ -164,6 +229,7 @@ export function planLogoRowMatch(
           type: 'barcode_sku_cross_match',
           barcode: mapped.barcode,
           sku: mapped.sku,
+          erpId: mapped.erpId,
           name: mapped.name,
           existingProductId: byBarcodeHit.id,
           otherProductId: bySkuHit.id,
@@ -173,7 +239,6 @@ export function planLogoRowMatch(
       };
     }
 
-    // Updating sku on barcode-matched product would collide with another row's sku
     if (
       byBarcodeHit.sku.trim().toUpperCase() !== mapped.sku &&
       skuHits.some((p) => p.id !== byBarcodeHit.id)
@@ -185,6 +250,7 @@ export function planLogoRowMatch(
           type: 'sku_owned_by_other',
           barcode: mapped.barcode,
           sku: mapped.sku,
+          erpId: mapped.erpId,
           name: mapped.name,
           existingProductId: byBarcodeHit.id,
           otherProductId: other.id,
@@ -197,7 +263,7 @@ export function planLogoRowMatch(
     return { action: 'update', product: byBarcodeHit, matchedBy: 'barcode' };
   }
 
-  // Controlled SKU fallback when barcode did not match
+  // Controlled SKU fallback when barcode / erpId did not match
   if (skuHits.length > 1) {
     return {
       action: 'conflict',
@@ -205,6 +271,7 @@ export function planLogoRowMatch(
         type: 'sku_owned_by_other',
         barcode: mapped.barcode,
         sku: mapped.sku,
+        erpId: mapped.erpId,
         name: mapped.name,
         existingProductId: skuHits[0]?.id,
         otherProductId: skuHits[1]?.id,
@@ -223,6 +290,7 @@ export function planLogoRowMatch(
           type: 'sku_fallback_barcode_mismatch',
           barcode: mapped.barcode,
           sku: mapped.sku,
+          erpId: mapped.erpId,
           name: mapped.name,
           existingProductId: skuOnly.id,
           message:
@@ -238,12 +306,19 @@ export function planLogoRowMatch(
 }
 
 function applyIndexMutation(
+  byErpId: Map<string, LocalProduct[]>,
   byBarcode: Map<string, LocalProduct[]>,
   bySku: Map<string, LocalProduct[]>,
   before: LocalProduct | undefined,
   after: LocalProduct,
 ): void {
   if (before) {
+    const oldErp = (before.erpId ?? '').trim();
+    if (oldErp) {
+      const list = (byErpId.get(oldErp) ?? []).filter((p) => p.id !== before.id);
+      if (list.length) byErpId.set(oldErp, list);
+      else byErpId.delete(oldErp);
+    }
     const oldBc = (before.barcode ?? '').trim();
     if (oldBc) {
       const list = (byBarcode.get(oldBc) ?? []).filter((p) => p.id !== before.id);
@@ -258,6 +333,12 @@ function applyIndexMutation(
     }
   }
 
+  const erp = (after.erpId ?? '').trim();
+  if (erp) {
+    const list = byErpId.get(erp) ?? [];
+    list.push(after);
+    byErpId.set(erp, list);
+  }
   const bc = (after.barcode ?? '').trim();
   if (bc) {
     const list = byBarcode.get(bc) ?? [];
@@ -272,18 +353,112 @@ function applyIndexMutation(
   }
 }
 
+async function applyMappedRows(
+  rows: LogoStockRow[],
+  options: LogoProductSyncOptions,
+  startedAt: string,
+): Promise<LogoProductSyncReport> {
+  const userId = options.userId ?? 'logo-sync';
+  const conflicts: LogoSyncConflict[] = [];
+  let updated = 0;
+  let created = 0;
+  let skipped = 0;
+
+  const locals = await productLocalRepository.getAll();
+  const { byErpId, byBarcode, bySku } = buildIndexes(locals);
+  const seenLogoBarcodes = new Set<string>();
+  const seenLogoErpIds = new Set<string>();
+  const toSave: LocalProduct[] = [];
+
+  for (const row of rows) {
+    const mapped = mapLogoRowToProductFields(row);
+    if (!mapped) {
+      skipped++;
+      continue;
+    }
+
+    const plan = planLogoRowMatch(
+      mapped,
+      byErpId,
+      byBarcode,
+      bySku,
+      seenLogoBarcodes,
+      seenLogoErpIds,
+    );
+
+    if (plan.action === 'skip') {
+      skipped++;
+      continue;
+    }
+
+    if (plan.action === 'conflict') {
+      conflicts.push(plan.conflict);
+      skipped++;
+      continue;
+    }
+
+    const now = new Date().toISOString();
+
+    if (plan.action === 'update') {
+      const next = applyLogoFieldsToProduct(plan.product, mapped, now);
+      const saved: LocalProduct = {
+        ...next,
+        updatedBy: userId,
+        version: plan.product.version + 1,
+        // Local-only Logo sync — not pushed via outbox; manual upload later.
+        syncStatus: 'pending',
+        isDeleted: false,
+      };
+      toSave.push(saved);
+      applyIndexMutation(byErpId, byBarcode, bySku, plan.product, saved);
+      updated++;
+      continue;
+    }
+
+    const domain = logoFieldsForNewProduct(mapped);
+    const createdProduct: LocalProduct = {
+      id: uuidv4(),
+      localId: uuidv4(),
+      ...domain,
+      isDeleted: false,
+      createdAt: now,
+      updatedAt: now,
+      createdBy: userId,
+      updatedBy: userId,
+      version: 1,
+      syncStatus: 'pending',
+    };
+    toSave.push(createdProduct);
+    applyIndexMutation(byErpId, byBarcode, bySku, undefined, createdProduct);
+    created++;
+  }
+
+  if (!options.dryRun) {
+    if (toSave.length > 0) {
+      await productLocalRepository.saveMany(toSave);
+    }
+    await setMetaValue(META_KEYS.LAST_LOGO_PRODUCT_SYNC_AT, startedAt);
+  }
+
+  return {
+    success: true,
+    startedAt,
+    completedAt: new Date().toISOString(),
+    fetchedRows: rows.length,
+    updated,
+    created,
+    skipped,
+    conflicts,
+    errors: [],
+    localDataPreserved: true,
+  };
+}
+
 class LogoProductSyncService {
   async syncToIndexedDB(
     options: LogoProductSyncOptions = {},
   ): Promise<LogoProductSyncReport> {
     const startedAt = new Date().toISOString();
-    const userId = options.userId ?? 'logo-sync';
-    const errors: string[] = [];
-    const conflicts: LogoSyncConflict[] = [];
-    let fetchedRows = 0;
-    let updated = 0;
-    let created = 0;
-    let skipped = 0;
 
     if (!isLogoApiConfigured()) {
       return {
@@ -327,103 +502,21 @@ class LogoProductSyncService {
       };
     }
 
-    fetchedRows = rows.length;
-
     try {
-      const locals = await productLocalRepository.getAll();
-      const { byBarcode, bySku } = buildIndexes(locals);
-      const seenLogoBarcodes = new Set<string>();
-      const toSave: LocalProduct[] = [];
-
-      for (const row of rows) {
-        const mapped = mapLogoRowToProductFields(row);
-        if (!mapped) {
-          skipped++;
-          continue;
-        }
-
-        const plan = planLogoRowMatch(mapped, byBarcode, bySku, seenLogoBarcodes);
-
-        if (plan.action === 'skip') {
-          skipped++;
-          continue;
-        }
-
-        if (plan.action === 'conflict') {
-          conflicts.push(plan.conflict);
-          skipped++;
-          continue;
-        }
-
-        const now = new Date().toISOString();
-
-        if (plan.action === 'update') {
-          const next = applyLogoFieldsToProduct(plan.product, mapped, now);
-          const saved: LocalProduct = {
-            ...next,
-            updatedBy: userId,
-            version: plan.product.version + 1,
-            // Local-only Logo stage 1 — not pushed via outbox; upload tool later.
-            syncStatus: 'pending',
-            isDeleted: false,
-          };
-          toSave.push(saved);
-          applyIndexMutation(byBarcode, bySku, plan.product, saved);
-          updated++;
-          continue;
-        }
-
-        // create
-        const domain = logoFieldsForNewProduct(mapped);
-        const createdProduct: LocalProduct = {
-          id: uuidv4(),
-          localId: uuidv4(),
-          ...domain,
-          isDeleted: false,
-          createdAt: now,
-          updatedAt: now,
-          createdBy: userId,
-          updatedBy: userId,
-          version: 1,
-          syncStatus: 'pending',
-        };
-        toSave.push(createdProduct);
-        applyIndexMutation(byBarcode, bySku, undefined, createdProduct);
-        created++;
-      }
-
-      if (!options.dryRun && toSave.length > 0) {
-        await productLocalRepository.saveMany(toSave);
-        await setMetaValue(META_KEYS.LAST_LOGO_PRODUCT_SYNC_AT, startedAt);
-      }
-
-      return {
-        success: true,
-        startedAt,
-        completedAt: new Date().toISOString(),
-        fetchedRows,
-        updated,
-        created,
-        skipped,
-        conflicts,
-        errors,
-        localDataPreserved: true,
-      };
+      return await applyMappedRows(rows, options, startedAt);
     } catch (err) {
-      // Never clear products on apply failure
       const message =
         err instanceof Error ? err.message : 'Logo sync IndexedDB yazma hatası';
-      errors.push(message);
       return {
         success: false,
         startedAt,
         completedAt: new Date().toISOString(),
-        fetchedRows,
+        fetchedRows: rows.length,
         updated: 0,
         created: 0,
-        skipped,
-        conflicts,
-        errors,
+        skipped: 0,
+        conflicts: [],
+        errors: [message],
         localDataPreserved: true,
       };
     }
@@ -435,85 +528,46 @@ class LogoProductSyncService {
     options: LogoProductSyncOptions = {},
   ): Promise<LogoProductSyncReport> {
     const startedAt = new Date().toISOString();
-    const userId = options.userId ?? 'logo-sync';
-    const conflicts: LogoSyncConflict[] = [];
-    let updated = 0;
-    let created = 0;
-    let skipped = 0;
 
-    const locals = await productLocalRepository.getAll();
-    const { byBarcode, bySku } = buildIndexes(locals);
-    const seenLogoBarcodes = new Set<string>();
-    const toSave: LocalProduct[] = [];
-
-    for (const row of rows) {
-      const mapped = mapLogoRowToProductFields(row);
-      if (!mapped) {
-        skipped++;
-        continue;
-      }
-
-      const plan = planLogoRowMatch(mapped, byBarcode, bySku, seenLogoBarcodes);
-      if (plan.action === 'conflict') {
-        conflicts.push(plan.conflict);
-        skipped++;
-        continue;
-      }
-      if (plan.action === 'skip') {
-        skipped++;
-        continue;
-      }
-
-      const now = new Date().toISOString();
-      if (plan.action === 'update') {
-        const next = applyLogoFieldsToProduct(plan.product, mapped, now);
-        const saved: LocalProduct = {
-          ...next,
-          updatedBy: userId,
-          version: plan.product.version + 1,
-          syncStatus: 'pending',
-          isDeleted: false,
-        };
-        toSave.push(saved);
-        applyIndexMutation(byBarcode, bySku, plan.product, saved);
-        updated++;
-      } else {
-        const domain = logoFieldsForNewProduct(mapped);
-        const createdProduct: LocalProduct = {
-          id: uuidv4(),
-          localId: uuidv4(),
-          ...domain,
-          isDeleted: false,
-          createdAt: now,
-          updatedAt: now,
-          createdBy: userId,
-          updatedBy: userId,
-          version: 1,
-          syncStatus: 'pending',
-        };
-        toSave.push(createdProduct);
-        applyIndexMutation(byBarcode, bySku, undefined, createdProduct);
-        created++;
-      }
+    if (!Array.isArray(rows) || rows.length === 0) {
+      return {
+        success: false,
+        startedAt,
+        completedAt: new Date().toISOString(),
+        fetchedRows: 0,
+        updated: 0,
+        created: 0,
+        skipped: 0,
+        conflicts: [],
+        errors: [
+          'Logo stok satır listesi boş veya geçersiz. Yerel ürünler korunur.',
+        ],
+        localDataPreserved: true,
+      };
     }
 
-    if (!options.dryRun && toSave.length > 0) {
-      await productLocalRepository.saveMany(toSave);
-      await setMetaValue(META_KEYS.LAST_LOGO_PRODUCT_SYNC_AT, startedAt);
+    try {
+      return await applyMappedRows(rows, options, startedAt);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : 'Logo sync IndexedDB yazma hatası';
+      return {
+        success: false,
+        startedAt,
+        completedAt: new Date().toISOString(),
+        fetchedRows: rows.length,
+        updated: 0,
+        created: 0,
+        skipped: 0,
+        conflicts: [],
+        errors: [message],
+        localDataPreserved: true,
+      };
     }
+  }
 
-    return {
-      success: true,
-      startedAt,
-      completedAt: new Date().toISOString(),
-      fetchedRows: rows.length,
-      updated,
-      created,
-      skipped,
-      conflicts,
-      errors: [],
-      localDataPreserved: true,
-    };
+  async getLastSyncAt(): Promise<string | undefined> {
+    return getMetaValue(META_KEYS.LAST_LOGO_PRODUCT_SYNC_AT);
   }
 }
 

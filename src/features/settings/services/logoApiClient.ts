@@ -9,6 +9,8 @@ import { env, isLogoApiConfigured } from '@/config/env';
 
 /** Raw Logo API row field names (exact API keys). */
 export interface LogoStockRow {
+  /** LG_002_ITEMS.LOGICALREF — required for Product.erpId / STOCKREF */
+  LOGICALREF?: string | number | null;
   CODE?: string | number | null;
   NAME?: string | number | null;
   PRODUCERCODE?: string | number | null;
@@ -34,7 +36,7 @@ export class LogoApiError extends Error {
 
 /**
  * Fetch Logo stock rows.
- * Throws LogoApiError on missing config, network, or non-OK / invalid response.
+ * Throws LogoApiError on missing config, network, non-OK, empty, or invalid response.
  * Never clears local product data — callers must not wipe IndexedDB on failure.
  */
 export async function fetchLogoStockRows(
@@ -87,6 +89,14 @@ export async function fetchLogoStockRows(
   if (!Array.isArray(data)) {
     throw new LogoApiError(
       'Logo API beklenen dizi formatında veri döndürmedi. Yerel veriler korunur.',
+      response.status
+    );
+  }
+
+  // Empty array is unsafe / incomplete — do not treat as successful sync.
+  if (data.length === 0) {
+    throw new LogoApiError(
+      'Logo stok API boş dizi döndürdü. Yerel ürünler korunur (pasifleştirme/silme yok).',
       response.status
     );
   }

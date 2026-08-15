@@ -2,10 +2,11 @@
  * Maps Logo API stock rows → BERA Product fields.
  *
  * Locked field meanings:
- *   CODE         → barcode
- *   PRODUCERCODE → sku
- *   NAME         → name
- *   STGRPCODE    → groupCode   (never category)
+ *   LOGICALREF   → erpId      (ITEMS.LOGICALREF / STOCKREF) — required
+ *   CODE         → barcode    — required (primary product identity)
+ *   PRODUCERCODE → sku        — optional (empty PRODUCERCODE → empty sku)
+ *   NAME         → name       — required (falls back to CODE if blank)
+ *   STGRPCODE    → groupCode  — never category
  *   SPECODE      → specialCode
  *   SPECODE2     → specialCode2
  *   VAT          → vatRate
@@ -13,12 +14,15 @@
  *   SATIS_FIYATI → listPrice
  *
  * CODE and PRODUCERCODE must never be swapped.
+ * Empty PRODUCERCODE must NOT skip the product.
  */
 
 import type { Product } from '@/shared/types/product.types';
 import type { LogoStockRow } from './logoApiClient';
 
 export interface LogoMappedProductFields {
+  /** Logo LG_002_ITEMS.LOGICALREF */
+  erpId: string;
   barcode: string;
   sku: string;
   name: string;
@@ -44,18 +48,19 @@ function asNumber(value: unknown, fallback = 0): number {
 
 /**
  * Map a single Logo row to Product field values.
- * Returns null when CODE (barcode) is missing — primary key required.
+ * Returns null when LOGICALREF or CODE is missing — both required for safe sync.
  */
 export function mapLogoRowToProductFields(
   row: LogoStockRow,
 ): LogoMappedProductFields | null {
+  const erpId = asTrimmedString(row.LOGICALREF);
   const barcode = asTrimmedString(row.CODE);
-  if (!barcode) {
+  if (!erpId || !barcode) {
     return null;
   }
 
   const producerCode = asTrimmedString(row.PRODUCERCODE);
-  // sku is PRODUCERCODE only — never CODE. Empty PRODUCERCODE → empty sku (caller may skip).
+  // sku is PRODUCERCODE only — never CODE. Empty PRODUCERCODE → empty sku (still valid).
   const sku = producerCode ? producerCode.toUpperCase() : '';
   const name = asTrimmedString(row.NAME) || barcode;
   const groupCode = asTrimmedString(row.STGRPCODE) || undefined;
@@ -66,6 +71,7 @@ export function mapLogoRowToProductFields(
   const listPrice = asNumber(row.SATIS_FIYATI, 0);
 
   return {
+    erpId,
     barcode,
     sku,
     name,
@@ -89,6 +95,7 @@ export function applyLogoFieldsToProduct(
 ): Product {
   return {
     ...existing,
+    erpId: mapped.erpId,
     barcode: mapped.barcode,
     sku: mapped.sku,
     name: mapped.name,
@@ -124,6 +131,7 @@ export function logoFieldsForNewProduct(
   | 'vatRate'
   | 'stockQuantity'
   | 'isActive'
+  | 'erpId'
 > {
   return {
     sku: mapped.sku,
@@ -138,5 +146,6 @@ export function logoFieldsForNewProduct(
     vatRate: mapped.vatRate,
     stockQuantity: mapped.stockQuantity,
     isActive: true,
+    erpId: mapped.erpId,
   };
 }

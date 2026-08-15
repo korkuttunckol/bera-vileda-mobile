@@ -12,5 +12,7 @@ export { ProductDisplaySettingsPage } from './components/ProductDisplaySettingsP
 export { OrderSettingsPage } from './components/OrderSettingsPage';
 export { SyncSettingsPage } from './components/SyncSettingsPage';
 export { LocalDataFirestoreUploadPage } from './components/LocalDataFirestoreUploadPage';
+export { LogoCustomerSyncPage } from './components/LogoCustomerSyncPage';
+export { LogoProductSyncPage } from './components/LogoProductSyncPage';
 export { UsersManagementPage } from './components/UsersManagementPage';
 export { UserFormPage } from '@/features/users/components/UserFormPage';
