@@ -2,6 +2,7 @@
  * Maps Logo API stock rows → BERA Product fields.
  *
  * Locked field meanings:
+ *   LOGICALREF   → erpId      (ITEMS.LOGICALREF / STOCKREF)
  *   CODE         → barcode
  *   PRODUCERCODE → sku
  *   NAME         → name
@@ -19,6 +20,8 @@ import type { Product } from '@/shared/types/product.types';
 import type { LogoStockRow } from './logoApiClient';
 
 export interface LogoMappedProductFields {
+  /** Logo LG_002_ITEMS.LOGICALREF */
+  erpId: string;
   barcode: string;
   sku: string;
   name: string;
@@ -44,13 +47,14 @@ function asNumber(value: unknown, fallback = 0): number {
 
 /**
  * Map a single Logo row to Product field values.
- * Returns null when CODE (barcode) is missing — primary key required.
+ * Returns null when LOGICALREF or CODE is missing — both required for safe sync.
  */
 export function mapLogoRowToProductFields(
   row: LogoStockRow,
 ): LogoMappedProductFields | null {
+  const erpId = asTrimmedString(row.LOGICALREF);
   const barcode = asTrimmedString(row.CODE);
-  if (!barcode) {
+  if (!erpId || !barcode) {
     return null;
   }
 
@@ -66,6 +70,7 @@ export function mapLogoRowToProductFields(
   const listPrice = asNumber(row.SATIS_FIYATI, 0);
 
   return {
+    erpId,
     barcode,
     sku,
     name,
@@ -89,6 +94,7 @@ export function applyLogoFieldsToProduct(
 ): Product {
   return {
     ...existing,
+    erpId: mapped.erpId,
     barcode: mapped.barcode,
     sku: mapped.sku,
     name: mapped.name,
@@ -124,6 +130,7 @@ export function logoFieldsForNewProduct(
   | 'vatRate'
   | 'stockQuantity'
   | 'isActive'
+  | 'erpId'
 > {
   return {
     sku: mapped.sku,
@@ -138,5 +145,6 @@ export function logoFieldsForNewProduct(
     vatRate: mapped.vatRate,
     stockQuantity: mapped.stockQuantity,
     isActive: true,
+    erpId: mapped.erpId,
   };
 }

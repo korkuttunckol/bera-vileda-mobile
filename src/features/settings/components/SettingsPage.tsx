@@ -35,6 +35,10 @@ const ADMIN_SETTINGS_SECTIONS: SettingsSection[] = [
         label: "Logo'dan Cari Verilerini Al",
         path: ROUTES.SETTINGS_LOGO_CUSTOMERS,
       },
+      {
+        label: "Logo'dan Stok / Ürün Verilerini Al",
+        path: ROUTES.SETTINGS_LOGO_PRODUCTS,
+      },
     ],
   },
   {

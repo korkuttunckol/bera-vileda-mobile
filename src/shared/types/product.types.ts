@@ -14,6 +14,7 @@ export interface Product extends BaseEntity {
   vatRate: number;
   isActive: boolean;
   imageUrl?: string;
+  /** Logo LG_002_ITEMS.LOGICALREF (STOCKREF) */
   erpId?: string;
   minOrderQty?: number;
   packSize?: number;

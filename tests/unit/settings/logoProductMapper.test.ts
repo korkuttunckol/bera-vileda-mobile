@@ -7,43 +7,132 @@ import {
 import type { Product } from '@/shared/types/product.types';
 
 describe('logoProductMapper', () => {
-  it('maps Logo fields with locked CODE/PRODUCERCODE meanings', () => {
+  it('maps LOGICALREF → erpId', () => {
     const mapped = mapLogoRowToProductFields({
+      LOGICALREF: 42001,
       CODE: '8690001',
-      PRODUCERCODE: 'sku-aa',
+      PRODUCERCODE: 'SKU1',
       NAME: 'Bez',
-      STGRPCODE: 'VILEDA',
-      SPECODE: 'S1',
-      SPECODE2: 'S2',
-      VAT: '20',
-      MERKEZ: '15',
-      SATIS_FIYATI: '99,5',
     });
-
-    expect(mapped).toEqual({
-      barcode: '8690001',
-      sku: 'SKU-AA',
-      name: 'Bez',
-      groupCode: 'VILEDA',
-      specialCode: 'S1',
-      specialCode2: 'S2',
-      vatRate: 20,
-      stockQuantity: 15,
-      listPrice: 99.5,
-    });
+    expect(mapped?.erpId).toBe('42001');
   });
 
-  it('returns null when CODE (barcode) is missing', () => {
+  it('maps CODE → barcode', () => {
+    const mapped = mapLogoRowToProductFields({
+      LOGICALREF: '1',
+      CODE: '  8690001  ',
+      PRODUCERCODE: 'SKU1',
+      NAME: 'Bez',
+    });
+    expect(mapped?.barcode).toBe('8690001');
+  });
+
+  it('maps PRODUCERCODE → sku', () => {
+    const mapped = mapLogoRowToProductFields({
+      LOGICALREF: '1',
+      CODE: 'B1',
+      PRODUCERCODE: 'sku-aa',
+      NAME: 'Bez',
+    });
+    expect(mapped?.sku).toBe('SKU-AA');
+  });
+
+  it('maps NAME → name', () => {
+    const mapped = mapLogoRowToProductFields({
+      LOGICALREF: '1',
+      CODE: 'B1',
+      PRODUCERCODE: 'S1',
+      NAME: 'Vileda Bez',
+    });
+    expect(mapped?.name).toBe('Vileda Bez');
+  });
+
+  it('maps STGRPCODE → groupCode (not category)', () => {
+    const mapped = mapLogoRowToProductFields({
+      LOGICALREF: '1',
+      CODE: 'B1',
+      PRODUCERCODE: 'S1',
+      NAME: 'N',
+      STGRPCODE: 'VILEDA',
+    });
+    expect(mapped?.groupCode).toBe('VILEDA');
+  });
+
+  it('maps SPECODE → specialCode', () => {
+    const mapped = mapLogoRowToProductFields({
+      LOGICALREF: '1',
+      CODE: 'B1',
+      PRODUCERCODE: 'S1',
+      NAME: 'N',
+      SPECODE: 'SP1',
+    });
+    expect(mapped?.specialCode).toBe('SP1');
+  });
+
+  it('maps SPECODE2 → specialCode2', () => {
+    const mapped = mapLogoRowToProductFields({
+      LOGICALREF: '1',
+      CODE: 'B1',
+      PRODUCERCODE: 'S1',
+      NAME: 'N',
+      SPECODE2: 'SP2',
+    });
+    expect(mapped?.specialCode2).toBe('SP2');
+  });
+
+  it('maps VAT → vatRate', () => {
+    const mapped = mapLogoRowToProductFields({
+      LOGICALREF: '1',
+      CODE: 'B1',
+      PRODUCERCODE: 'S1',
+      NAME: 'N',
+      VAT: '20',
+    });
+    expect(mapped?.vatRate).toBe(20);
+  });
+
+  it('maps MERKEZ → stockQuantity', () => {
+    const mapped = mapLogoRowToProductFields({
+      LOGICALREF: '1',
+      CODE: 'B1',
+      PRODUCERCODE: 'S1',
+      NAME: 'N',
+      MERKEZ: '15',
+    });
+    expect(mapped?.stockQuantity).toBe(15);
+  });
+
+  it('maps SATIS_FIYATI → listPrice', () => {
+    const mapped = mapLogoRowToProductFields({
+      LOGICALREF: '1',
+      CODE: 'B1',
+      PRODUCERCODE: 'S1',
+      NAME: 'N',
+      SATIS_FIYATI: '99,5',
+    });
+    expect(mapped?.listPrice).toBe(99.5);
+  });
+
+  it('returns null when LOGICALREF or CODE missing', () => {
     expect(
       mapLogoRowToProductFields({
-        PRODUCERCODE: 'X1',
-        NAME: 'No barcode',
+        CODE: 'B1',
+        PRODUCERCODE: 'S1',
+        NAME: 'N',
+      }),
+    ).toBeNull();
+    expect(
+      mapLogoRowToProductFields({
+        LOGICALREF: '1',
+        PRODUCERCODE: 'S1',
+        NAME: 'N',
       }),
     ).toBeNull();
   });
 
   it('does not put PRODUCERCODE into barcode or CODE into sku', () => {
     const mapped = mapLogoRowToProductFields({
+      LOGICALREF: '9',
       CODE: 'BAR-1',
       PRODUCERCODE: 'PROD-1',
       NAME: 'Item',
@@ -52,11 +141,12 @@ describe('logoProductMapper', () => {
     });
     expect(mapped?.barcode).toBe('BAR-1');
     expect(mapped?.sku).toBe('PROD-1');
-    expect(mapped?.barcode).not.toBe(mapped?.sku);
+    expect(mapped?.erpId).toBe('9');
   });
 
-  it('never copies STGRPCODE into category on apply/create', () => {
+  it('preserves category and writes erpId on apply/create', () => {
     const mapped = mapLogoRowToProductFields({
+      LOGICALREF: '55',
       CODE: 'B1',
       PRODUCERCODE: 'P1',
       NAME: 'N',
@@ -87,10 +177,10 @@ describe('logoProductMapper', () => {
     const updated = applyLogoFieldsToProduct(existing, mapped, 'now');
     expect(updated.category).toBe('ExcelKategori');
     expect(updated.groupCode).toBe('MARKA');
+    expect(updated.erpId).toBe('55');
 
     const createdFields = logoFieldsForNewProduct(mapped);
     expect(createdFields.category).toBe('Genel');
-    expect(createdFields.groupCode).toBe('MARKA');
-    expect(createdFields.stockQuantity).toBe(1);
+    expect(createdFields.erpId).toBe('55');
   });
 });

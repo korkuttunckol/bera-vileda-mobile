@@ -31,6 +31,7 @@ import {
   SyncSettingsPage,
   LocalDataFirestoreUploadPage,
   LogoCustomerSyncPage,
+  LogoProductSyncPage,
   UsersManagementPage,
   UserFormPage,
 } from '@/features/settings';
@@ -166,6 +167,14 @@ export const router = createBrowserRouter([
             element: (
               <AdminRoute>
                 <LogoCustomerSyncPage />
+              </AdminRoute>
+            ),
+          },
+          {
+            path: ROUTES.SETTINGS_LOGO_PRODUCTS,
+            element: (
+              <AdminRoute>
+                <LogoProductSyncPage />
               </AdminRoute>
             ),
           },

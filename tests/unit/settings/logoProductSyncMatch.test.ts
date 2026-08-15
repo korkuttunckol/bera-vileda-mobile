@@ -28,7 +28,7 @@ function product(
 
 function mapped(
   partial: Partial<LogoMappedProductFields> &
-    Pick<LogoMappedProductFields, 'barcode' | 'sku'>,
+    Pick<LogoMappedProductFields, 'barcode' | 'sku' | 'erpId'>,
 ): LogoMappedProductFields {
   return {
     name: 'N',
@@ -40,27 +40,41 @@ function mapped(
 }
 
 describe('planLogoRowMatch', () => {
-  it('matches primarily by barcode (CODE)', () => {
-    const p = product({ id: 'a', sku: 'SKU1', barcode: 'BC1' });
-    const byBarcode = new Map([['BC1', [p]]]);
-    const bySku = new Map([['SKU1', [p]]]);
+  it('matches primarily by erpId (LOGICALREF)', () => {
+    const p = product({ id: 'a', sku: 'SKU1', barcode: 'OLD', erpId: '100' });
     const plan = planLogoRowMatch(
-      mapped({ barcode: 'BC1', sku: 'SKU1', stockQuantity: 9 }),
-      byBarcode,
-      bySku,
+      mapped({ erpId: '100', barcode: 'NEW-BC', sku: 'SKU1', stockQuantity: 9 }),
+      new Map([['100', [p]]]),
+      new Map([['OLD', [p]]]),
+      new Map([['SKU1', [p]]]),
       new Set(),
     );
-    expect(plan).toEqual({ action: 'update', product: p, matchedBy: 'barcode' });
+    expect(plan).toEqual({ action: 'update', product: p, matchedBy: 'erpId' });
+  });
+
+  it('matches by barcode (CODE) when erpId absent locally', () => {
+    const p = product({ id: 'a', sku: 'SKU1', barcode: 'BC1' });
+    const plan = planLogoRowMatch(
+      mapped({ erpId: '999', barcode: 'BC1', sku: 'SKU1', stockQuantity: 9 }),
+      new Map(),
+      new Map([['BC1', [p]]]),
+      new Map([['SKU1', [p]]]),
+      new Set(),
+    );
+    expect(plan).toEqual({
+      action: 'update',
+      product: p,
+      matchedBy: 'barcode',
+    });
   });
 
   it('falls back to sku when barcode missing locally', () => {
     const p = product({ id: 'a', sku: 'SKU1', barcode: '' });
-    const byBarcode = new Map<string, LocalProduct[]>();
-    const bySku = new Map([['SKU1', [p]]]);
     const plan = planLogoRowMatch(
-      mapped({ barcode: 'NEW-BC', sku: 'SKU1' }),
-      byBarcode,
-      bySku,
+      mapped({ erpId: '1', barcode: 'NEW-BC', sku: 'SKU1' }),
+      new Map(),
+      new Map(),
+      new Map([['SKU1', [p]]]),
       new Set(),
     );
     expect(plan).toEqual({ action: 'update', product: p, matchedBy: 'sku' });
@@ -69,15 +83,14 @@ describe('planLogoRowMatch', () => {
   it('reports conflict when barcode and sku point to different products', () => {
     const a = product({ id: 'a', sku: 'SA', barcode: 'BC1' });
     const b = product({ id: 'b', sku: 'SB', barcode: 'BC2' });
-    const byBarcode = new Map([['BC1', [a]]]);
-    const bySku = new Map([
-      ['SA', [a]],
-      ['SB', [b]],
-    ]);
     const plan = planLogoRowMatch(
-      mapped({ barcode: 'BC1', sku: 'SB' }),
-      byBarcode,
-      bySku,
+      mapped({ erpId: '1', barcode: 'BC1', sku: 'SB' }),
+      new Map(),
+      new Map([['BC1', [a]]]),
+      new Map([
+        ['SA', [a]],
+        ['SB', [b]],
+      ]),
       new Set(),
     );
     expect(plan.action).toBe('conflict');
@@ -88,12 +101,11 @@ describe('planLogoRowMatch', () => {
 
   it('reports conflict on sku fallback when existing barcode differs', () => {
     const p = product({ id: 'a', sku: 'SKU1', barcode: 'OLD-BC' });
-    const byBarcode = new Map([['OLD-BC', [p]]]);
-    const bySku = new Map([['SKU1', [p]]]);
     const plan = planLogoRowMatch(
-      mapped({ barcode: 'NEW-BC', sku: 'SKU1' }),
-      byBarcode,
-      bySku,
+      mapped({ erpId: '1', barcode: 'NEW-BC', sku: 'SKU1' }),
+      new Map(),
+      new Map([['OLD-BC', [p]]]),
+      new Map([['SKU1', [p]]]),
       new Set(),
     );
     expect(plan.action).toBe('conflict');
@@ -102,9 +114,10 @@ describe('planLogoRowMatch', () => {
     }
   });
 
-  it('creates when neither barcode nor sku matches', () => {
+  it('creates when neither erpId nor barcode nor sku matches', () => {
     const plan = planLogoRowMatch(
-      mapped({ barcode: 'BC-X', sku: 'SKU-X' }),
+      mapped({ erpId: 'X', barcode: 'BC-X', sku: 'SKU-X' }),
+      new Map(),
       new Map(),
       new Map(),
       new Set(),
@@ -115,7 +128,8 @@ describe('planLogoRowMatch', () => {
   it('reports duplicate Logo barcode without deleting', () => {
     const seen = new Set(['BC1']);
     const plan = planLogoRowMatch(
-      mapped({ barcode: 'BC1', sku: 'S1' }),
+      mapped({ erpId: '1', barcode: 'BC1', sku: 'S1' }),
+      new Map(),
       new Map(),
       new Map(),
       seen,

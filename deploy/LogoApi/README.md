@@ -94,9 +94,18 @@ if (string.Equals(context.Request.HttpMethod, "OPTIONS", StringComparison.Ordina
 
 Prefer **site `web.config`** so both endpoints stay consistent without editing query code.
 
-## Out of scope
+## Backend note — `stoklar.ashx` MUST return `LOGICALREF`
 
-- NAT / port forward
-- BERA Vite proxy
-- Changing `logoCustomerSyncService` / mapping
-- Firestore push / sales-rep filter UI
+BERA maps `LOGICALREF` → `Product.erpId` (future ORFICHE `STOCKREF`).
+
+If the JSON array lacks `LOGICALREF`, rows are skipped and erpId stays empty.
+
+On Windows Server only (not in this repo), ensure
+`C:\inetpub\LogoApi\App_Code\StoklarHandler.cs` SELECT includes:
+
+```sql
+I.LOGICALREF,
+```
+
+alongside existing CODE / PRODUCERCODE / NAME / … columns. Do not change BERA
+sync mapping if the field is missing — fix the IIS SQL projection instead.
