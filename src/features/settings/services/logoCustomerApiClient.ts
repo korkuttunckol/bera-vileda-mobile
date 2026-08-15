@@ -2,6 +2,7 @@
  * Logo Cari (CLCARD) API client
  *
  * Fetches customer rows from the Logo endpoint as a JSON array.
+ * LAN-first; falls back to external URL when LAN fails.
  * Does not mutate local data — callers decide how to apply results.
  *
  * Locked meanings (do not confuse with ORFICHE / branches):
@@ -15,6 +16,10 @@
  */
 
 import { env, isLogoCustomersApiConfigured } from '@/config/env';
+import {
+  fetchLogoJsonWithFallback,
+  LogoHttpFetchError,
+} from '@/features/settings/services/logoApiFetch';
 
 /** Raw Logo CLCARD API row field names (exact API keys). */
 export interface LogoCustomerRow {
@@ -40,6 +45,16 @@ export class LogoCustomerApiError extends Error {
   }
 }
 
+function toLogoCustomerApiError(err: unknown): never {
+  if (err instanceof DOMException && err.name === 'AbortError') {
+    throw err;
+  }
+  if (err instanceof LogoHttpFetchError) {
+    throw new LogoCustomerApiError(err.message, err.statusCode, err.cause);
+  }
+  throw err;
+}
+
 /**
  * Fetch Logo customer (CLCARD) rows.
  * Throws LogoCustomerApiError on missing config, network, non-OK,
@@ -55,48 +70,32 @@ export async function fetchLogoCustomerRows(
     );
   }
 
-  const url = env.VITE_LOGO_CUSTOMERS_API_URL.trim();
-
-  let response: Response;
-  try {
-    response = await fetch(url, {
-      method: 'GET',
-      headers: { Accept: 'application/json' },
-      signal,
-    });
-  } catch (err) {
-    if (err instanceof DOMException && err.name === 'AbortError') {
-      throw err;
-    }
-    throw new LogoCustomerApiError(
-      'Logo cari API erişilemedi. Yerel cari verileri korunur.',
-      undefined,
-      err,
-    );
-  }
-
-  if (!response.ok) {
-    throw new LogoCustomerApiError(
-      `Logo cari API hata döndürdü (HTTP ${response.status}). Yerel veriler korunur.`,
-      response.status,
-    );
-  }
-
   let data: unknown;
+  let status: number | undefined;
+
   try {
-    data = await response.json();
+    const result = await fetchLogoJsonWithFallback({
+      channel: 'customers',
+      lanUrl: env.VITE_LOGO_CUSTOMERS_API_URL,
+      externalUrl: env.VITE_LOGO_CUSTOMERS_API_EXTERNAL_URL,
+      signal,
+      networkErrorMessage:
+        'Logo cari API erişilemedi. Yerel cari verileri korunur.',
+      httpErrorMessage: (httpStatus) =>
+        `Logo cari API hata döndürdü (HTTP ${httpStatus}). Yerel veriler korunur.`,
+      jsonErrorMessage:
+        'Logo cari API yanıtı JSON olarak okunamadı. Yerel veriler korunur.',
+    });
+    data = result.data;
+    status = result.status;
   } catch (err) {
-    throw new LogoCustomerApiError(
-      'Logo cari API yanıtı JSON olarak okunamadı. Yerel veriler korunur.',
-      response.status,
-      err,
-    );
+    toLogoCustomerApiError(err);
   }
 
   if (!Array.isArray(data)) {
     throw new LogoCustomerApiError(
       'Logo cari API beklenen dizi formatında veri döndürmedi. Yerel veriler korunur.',
-      response.status,
+      status,
     );
   }
 
@@ -104,7 +103,7 @@ export async function fetchLogoCustomerRows(
   if (data.length === 0) {
     throw new LogoCustomerApiError(
       'Logo cari API boş dizi döndürdü. Yerel cariler korunur (pasifleştirme/silme yok).',
-      response.status,
+      status,
     );
   }
 

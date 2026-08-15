@@ -8,10 +8,14 @@ const envSchema = z.object({
   VITE_FIREBASE_MESSAGING_SENDER_ID: z.string().min(1),
   VITE_FIREBASE_APP_ID: z.string().min(1),
   VITE_APP_ENV: z.enum(['development', 'staging', 'production']).default('development'),
-  /** Optional Logo Wings stock API (LAN). Empty = Logo product sync disabled. */
+  /** Optional Logo Wings stock API (LAN). Empty alone does not disable if external is set. */
   VITE_LOGO_API_URL: z.string().optional().default(''),
-  /** Optional Logo Wings customers (CLCARD) API. Empty = Logo customer sync disabled. */
+  /** Optional Logo Wings stock API (WAN / external). Tried after LAN failure. */
+  VITE_LOGO_API_EXTERNAL_URL: z.string().optional().default(''),
+  /** Optional Logo Wings customers (CLCARD) API (LAN). */
   VITE_LOGO_CUSTOMERS_API_URL: z.string().optional().default(''),
+  /** Optional Logo Wings customers API (WAN / external). Tried after LAN failure. */
+  VITE_LOGO_CUSTOMERS_API_EXTERNAL_URL: z.string().optional().default(''),
 });
 
 export type Env = z.infer<typeof envSchema>;
@@ -35,7 +39,10 @@ function parseEnv(): Env {
       VITE_FIREBASE_APP_ID: raw.VITE_FIREBASE_APP_ID ?? '',
       VITE_APP_ENV: raw.VITE_APP_ENV ?? 'development',
       VITE_LOGO_API_URL: raw.VITE_LOGO_API_URL ?? '',
+      VITE_LOGO_API_EXTERNAL_URL: raw.VITE_LOGO_API_EXTERNAL_URL ?? '',
       VITE_LOGO_CUSTOMERS_API_URL: raw.VITE_LOGO_CUSTOMERS_API_URL ?? '',
+      VITE_LOGO_CUSTOMERS_API_EXTERNAL_URL:
+        raw.VITE_LOGO_CUSTOMERS_API_EXTERNAL_URL ?? '',
     };
   }
 
@@ -47,8 +54,15 @@ export const env = parseEnv();
 export const isFirebaseConfigured = (): boolean =>
   Boolean(env.VITE_FIREBASE_API_KEY && env.VITE_FIREBASE_PROJECT_ID);
 
+/** Stock sync enabled when LAN and/or external stock URL is set. */
 export const isLogoApiConfigured = (): boolean =>
-  Boolean(env.VITE_LOGO_API_URL.trim());
+  Boolean(
+    env.VITE_LOGO_API_URL.trim() || env.VITE_LOGO_API_EXTERNAL_URL.trim(),
+  );
 
+/** Customer sync enabled when LAN and/or external customers URL is set. */
 export const isLogoCustomersApiConfigured = (): boolean =>
-  Boolean(env.VITE_LOGO_CUSTOMERS_API_URL.trim());
+  Boolean(
+    env.VITE_LOGO_CUSTOMERS_API_URL.trim() ||
+      env.VITE_LOGO_CUSTOMERS_API_EXTERNAL_URL.trim(),
+  );
