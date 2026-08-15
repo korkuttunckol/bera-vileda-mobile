@@ -8,6 +8,7 @@ export function usePermissions() {
   return {
     user,
     isAdmin: user?.role === UserRole.ADMIN,
+    isSalesRep: user?.role === UserRole.SALES_REP,
     isMerch: user?.role === UserRole.MERCH,
     can: (permission: Permission): boolean => hasPermission(user, permission),
   };

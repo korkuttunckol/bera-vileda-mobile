@@ -1,7 +1,9 @@
 import type { SyncStatus } from './base.types';
 import type { UserRole } from './role.types';
+import type { UserPermissionProfile } from './userPermission.types';
+import { normalizeUserPermissionProfile } from '@/shared/lib/permissions/userPermissionNormalize';
 
-export interface AppUser {
+export interface AppUser extends UserPermissionProfile {
   id: string;
   userCode: string;
   passwordHash: string;
@@ -18,7 +20,7 @@ export interface AppUser {
   updatedAt: string;
 }
 
-export interface AppUserPublic {
+export interface AppUserPublic extends UserPermissionProfile {
   id: string;
   userCode: string;
   name: string;
@@ -42,6 +44,12 @@ export interface CreateUserInput {
   phone?: string;
   email?: string;
   description?: string;
+  salesRepCodes?: string[];
+  merchCustomerPatterns?: string[];
+  merchCustomerCodes?: string[];
+  merchStockGroupCodes?: string[];
+  customerFieldMask?: string[];
+  productFieldMask?: string[];
 }
 
 export interface UpdateUserInput {
@@ -52,22 +60,46 @@ export interface UpdateUserInput {
   phone?: string;
   email?: string;
   description?: string;
+  salesRepCodes?: string[];
+  merchCustomerPatterns?: string[];
+  merchCustomerCodes?: string[];
+  merchStockGroupCodes?: string[];
+  customerFieldMask?: string[];
+  productFieldMask?: string[];
 }
 
 export type UserActiveFilter = 'all' | 'active' | 'passive';
-export type UserRoleFilter = 'all' | 'admin' | 'merch';
+export type UserRoleFilter = 'all' | 'admin' | 'salesRep' | 'merch';
 
 export function normalizeUserCode(userCode: string): string {
   return userCode.trim().toUpperCase();
 }
 
 export function normalizeAppUser(
-  user: Omit<AppUser, 'active' | 'isDeleted' | 'syncStatus'> & {
+  user: Omit<
+    AppUser,
+    | 'active'
+    | 'isDeleted'
+    | 'syncStatus'
+    | 'salesRepCodes'
+    | 'merchCustomerPatterns'
+    | 'merchCustomerCodes'
+    | 'merchStockGroupCodes'
+    | 'customerFieldMask'
+    | 'productFieldMask'
+  > & {
     active?: boolean;
     isDeleted?: boolean;
     syncStatus?: AppUser['syncStatus'];
+    salesRepCodes?: string[];
+    merchCustomerPatterns?: string[];
+    merchCustomerCodes?: string[];
+    merchStockGroupCodes?: string[];
+    customerFieldMask?: string[];
+    productFieldMask?: string[];
   },
 ): AppUser {
+  const profile = normalizeUserPermissionProfile(user);
   return {
     ...user,
     userCode: normalizeUserCode(user.userCode),
@@ -78,6 +110,7 @@ export function normalizeAppUser(
     phone: user.phone?.trim() || undefined,
     email: user.email?.trim() || undefined,
     description: user.description?.trim() || undefined,
+    ...profile,
   };
 }
 
@@ -96,5 +129,11 @@ export function toPublicUser(user: AppUser): AppUserPublic {
     syncStatus: normalized.syncStatus,
     createdAt: normalized.createdAt,
     updatedAt: normalized.updatedAt,
+    salesRepCodes: normalized.salesRepCodes,
+    merchCustomerPatterns: normalized.merchCustomerPatterns,
+    merchCustomerCodes: normalized.merchCustomerCodes,
+    merchStockGroupCodes: normalized.merchStockGroupCodes,
+    customerFieldMask: normalized.customerFieldMask,
+    productFieldMask: normalized.productFieldMask,
   };
 }

@@ -5,10 +5,10 @@ import {
   countActiveAdmins,
 } from '@/features/users/services/userAdminGuards';
 import { UserRole } from '@/shared/types/role.types';
-import type { AppUser } from '@/shared/types/user.types';
+import { normalizeAppUser, type AppUser } from '@/shared/types/user.types';
 
 function user(overrides: Partial<AppUser> & Pick<AppUser, 'userCode' | 'role'>): AppUser {
-  return {
+  return normalizeAppUser({
     id: overrides.userCode,
     passwordHash: 'x',
     name: overrides.userCode,
@@ -18,7 +18,7 @@ function user(overrides: Partial<AppUser> & Pick<AppUser, 'userCode' | 'role'>):
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     ...overrides,
-  };
+  });
 }
 
 describe('userAdminGuards', () => {

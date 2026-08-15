@@ -1,5 +1,5 @@
 import { UserRole } from '@/shared/types/role.types';
-import type { AppUser } from '@/shared/types/user.types';
+import { normalizeAppUser, type AppUser } from '@/shared/types/user.types';
 import { hashPassword } from '@/shared/lib/crypto/passwordService';
 
 interface DevUserSeed {
@@ -23,18 +23,20 @@ export async function getDevUsers(): Promise<AppUser[]> {
 
   const now = new Date().toISOString();
   cachedDevUsers = await Promise.all(
-    DEV_USER_SEEDS.map(async (seed) => ({
-      id: seed.userCode,
-      userCode: seed.userCode,
-      passwordHash: await hashPassword(seed.password),
-      name: seed.name,
-      role: seed.role,
-      active: true,
-      isDeleted: false,
-      syncStatus: 'synced' as const,
-      createdAt: now,
-      updatedAt: now,
-    })),
+    DEV_USER_SEEDS.map(async (seed) =>
+      normalizeAppUser({
+        id: seed.userCode,
+        userCode: seed.userCode,
+        passwordHash: await hashPassword(seed.password),
+        name: seed.name,
+        role: seed.role,
+        active: true,
+        isDeleted: false,
+        syncStatus: 'synced',
+        createdAt: now,
+        updatedAt: now,
+      }),
+    ),
   );
 
   return cachedDevUsers;
