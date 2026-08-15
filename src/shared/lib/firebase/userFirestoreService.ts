@@ -36,6 +36,15 @@ function readString(value: unknown, fallback = ''): string {
   return typeof value === 'string' ? value : fallback;
 }
 
+function readStringArray(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const out: string[] = [];
+  for (const item of value) {
+    if (typeof item === 'string') out.push(item);
+  }
+  return out;
+}
+
 function mapFirestoreUser(id: string, data: Record<string, unknown>): AppUser | null {
   const role = parseUserRole(data.role);
   if (!role) return null;
@@ -57,6 +66,12 @@ function mapFirestoreUser(id: string, data: Record<string, unknown>): AppUser | 
     syncStatus: 'synced',
     createdAt: timestampToIso(data.createdAt as Timestamp | string | undefined),
     updatedAt: timestampToIso(data.updatedAt as Timestamp | string | undefined),
+    salesRepCodes: readStringArray(data.salesRepCodes),
+    merchCustomerPatterns: readStringArray(data.merchCustomerPatterns),
+    merchCustomerCodes: readStringArray(data.merchCustomerCodes),
+    merchStockGroupCodes: readStringArray(data.merchStockGroupCodes),
+    customerFieldMask: readStringArray(data.customerFieldMask),
+    productFieldMask: readStringArray(data.productFieldMask),
   });
 }
 
@@ -76,6 +91,12 @@ function toFirestorePayload(user: AppUser): Record<string, unknown> {
       : null,
     createdAt: Timestamp.fromDate(new Date(user.createdAt)),
     updatedAt: Timestamp.fromDate(new Date(user.updatedAt)),
+    salesRepCodes: user.salesRepCodes,
+    merchCustomerPatterns: user.merchCustomerPatterns,
+    merchCustomerCodes: user.merchCustomerCodes,
+    merchStockGroupCodes: user.merchStockGroupCodes,
+    customerFieldMask: user.customerFieldMask,
+    productFieldMask: user.productFieldMask,
   });
 }
 

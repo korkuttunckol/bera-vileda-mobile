@@ -7,6 +7,15 @@ import { hashPassword } from '@/shared/lib/crypto/passwordService';
 import { upsertUserToFirestore } from '@/shared/lib/firebase/userFirestoreService';
 import { getFirestoreErrorMessage } from '@/shared/lib/firebase/firestoreUtils';
 import { syncService } from '@/features/sync/services/syncService';
+import {
+  assertValidMerchCustomerPatterns,
+  formatPermissionListText,
+  normalizeFieldMaskKeys,
+  normalizeMerchCustomerCodes,
+  normalizeMerchStockGroupCodes,
+  normalizeSalesRepCodes,
+  parsePermissionListText,
+} from '@/shared/lib/permissions/userPermissionNormalize';
 import { UserRole } from '@/shared/types/role.types';
 import {
   normalizeAppUser,
@@ -19,11 +28,51 @@ import {
   type UserActiveFilter,
   type UserRoleFilter,
 } from '@/shared/types/user.types';
+import type { UserFormValues } from '@/shared/types/user.schema';
 import {
   assertCanChangeRoleFromAdmin,
   assertCanDeactivateUser,
   assertCanDeleteUser,
 } from './userAdminGuards';
+
+function permissionFieldsFromInput(
+  input: CreateUserInput | UpdateUserInput,
+  existing?: AppUser,
+): {
+  salesRepCodes: string[];
+  merchCustomerPatterns: string[];
+  merchCustomerCodes: string[];
+  merchStockGroupCodes: string[];
+  customerFieldMask: string[];
+  productFieldMask: string[];
+} {
+  return {
+    salesRepCodes:
+      input.salesRepCodes !== undefined
+        ? normalizeSalesRepCodes(input.salesRepCodes)
+        : (existing?.salesRepCodes ?? []),
+    merchCustomerPatterns:
+      input.merchCustomerPatterns !== undefined
+        ? assertValidMerchCustomerPatterns(input.merchCustomerPatterns)
+        : (existing?.merchCustomerPatterns ?? []),
+    merchCustomerCodes:
+      input.merchCustomerCodes !== undefined
+        ? normalizeMerchCustomerCodes(input.merchCustomerCodes)
+        : (existing?.merchCustomerCodes ?? []),
+    merchStockGroupCodes:
+      input.merchStockGroupCodes !== undefined
+        ? normalizeMerchStockGroupCodes(input.merchStockGroupCodes)
+        : (existing?.merchStockGroupCodes ?? []),
+    customerFieldMask:
+      input.customerFieldMask !== undefined
+        ? normalizeFieldMaskKeys(input.customerFieldMask)
+        : (existing?.customerFieldMask ?? []),
+    productFieldMask:
+      input.productFieldMask !== undefined
+        ? normalizeFieldMaskKeys(input.productFieldMask)
+        : (existing?.productFieldMask ?? []),
+  };
+}
 
 async function flushUserToFirestore(user: AppUser): Promise<AppUser> {
   if (!navigator.onLine || !isFirebaseConfigured()) {
@@ -78,6 +127,7 @@ class UserManagementService {
 
     const now = new Date().toISOString();
     const passwordHash = await hashPassword(input.password);
+    const permission = permissionFieldsFromInput(input);
     const user = normalizeAppUser({
       id: normalizedCode,
       userCode: normalizedCode,
@@ -93,6 +143,7 @@ class UserManagementService {
       syncStatus: 'pending',
       createdAt: existing?.createdAt ?? now,
       updatedAt: now,
+      ...permission,
     });
 
     await userLocalRepository.upsert(user);
@@ -128,6 +179,8 @@ class UserManagementService {
       ? await hashPassword(input.password)
       : existing.passwordHash;
 
+    const permission = permissionFieldsFromInput(input, existing);
+
     const updated = normalizeAppUser({
       ...existing,
       name: input.name?.trim() ?? existing.name,
@@ -150,6 +203,7 @@ class UserManagementService {
       updatedAt: now,
       isDeleted: false,
       deletedAt: undefined,
+      ...permission,
     });
 
     await userLocalRepository.upsert(updated);
@@ -209,16 +263,7 @@ class UserManagementService {
     await this.softDeleteUser(userCode);
   }
 
-  toFormDefaults(user?: AppUserPublic): {
-    userCode: string;
-    name: string;
-    phone: string;
-    email: string;
-    description: string;
-    role: UserRole;
-    active: boolean;
-    password: string;
-  } {
+  toFormDefaults(user?: AppUserPublic): UserFormValues {
     return {
       userCode: user?.userCode ?? '',
       name: user?.name ?? '',
@@ -228,6 +273,40 @@ class UserManagementService {
       role: user?.role ?? UserRole.MERCH,
       active: user?.active ?? true,
       password: '',
+      salesRepCodesText: formatPermissionListText(user?.salesRepCodes ?? []),
+      merchCustomerPatternsText: formatPermissionListText(
+        user?.merchCustomerPatterns ?? [],
+      ),
+      merchCustomerCodesText: formatPermissionListText(
+        user?.merchCustomerCodes ?? [],
+      ),
+      merchStockGroupCodesText: formatPermissionListText(
+        user?.merchStockGroupCodes ?? [],
+      ),
+    };
+  }
+
+  /** Map form textareas → Create/Update permission arrays (validated). */
+  permissionInputFromForm(form: UserFormValues): Pick<
+    CreateUserInput,
+    | 'salesRepCodes'
+    | 'merchCustomerPatterns'
+    | 'merchCustomerCodes'
+    | 'merchStockGroupCodes'
+  > {
+    return {
+      salesRepCodes: normalizeSalesRepCodes(
+        parsePermissionListText(form.salesRepCodesText ?? ''),
+      ),
+      merchCustomerPatterns: assertValidMerchCustomerPatterns(
+        parsePermissionListText(form.merchCustomerPatternsText ?? ''),
+      ),
+      merchCustomerCodes: normalizeMerchCustomerCodes(
+        parsePermissionListText(form.merchCustomerCodesText ?? ''),
+      ),
+      merchStockGroupCodes: normalizeMerchStockGroupCodes(
+        parsePermissionListText(form.merchStockGroupCodesText ?? ''),
+      ),
     };
   }
 }

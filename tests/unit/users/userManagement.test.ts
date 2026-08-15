@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { UserRole } from '@/shared/types/role.types';
-import type { AppUser } from '@/shared/types/user.types';
+import { normalizeAppUser, type AppUser } from '@/shared/types/user.types';
 
 const store = new Map<string, AppUser>();
 const firestore = new Map<string, AppUser>();
@@ -79,7 +79,7 @@ vi.mock('@/shared/lib/firebase/userFirestoreService', () => ({
 }));
 
 function seedAdmin(): AppUser {
-  const admin: AppUser = {
+  const admin = normalizeAppUser({
     id: 'ADMIN',
     userCode: 'ADMIN',
     passwordHash: 'hash:123456',
@@ -90,7 +90,7 @@ function seedAdmin(): AppUser {
     syncStatus: 'synced',
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
-  };
+  });
   store.set('ADMIN', admin);
   firestore.set('ADMIN', admin);
   return admin;

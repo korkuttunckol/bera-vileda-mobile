@@ -20,16 +20,21 @@ export const PERMISSIONS = {
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
 
+/** Order-capable non-admin set (Merch + Satış Temsilcisi). No scoped MD yet. */
+const ORDER_OPERATOR_PERMISSIONS: ReadonlySet<Permission> = new Set([
+  PERMISSIONS.pullMasterData,
+  PERMISSIONS.createOrder,
+  PERMISSIONS.editOrder,
+  PERMISSIONS.deleteOrder,
+  PERMISSIONS.exportReports,
+  PERMISSIONS.offlineWork,
+]);
+
 const ROLE_PERMISSIONS: Record<UserRole, ReadonlySet<Permission>> = {
   [UserRole.ADMIN]: new Set(Object.values(PERMISSIONS)),
-  [UserRole.MERCH]: new Set([
-    PERMISSIONS.pullMasterData,
-    PERMISSIONS.createOrder,
-    PERMISSIONS.editOrder,
-    PERMISSIONS.deleteOrder,
-    PERMISSIONS.exportReports,
-    PERMISSIONS.offlineWork,
-  ]),
+  // Foundation: same capability set as Merch until scoped sync lands.
+  [UserRole.SALES_REP]: ORDER_OPERATOR_PERMISSIONS,
+  [UserRole.MERCH]: ORDER_OPERATOR_PERMISSIONS,
 };
 
 export function hasPermission(

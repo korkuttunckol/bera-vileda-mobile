@@ -28,6 +28,10 @@ const EMPTY: UserFormValues = {
   role: UserRole.MERCH,
   active: true,
   password: '',
+  salesRepCodesText: '',
+  merchCustomerPatternsText: '',
+  merchCustomerCodesText: '',
+  merchStockGroupCodesText: '',
 };
 
 export function UserFormPage() {
@@ -90,6 +94,7 @@ export function UserFormPage() {
 
     setIsSaving(true);
     try {
+      const permission = userManagementService.permissionInputFromForm(parsed.data);
       if (isEdit && routeUserCode) {
         await userManagementService.updateUser(routeUserCode, {
           name: parsed.data.name,
@@ -98,6 +103,7 @@ export function UserFormPage() {
           phone: parsed.data.phone ?? '',
           email: parsed.data.email ?? '',
           description: parsed.data.description ?? '',
+          ...permission,
         });
         toast('Kullanıcı güncellendi', 'success');
       } else {
@@ -110,6 +116,7 @@ export function UserFormPage() {
           phone: parsed.data.phone,
           email: parsed.data.email,
           description: parsed.data.description,
+          ...permission,
         });
         toast('Kullanıcı oluşturuldu', 'success');
       }
@@ -234,9 +241,83 @@ export function UserFormPage() {
               onChange={(e) => { updateField('role', e.target.value as UserRole); }}
             >
               <option value={UserRole.ADMIN}>{USER_ROLE_LABELS[UserRole.ADMIN]}</option>
+              <option value={UserRole.SALES_REP}>
+                {USER_ROLE_LABELS[UserRole.SALES_REP]}
+              </option>
               <option value={UserRole.MERCH}>{USER_ROLE_LABELS[UserRole.MERCH]}</option>
             </select>
           </label>
+
+          {form.role === UserRole.SALES_REP ? (
+            <label className="block text-sm">
+              <span className="mb-1 block font-medium text-brand-navy">
+                Logo satış temsilcisi kodları (SPECODE)
+              </span>
+              <textarea
+                className="min-h-[88px] w-full rounded-xl border border-brand-gray-200 px-3 py-2.5 text-sm"
+                value={form.salesRepCodesText ?? ''}
+                onChange={(e) => {
+                  updateField('salesRepCodesText', e.target.value);
+                }}
+                placeholder={'125\n130'}
+              />
+              <span className="mt-1 block text-xs text-brand-gray-500">
+                Her satıra bir kod. İleride Customer.logoSalesRepCode ile
+                eşleşecek (bu sürümde master-data filtresi yok).
+              </span>
+            </label>
+          ) : null}
+
+          {form.role === UserRole.MERCH ? (
+            <div className="space-y-3 rounded-xl border border-brand-gray-100 bg-brand-gray-50/60 p-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-brand-gray-500">
+                Merch yetki profili (veri modeli — filtre henüz uygulanmaz)
+              </p>
+              <label className="block text-sm">
+                <span className="mb-1 block font-medium text-brand-navy">
+                  Cari kod pattern (PREFIX*)
+                </span>
+                <textarea
+                  className="min-h-[72px] w-full rounded-xl border border-brand-gray-200 bg-white px-3 py-2.5 text-sm"
+                  value={form.merchCustomerPatternsText ?? ''}
+                  onChange={(e) => {
+                    updateField('merchCustomerPatternsText', e.target.value);
+                  }}
+                  placeholder={'08*\n10*'}
+                />
+                <span className="mt-1 block text-xs text-brand-gray-500">
+                  Yalnızca önek joker: 08* kabul; *08 / 0*8 reddedilir.
+                </span>
+              </label>
+              <label className="block text-sm">
+                <span className="mb-1 block font-medium text-brand-navy">
+                  Tekil cari kodları
+                </span>
+                <textarea
+                  className="min-h-[72px] w-full rounded-xl border border-brand-gray-200 bg-white px-3 py-2.5 text-sm"
+                  value={form.merchCustomerCodesText ?? ''}
+                  onChange={(e) => {
+                    updateField('merchCustomerCodesText', e.target.value);
+                  }}
+                  placeholder={'15001\n15027'}
+                />
+              </label>
+              <label className="block text-sm">
+                <span className="mb-1 block font-medium text-brand-navy">
+                  Stok grup kodları (STGRPCODE)
+                </span>
+                <textarea
+                  className="min-h-[72px] w-full rounded-xl border border-brand-gray-200 bg-white px-3 py-2.5 text-sm"
+                  value={form.merchStockGroupCodesText ?? ''}
+                  onChange={(e) => {
+                    updateField('merchStockGroupCodesText', e.target.value);
+                  }}
+                  placeholder={'01\n03\n07'}
+                />
+              </label>
+            </div>
+          ) : null}
+
           <label className="flex items-center justify-between">
             <span className="text-sm font-medium text-brand-navy">Aktif</span>
             <input

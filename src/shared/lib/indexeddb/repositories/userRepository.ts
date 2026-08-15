@@ -78,6 +78,8 @@ export function filterUsers(
 
   if (options.roleFilter === 'admin') {
     result = result.filter((user) => user.role === UserRole.ADMIN);
+  } else if (options.roleFilter === 'salesRep') {
+    result = result.filter((user) => user.role === UserRole.SALES_REP);
   } else if (options.roleFilter === 'merch') {
     result = result.filter((user) => user.role === UserRole.MERCH);
   }

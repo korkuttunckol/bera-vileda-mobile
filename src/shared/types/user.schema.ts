@@ -1,6 +1,9 @@
 import { z } from 'zod';
 import { UserRole } from './role.types';
 
+/** Textarea / multiline list of codes or patterns (normalized on save). */
+const permissionListTextSchema = z.string().optional().or(z.literal(''));
+
 export const userFormSchema = z.object({
   userCode: z
     .string()
@@ -24,6 +27,14 @@ export const userFormSchema = z.object({
   role: z.nativeEnum(UserRole),
   active: z.boolean(),
   password: z.string().optional().or(z.literal('')),
+  /** One code per line — Logo SPECODE list for Satış Temsilcisi. */
+  salesRepCodesText: permissionListTextSchema,
+  /** PREFIX* patterns, one per line — Merch cari. */
+  merchCustomerPatternsText: permissionListTextSchema,
+  /** Exact Customer.code values, one per line — Merch cari. */
+  merchCustomerCodesText: permissionListTextSchema,
+  /** STGRPCODE / groupCode values, one per line — Merch stok. */
+  merchStockGroupCodesText: permissionListTextSchema,
 });
 
 export type UserFormValues = z.infer<typeof userFormSchema>;
