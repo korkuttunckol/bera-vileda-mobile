@@ -31,6 +31,10 @@ const ADMIN_SETTINGS_SECTIONS: SettingsSection[] = [
         label: "Yerel Verileri Firestore'a Aktar",
         path: ROUTES.SETTINGS_UPLOAD_LOCAL_FIRESTORE,
       },
+      {
+        label: "Logo'dan Cari Verilerini Al",
+        path: ROUTES.SETTINGS_LOGO_CUSTOMERS,
+      },
     ],
   },
   {
