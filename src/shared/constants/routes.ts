@@ -17,6 +17,7 @@ export const ROUTES = {
   SETTINGS: '/settings',
   SETTINGS_SYNC: '/settings/sync',
   SETTINGS_UPLOAD_LOCAL_FIRESTORE: '/settings/upload-local-firestore',
+  SETTINGS_LOGO_CUSTOMERS: '/settings/logo-customers',
   SETTINGS_IMPORT_PRODUCTS: '/settings/import/products',
   SETTINGS_IMPORT_CUSTOMERS: '/settings/import/customers',
   SETTINGS_IMPORT_REPORTS: '/settings/import/reports',
