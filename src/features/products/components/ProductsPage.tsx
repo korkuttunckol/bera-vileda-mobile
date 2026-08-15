@@ -48,7 +48,7 @@ export function ProductsPage() {
             description={
               search
                 ? 'Farklı bir arama terimi deneyin.'
-                : 'Yeni ürün ekleyin veya Ayarlar > İçe Aktar kullanın.'
+                : "Ayarlar → Logo'dan Stok / Ürün Verilerini Al veya Excel içe aktarma."
             }
             action={
               !search ? (

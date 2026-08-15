@@ -36,7 +36,11 @@ export function MobileProductRow({
           {product.name}
         </p>
         <p className="truncate text-xs text-brand-gray-500">
-          {product.sku}
+          {product.sku?.trim()
+            ? product.sku
+            : product.barcode?.trim()
+              ? product.barcode.trim()
+              : '—'}
           <span className="text-brand-gray-400"> · </span>
           Stok:{product.stockQuantity}
         </p>

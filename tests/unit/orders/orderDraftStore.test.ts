@@ -82,4 +82,23 @@ describe('orderDraftStore.reset after save', () => {
     expect(state.customerCode).toBe('C-AFM');
     expect(state.step).toBe('branch');
   });
+
+  it('does not add Logo products with stockQuantity <= 0', () => {
+    const store = useOrderDraftStore.getState();
+    store.selectCustomer('c1', 'Cari', 'C1');
+    store.selectBranch('b1', 'Merkez');
+
+    const out = makeProduct('zero', 'Stoksuz');
+    out.stockQuantity = 0;
+
+    expect(store.addToCart(out, 1)).toBe(false);
+    expect(useOrderDraftStore.getState().lines).toHaveLength(0);
+
+    const ok = makeProduct('ok', 'Stoklu');
+    ok.stockQuantity = 3;
+    expect(useOrderDraftStore.getState().addToCart(ok, 2)).toBe(true);
+    expect(useOrderDraftStore.getState().lines).toHaveLength(1);
+    expect(useOrderDraftStore.getState().lines[0].unitPrice).toBe(10);
+    expect(useOrderDraftStore.getState().lines[0].stockQuantity).toBe(3);
+  });
 });

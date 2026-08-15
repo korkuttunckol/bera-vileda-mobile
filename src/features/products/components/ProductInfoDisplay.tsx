@@ -34,7 +34,13 @@ export function ProductInfoDisplay({
         <p className="break-words font-semibold text-brand-navy">{product.name}</p>
       ) : null}
       {isVisible('sku') ? (
-        <p className="mt-0.5 truncate text-sm text-brand-gray-500">{product.sku}</p>
+        <p className="mt-0.5 truncate text-sm text-brand-gray-500">
+          {product.sku?.trim()
+            ? product.sku
+            : product.barcode?.trim()
+              ? `Barkod: ${product.barcode.trim()}`
+              : '—'}
+        </p>
       ) : null}
       {isOrderView && product.barcode ? (
         <p className="mt-1 truncate text-xs text-brand-gray-400">
