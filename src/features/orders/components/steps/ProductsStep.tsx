@@ -10,7 +10,6 @@ import { productService } from '@/features/products/services/productService';
 import { useOrderDraftStore } from '@/stores/orderDraftStore';
 import { FloatingCartBar } from '@/features/orders/components/FloatingCartBar';
 import { toast } from '@/stores/toastStore';
-import { isProductOutOfStock } from '@/features/orders/utils/stockControl';
 import type { Product } from '@/shared/types/product.types';
 
 export function ProductsStep() {
@@ -37,14 +36,8 @@ export function ProductsStep() {
   };
 
   const handleAdd = (product: Product): void => {
-    if (isProductOutOfStock(product)) {
-      toast('Bu ürünün stoğu bulunmuyor.', 'warning');
-      return;
-    }
-    const ok = addToCart(product, getQty(product.id));
-    if (ok) {
-      toast(`${product.name} sepete eklendi`, 'success');
-    }
+    addToCart(product, getQty(product.id));
+    toast(`${product.name} sepete eklendi`, 'success');
   };
 
   const handleBarcodeSearch = useCallback(
@@ -55,14 +48,9 @@ export function ProductsStep() {
 
       const byBarcode = await productService.findByBarcode(code);
       if (byBarcode) {
-        if (isProductOutOfStock(byBarcode)) {
-          toast('Bu ürünün stoğu bulunmuyor.', 'warning');
-          return;
-        }
-        if (addToCart(byBarcode, quantities[byBarcode.id] ?? 1)) {
-          toast(`${byBarcode.name} sepete eklendi`, 'success');
-          setSearch('');
-        }
+        addToCart(byBarcode, quantities[byBarcode.id] ?? 1);
+        toast(`${byBarcode.name} sepete eklendi`, 'success');
+        setSearch('');
         return;
       }
 
@@ -70,14 +58,9 @@ export function ProductsStep() {
         (p) => p.sku.toLowerCase() === code.toLowerCase(),
       );
       if (exact) {
-        if (isProductOutOfStock(exact)) {
-          toast('Bu ürünün stoğu bulunmuyor.', 'warning');
-          return;
-        }
-        if (addToCart(exact, quantities[exact.id] ?? 1)) {
-          toast(`${exact.name} sepete eklendi`, 'success');
-          setSearch('');
-        }
+        addToCart(exact, quantities[exact.id] ?? 1);
+        toast(`${exact.name} sepete eklendi`, 'success');
+        setSearch('');
       }
     },
     [search, products, addToCart, quantities],

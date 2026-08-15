@@ -56,8 +56,8 @@ export function MobileNativeBarcodeConfirmSheet({
     }
 
     const resolved = resolveScannedProduct(product);
-    if (resolved.status === 'out_of_stock') {
-      toast('Bu ürünün stoğu bulunmuyor.', 'warning');
+    if (resolved.status === 'not_found') {
+      toast('Ürün bulunamadı.', 'warning');
       onClose();
       return;
     }

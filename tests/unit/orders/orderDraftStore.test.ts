@@ -83,22 +83,33 @@ describe('orderDraftStore.reset after save', () => {
     expect(state.step).toBe('branch');
   });
 
-  it('does not add Logo products with stockQuantity <= 0', () => {
+  it('allows addToCart for zero, positive, and negative stockQuantity', () => {
     const store = useOrderDraftStore.getState();
     store.selectCustomer('c1', 'Cari', 'C1');
     store.selectBranch('b1', 'Merkez');
 
-    const out = makeProduct('zero', 'Stoksuz');
-    out.stockQuantity = 0;
-
-    expect(store.addToCart(out, 1)).toBe(false);
-    expect(useOrderDraftStore.getState().lines).toHaveLength(0);
-
-    const ok = makeProduct('ok', 'Stoklu');
-    ok.stockQuantity = 3;
-    expect(useOrderDraftStore.getState().addToCart(ok, 2)).toBe(true);
+    const zero = makeProduct('zero', 'Stok Sıfır');
+    zero.stockQuantity = 0;
+    store.addToCart(zero, 1);
     expect(useOrderDraftStore.getState().lines).toHaveLength(1);
-    expect(useOrderDraftStore.getState().lines[0].unitPrice).toBe(10);
-    expect(useOrderDraftStore.getState().lines[0].stockQuantity).toBe(3);
+    expect(useOrderDraftStore.getState().lines[0].stockQuantity).toBe(0);
+
+    const positive = makeProduct('pos', 'Stoklu');
+    positive.stockQuantity = 12;
+    store.addToCart(positive, 2);
+    expect(useOrderDraftStore.getState().lines).toHaveLength(2);
+    expect(
+      useOrderDraftStore.getState().lines.find((l) => l.productId === 'pos')
+        ?.unitPrice,
+    ).toBe(10);
+
+    const negative = makeProduct('neg', 'Negatif Stok');
+    negative.stockQuantity = -3;
+    store.addToCart(negative, 1);
+    expect(useOrderDraftStore.getState().lines).toHaveLength(3);
+    expect(
+      useOrderDraftStore.getState().lines.find((l) => l.productId === 'neg')
+        ?.stockQuantity,
+    ).toBe(-3);
   });
 });

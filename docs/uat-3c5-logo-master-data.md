@@ -14,11 +14,10 @@
 4. Yeni sipariş → gerçek Logo ürününü barkod / ad ile ara.
 5. Stok miktarının `Product.stockQuantity` (MERKEZ) olduğunu gör.
 6. Satış fiyatının `listPrice` (SATIS_FIYATI) ile satır tutarına yansıdığını gör.
-7. Stok > 0 ürünü siparişe ekle; adedi değiştir.
-8. Stok = 0 üründe “Stok Yok” / eklenemediğini doğrula.
-9. Siparişi BERA içinde kaydet.
-10. Sipariş geçmişinde gör; satır adı / sku / miktar / fiyat snapshot’ını kontrol et.
-11. **Logo’ya gönderme yapma** (Send / ORFICHE / Wings export bu aşamada test dışı).
+7. Stok > 0 veya stok = 0 ürünü siparişe ekle; adedi değiştir (stok sadece bilgi).
+8. Siparişi BERA içinde kaydet.
+9. Sipariş geçmişinde gör; satır adı / sku / miktar / fiyat snapshot’ını kontrol et.
+10. **Logo’ya gönderme yapma** (Send / ORFICHE / Wings export bu aşamada test dışı).
 
 ## Güvenlik kontrolleri
 

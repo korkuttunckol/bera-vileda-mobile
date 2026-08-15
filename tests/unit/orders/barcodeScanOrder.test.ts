@@ -87,11 +87,17 @@ describe('resolveScannedProduct', () => {
     expect(resolveScannedProduct(undefined)).toEqual({ status: 'not_found' });
   });
 
-  it('returns out_of_stock when stock <= 0', () => {
-    const product = makeProduct({ stockQuantity: 0 });
-    expect(resolveScannedProduct(product)).toEqual({
-      status: 'out_of_stock',
-      product,
+  it('returns ready even when stock is zero or negative (informational only)', () => {
+    const zero = makeProduct({ stockQuantity: 0 });
+    expect(resolveScannedProduct(zero)).toEqual({
+      status: 'ready',
+      product: zero,
+    });
+
+    const negative = makeProduct({ stockQuantity: -2 });
+    expect(resolveScannedProduct(negative)).toEqual({
+      status: 'ready',
+      product: negative,
     });
   });
 
