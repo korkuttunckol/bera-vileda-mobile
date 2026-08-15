@@ -72,6 +72,9 @@ jobs:
       VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
       VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
       VITE_APP_ENV: ${{ secrets.VITE_APP_ENV || 'development' }}
+      # Logo LAN APIs (Repository Variables — company LAN endpoints, not secrets)
+      VITE_LOGO_API_URL: ${{ vars.VITE_LOGO_API_URL }}
+      VITE_LOGO_CUSTOMERS_API_URL: ${{ vars.VITE_LOGO_CUSTOMERS_API_URL }}
       GRADLE_OPTS: -Dorg.gradle.daemon=false -Dorg.gradle.jvmargs=-Xmx4g
       # Pinned to Capacitor POC versions (install only for hybrid/main web builds).
       CAPACITOR_CORE_VERSION: '8.5.0'
@@ -194,6 +197,22 @@ jobs:
             echo "Firebase web config secrets look present for this build."
           fi
 
+      - name: Require Logo API env for APK (Repository Variables)
+        run: |
+          set -euo pipefail
+          # Fail hard: Logo sync UI must not ship with empty Vite env baked in.
+          if [ -z "${VITE_LOGO_API_URL:-}" ]; then
+            echo "::error::VITE_LOGO_API_URL is empty. Set Repository Variable VITE_LOGO_API_URL (Actions → Variables)."
+            exit 1
+          fi
+          echo "VITE_LOGO_API_URL is configured"
+
+          if [ -z "${VITE_LOGO_CUSTOMERS_API_URL:-}" ]; then
+            echo "::error::VITE_LOGO_CUSTOMERS_API_URL is empty. Set Repository Variable VITE_LOGO_CUSTOMERS_API_URL (Actions → Variables)."
+            exit 1
+          fi
+          echo "VITE_LOGO_CUSTOMERS_API_URL is configured"
+
       - name: Install npm dependencies (web lockfile)
         run: npm ci
 
@@ -225,6 +244,17 @@ jobs:
             exit 1
           fi
           echo "Bundle markers verified"
+          # Confirm Logo API env values were inlined by Vite (path markers only — no full URL logged).
+          if ! grep -R -F -q 'stoklar.ashx' dist/assets; then
+            echo "::error::Logo stock API marker missing from dist bundle (VITE_LOGO_API_URL not baked in?)"
+            exit 1
+          fi
+          echo "Logo stock API marker found"
+          if ! grep -R -F -q 'cariler.ashx' dist/assets; then
+            echo "::error::Logo customer API marker missing from dist bundle (VITE_LOGO_CUSTOMERS_API_URL not baked in?)"
+            exit 1
+          fi
+          echo "Logo customer API marker found"
 
       - name: Capacitor sync Android
         run: npx cap sync android
