@@ -125,6 +125,33 @@ describe('planLogoRowMatch', () => {
     expect(plan).toEqual({ action: 'create' });
   });
 
+  it('creates when PRODUCERCODE/sku is empty but CODE and LOGICALREF present', () => {
+    const plan = planLogoRowMatch(
+      mapped({ erpId: '2', barcode: '0001', sku: '', name: 'TAHTA PALET' }),
+      new Map(),
+      new Map(),
+      new Map(),
+      new Set(),
+    );
+    expect(plan).toEqual({ action: 'create' });
+  });
+
+  it('updates by barcode when PRODUCERCODE/sku is empty (no missing_producer conflict)', () => {
+    const p = product({ id: 'a', sku: '', barcode: '0001', erpId: undefined });
+    const plan = planLogoRowMatch(
+      mapped({ erpId: '2', barcode: '0001', sku: '', name: 'TAHTA PALET' }),
+      new Map(),
+      new Map([['0001', [p]]]),
+      new Map(),
+      new Set(),
+    );
+    expect(plan).toEqual({
+      action: 'update',
+      product: p,
+      matchedBy: 'barcode',
+    });
+  });
+
   it('reports duplicate Logo barcode without deleting', () => {
     const seen = new Set(['BC1']);
     const plan = planLogoRowMatch(

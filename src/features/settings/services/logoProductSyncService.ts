@@ -4,7 +4,9 @@
  * - Writes only to local IndexedDB products.
  * - Does not push to Firestore / outbox / PullSync / PushSync.
  * - On API failure / empty / invalid: preserves all local product/stock data.
- * - Match: erpId←LOGICALREF primary; barcode (CODE); controlled sku (PRODUCERCODE) fallback.
+ * - Match: erpId←LOGICALREF primary; barcode (CODE) required; controlled sku
+ *   (PRODUCERCODE) fallback when PRODUCERCODE is non-empty.
+ * - PRODUCERCODE empty is valid — sku stays empty; product is still synced.
  * - Conflicts are reported; products are never auto-deleted or merged.
  * - category is never overwritten by STGRPCODE (groupCode only).
  */
@@ -31,8 +33,7 @@ export type LogoSyncConflictType =
   | 'sku_owned_by_other'
   | 'sku_fallback_barcode_mismatch'
   | 'duplicate_logo_barcode'
-  | 'duplicate_logo_erp_id'
-  | 'missing_producer_code';
+  | 'duplicate_logo_erp_id';
 
 export interface LogoSyncConflict {
   type: LogoSyncConflictType;
@@ -115,7 +116,7 @@ type MatchPlan =
  * Pure matching for one mapped Logo row against local indexes.
  * Exported for unit tests.
  *
- * Order: LOGICALREF/erpId → CODE/barcode → PRODUCERCODE/sku fallback.
+ * Order: LOGICALREF/erpId → CODE/barcode → PRODUCERCODE/sku fallback (sku optional).
  */
 export function planLogoRowMatch(
   mapped: LogoMappedProductFields,
@@ -155,23 +156,10 @@ export function planLogoRowMatch(
   }
   seenLogoBarcodes.add(mapped.barcode);
 
-  if (!mapped.sku) {
-    return {
-      action: 'conflict',
-      conflict: {
-        type: 'missing_producer_code',
-        barcode: mapped.barcode,
-        sku: '',
-        erpId: mapped.erpId,
-        name: mapped.name,
-        message: `PRODUCERCODE (ürün kodu) boş; CODE=${mapped.barcode} işlenmedi.`,
-      },
-    };
-  }
-
   const erpHits = byErpId.get(mapped.erpId) ?? [];
   const barcodeHits = byBarcode.get(mapped.barcode) ?? [];
-  const skuHits = bySku.get(mapped.sku) ?? [];
+  // PRODUCERCODE optional — empty sku skips sku index / sku-fallback conflicts
+  const skuHits = mapped.sku ? (bySku.get(mapped.sku) ?? []) : [];
 
   // Primary: erpId === LOGICALREF
   if (erpHits.length > 1) {

@@ -2,11 +2,11 @@
  * Maps Logo API stock rows → BERA Product fields.
  *
  * Locked field meanings:
- *   LOGICALREF   → erpId      (ITEMS.LOGICALREF / STOCKREF)
- *   CODE         → barcode
- *   PRODUCERCODE → sku
- *   NAME         → name
- *   STGRPCODE    → groupCode   (never category)
+ *   LOGICALREF   → erpId      (ITEMS.LOGICALREF / STOCKREF) — required
+ *   CODE         → barcode    — required (primary product identity)
+ *   PRODUCERCODE → sku        — optional (empty PRODUCERCODE → empty sku)
+ *   NAME         → name       — required (falls back to CODE if blank)
+ *   STGRPCODE    → groupCode  — never category
  *   SPECODE      → specialCode
  *   SPECODE2     → specialCode2
  *   VAT          → vatRate
@@ -14,6 +14,7 @@
  *   SATIS_FIYATI → listPrice
  *
  * CODE and PRODUCERCODE must never be swapped.
+ * Empty PRODUCERCODE must NOT skip the product.
  */
 
 import type { Product } from '@/shared/types/product.types';
@@ -59,7 +60,7 @@ export function mapLogoRowToProductFields(
   }
 
   const producerCode = asTrimmedString(row.PRODUCERCODE);
-  // sku is PRODUCERCODE only — never CODE. Empty PRODUCERCODE → empty sku (caller may skip).
+  // sku is PRODUCERCODE only — never CODE. Empty PRODUCERCODE → empty sku (still valid).
   const sku = producerCode ? producerCode.toUpperCase() : '';
   const name = asTrimmedString(row.NAME) || barcode;
   const groupCode = asTrimmedString(row.STGRPCODE) || undefined;

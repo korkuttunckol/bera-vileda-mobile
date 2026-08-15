@@ -113,6 +113,21 @@ describe('logoProductMapper', () => {
     expect(mapped?.listPrice).toBe(99.5);
   });
 
+  it('maps empty PRODUCERCODE to empty sku without rejecting the row', () => {
+    const mapped = mapLogoRowToProductFields({
+      LOGICALREF: 2,
+      CODE: '0001',
+      PRODUCERCODE: '',
+      NAME: 'TAHTA PALET - GENİŞ',
+      MERKEZ: 0,
+    });
+    expect(mapped).not.toBeNull();
+    expect(mapped?.erpId).toBe('2');
+    expect(mapped?.barcode).toBe('0001');
+    expect(mapped?.sku).toBe('');
+    expect(mapped?.name).toBe('TAHTA PALET - GENİŞ');
+  });
+
   it('returns null when LOGICALREF or CODE missing', () => {
     expect(
       mapLogoRowToProductFields({

@@ -153,6 +153,76 @@ describe('logoProductSyncService', () => {
     );
   });
 
+  it('creates product when PRODUCERCODE empty and CODE filled', async () => {
+    const svc = await loadService();
+    const report = await svc.applyRows([
+      {
+        LOGICALREF: 2,
+        CODE: '0001',
+        PRODUCERCODE: '',
+        NAME: 'TAHTA PALET - GENİŞ',
+        MERKEZ: 0,
+        SATIS_FIYATI: 0,
+      },
+    ]);
+
+    expect(report.success).toBe(true);
+    expect(report.created).toBe(1);
+    expect(report.conflicts).toHaveLength(0);
+    const all = Array.from(productsStore.values());
+    expect(all).toHaveLength(1);
+    expect(all[0].erpId).toBe('2');
+    expect(all[0].barcode).toBe('0001');
+    expect(all[0].sku).toBe('');
+    expect(all[0].name).toBe('TAHTA PALET - GENİŞ');
+  });
+
+  it('updates by erpId when PRODUCERCODE empty', async () => {
+    seedProduct({
+      id: 'p1',
+      sku: '',
+      barcode: '0001',
+      erpId: '2',
+      name: 'Eski',
+    });
+
+    const svc = await loadService();
+    const report = await svc.applyRows([
+      {
+        LOGICALREF: 2,
+        CODE: '0001',
+        PRODUCERCODE: '',
+        NAME: 'TAHTA PALET - GENİŞ',
+        MERKEZ: 5,
+      },
+    ]);
+
+    expect(report.success).toBe(true);
+    expect(report.updated).toBe(1);
+    expect(report.conflicts).toHaveLength(0);
+    expect(productsStore.get('p1')?.name).toBe('TAHTA PALET - GENİŞ');
+    expect(productsStore.get('p1')?.sku).toBe('');
+    expect(productsStore.get('p1')?.erpId).toBe('2');
+  });
+
+  it('skips row when CODE empty even if PRODUCERCODE present', async () => {
+    const svc = await loadService();
+    const report = await svc.applyRows([
+      {
+        LOGICALREF: 9,
+        CODE: '',
+        PRODUCERCODE: 'SKU-ONLY',
+        NAME: 'No barcode',
+      },
+    ]);
+
+    expect(report.success).toBe(true);
+    expect(report.created).toBe(0);
+    expect(report.updated).toBe(0);
+    expect(report.skipped).toBe(1);
+    expect(productsStore.size).toBe(0);
+  });
+
   it('creates a new product with LOGICALREF as erpId', async () => {
     const svc = await loadService();
     const report = await svc.applyRows([

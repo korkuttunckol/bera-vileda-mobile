@@ -151,7 +151,8 @@ export function LogoProductSyncPage() {
             outbox dokunulmaz.
           </p>
           <p className="text-xs text-brand-gray-400">
-            LOGICALREF → erpId · CODE → barcode · PRODUCERCODE → sku · MERKEZ →
+            LOGICALREF → erpId (zorunlu) · CODE → barcode (zorunlu kimlik) ·
+            PRODUCERCODE → sku (opsiyonel; boşsa ürün yine işlenir) · MERKEZ →
             stockQuantity. STGRPCODE → groupCode (category değil).
           </p>
           <p className="text-xs text-brand-gray-500">
