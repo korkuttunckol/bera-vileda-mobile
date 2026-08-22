@@ -1,5 +1,9 @@
 import { productLocalRepository } from '@/shared/lib/indexeddb/repositories/productRepository';
 import type { Order, OrderLine } from '@/shared/types/order.types';
+import {
+  resolveOrderLineBarcode,
+  resolveOrderLineDisplayName,
+} from '@/features/orders/utils/orderLineSnapshot';
 import { buildOrderReportFileNameBase, buildMultiOrderReportFileNameBase } from './orderReportFormat';
 import type {
   BulkOrderReport,
@@ -12,8 +16,8 @@ async function enrichLines(lines: OrderLine[]): Promise<OrderReportLine[]> {
     lines.map(async (line) => {
       const product = await productLocalRepository.getById(line.productId);
       return {
-        barcode: product?.barcode ?? '',
-        productName: line.productName,
+        barcode: resolveOrderLineBarcode(line, product?.barcode) ?? '',
+        productName: resolveOrderLineDisplayName(line),
         productSku: line.productSku,
         quantity: line.quantity,
       };

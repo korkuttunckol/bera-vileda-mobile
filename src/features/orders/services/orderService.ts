@@ -8,6 +8,7 @@ import { syncQueueRepository } from '@/shared/lib/indexeddb/repositories/syncQue
 import { outboxProcessor } from '@/shared/lib/sync/OutboxProcessor';
 import { syncService } from '@/features/sync/services/syncService';
 import { calculateOrderTotals } from '@/features/orders/utils/orderCalculations';
+import { buildOrderLineFromDraft } from '@/features/orders/utils/orderLineSnapshot';
 import { isFirebaseConfigured } from '@/config/env';
 import { erpAdapter } from '@/shared/lib/erp';
 import type { Order, OrderLine, OrderHistoryFilter } from '@/shared/types/order.types';
@@ -66,20 +67,14 @@ class OrderService {
       localOrderNumber: `LOCAL-${localId.slice(0, 8).toUpperCase()}`,
     };
 
-    const lines: OrderLine[] = draft.lines.map((line, index) => ({
-      id: uuidv4(),
-      orderId,
-      productId: line.productId,
-      productSku: line.productSku,
-      productName: line.productName,
-      quantity: line.quantity,
-      unitPrice: line.unitPrice,
-      discountRate: line.discountRate,
-      vatRate: line.vatRate,
-      lineTotal: line.lineTotal,
-      sortOrder: index,
-      unit: line.unit,
-    }));
+    const lines: OrderLine[] = draft.lines.map((line, index) =>
+      buildOrderLineFromDraft({
+        orderId,
+        lineId: uuidv4(),
+        sortOrder: index,
+        draft: line,
+      }),
+    );
 
     await orderLocalRepository.saveWithLines(order, lines);
 

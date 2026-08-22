@@ -22,6 +22,7 @@ export function buildDraftLine(
     sku: string;
     name: string;
     barcode?: string;
+    erpId?: string;
     unit: string;
     listPrice: number;
     vatRate: number;
@@ -29,11 +30,14 @@ export function buildDraftLine(
   },
   quantity: number,
 ): OrderDraftLine {
+  const barcode = product.barcode?.trim() || undefined;
+  const erpId = product.erpId?.trim() || undefined;
   return {
     productId: product.id,
     productSku: product.sku,
     productName: product.name,
-    productBarcode: product.barcode,
+    productBarcode: barcode,
+    productErpId: erpId,
     unit: product.unit,
     stockQuantity: product.stockQuantity,
     quantity,

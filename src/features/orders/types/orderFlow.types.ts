@@ -1,8 +1,13 @@
 export interface OrderDraftLine {
   productId: string;
+  /** PRODUCERCODE at add-to-cart time */
   productSku: string;
+  /** NAME at add-to-cart time */
   productName: string;
+  /** CODE / barcode at add-to-cart time */
   productBarcode?: string;
+  /** Product erpId / Logo LOGICALREF at add-to-cart time */
+  productErpId?: string;
   unit: string;
   stockQuantity: number;
   quantity: number;
