@@ -1,4 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
+import { Capacitor } from '@capacitor/core';
+import { Keyboard } from '@capacitor/keyboard';
 import { Button } from '@/shared/components/ui/Button';
 import { Input } from '@/shared/components/ui/Input';
 import { toast } from '@/stores/toastStore';
@@ -32,18 +34,101 @@ export function MobileNativeBarcodeConfirmSheet({
   const qtyInputRef = useRef<HTMLInputElement | null>(null);
   const [qtyText, setQtyText] = useState('1');
   const [isAdding, setIsAdding] = useState(false);
+  /** iOS-only: native keyboard height from Capacitor Keyboard events. */
+  const [iosKeyboardHeightPx, setIosKeyboardHeightPx] = useState(0);
 
   useEffect(() => {
     if (!open || !product) return;
     setQtyText('1');
-    const id = window.setTimeout(() => {
-      qtyInputRef.current?.focus();
-      qtyInputRef.current?.select();
+
+    // Wait for sheet mount / layout after native camera → WebView, then autofocus.
+    // iOS: temporary readOnly so focus does not open the keyboard (preventScroll alone
+    // is not enough). Unlock on user touch so the numeric keyboard opens normally.
+    // Android: unchanged focus + select (no readOnly).
+    let cancelled = false;
+    let raf1 = 0;
+    let raf2 = 0;
+    const unlockCleanups: Array<() => void> = [];
+
+    const timeoutId = window.setTimeout(() => {
+      raf1 = window.requestAnimationFrame(() => {
+        raf2 = window.requestAnimationFrame(() => {
+          if (cancelled) return;
+          const input = qtyInputRef.current;
+          if (!input) return;
+
+          const isIos = Capacitor.getPlatform() === 'ios';
+          if (isIos) {
+            input.readOnly = true;
+            input.focus({ preventScroll: true });
+            input.select();
+
+            const unlock = (): void => {
+              input.readOnly = false;
+            };
+            input.addEventListener('touchstart', unlock, {
+              once: true,
+              passive: true,
+              capture: true,
+            });
+            input.addEventListener('mousedown', unlock, {
+              once: true,
+              capture: true,
+            });
+            unlockCleanups.push(() => {
+              input.removeEventListener('touchstart', unlock, true);
+              input.removeEventListener('mousedown', unlock, true);
+              input.readOnly = false;
+            });
+            return;
+          }
+
+          input.focus();
+          input.select();
+        });
+      });
     }, 50);
+
     return () => {
-      window.clearTimeout(id);
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+      if (raf1 !== 0) window.cancelAnimationFrame(raf1);
+      if (raf2 !== 0) window.cancelAnimationFrame(raf2);
+      for (const cleanup of unlockCleanups) cleanup();
     };
   }, [open, product]);
+
+  // Sheet-scoped iOS keyboard lift (native height). No global keyboard store.
+  useEffect(() => {
+    if (!open || Capacitor.getPlatform() !== 'ios') {
+      setIosKeyboardHeightPx(0);
+      return;
+    }
+
+    let removed = false;
+    const showHandlePromise = Keyboard.addListener(
+      'keyboardWillShow',
+      (event) => {
+        if (removed) return;
+        setIosKeyboardHeightPx(Math.max(0, Math.round(event.keyboardHeight)));
+      },
+    );
+    const hideHandlePromise = Keyboard.addListener('keyboardWillHide', () => {
+      if (removed) return;
+      setIosKeyboardHeightPx(0);
+    });
+
+    return () => {
+      removed = true;
+      setIosKeyboardHeightPx(0);
+      void showHandlePromise.then((handle) => {
+        void handle.remove();
+      });
+      void hideHandlePromise.then((handle) => {
+        void handle.remove();
+      });
+    };
+  }, [open]);
 
   if (!open || !product) return null;
 
@@ -85,7 +170,14 @@ export function MobileNativeBarcodeConfirmSheet({
         aria-label="Kapat"
         onClick={onClose}
       />
-      <div className="safe-area-bottom rounded-t-2xl bg-white px-4 pb-4 pt-3 shadow-[0_-8px_24px_rgba(0,0,0,0.25)]">
+      <div
+        className="safe-area-bottom rounded-t-2xl bg-white px-4 pb-4 pt-3 shadow-[0_-8px_24px_rgba(0,0,0,0.25)]"
+        style={
+          iosKeyboardHeightPx > 0
+            ? { transform: `translateY(-${String(iosKeyboardHeightPx)}px)` }
+            : undefined
+        }
+      >
         <p id={titleId} className="text-xs text-brand-gray-500">
           {scannedBarcode}
         </p>
