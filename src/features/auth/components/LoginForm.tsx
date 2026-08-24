@@ -10,6 +10,8 @@ import { logoProductSyncService } from '@/features/settings/services/logoProduct
 import {
   BUSINESS_UNITS,
   allowedBusinessUnits,
+  resolveActiveBusinessUnit,
+  setActiveBusinessUnit,
   type BusinessUnit,
 } from '@/features/units/unitAccess';
 
@@ -22,7 +24,7 @@ const UNIT_ROUTES: Record<BusinessUnit, string> = {
 };
 
 export function LoginForm() {
-  const { login, logout, isAuthenticated, isLoading: isAuthLoading } = useAuth();
+  const { user, login, logout, isAuthenticated, isLoading: isAuthLoading } = useAuth();
   const navigate = useNavigate();
   const [userCode, setUserCode] = useState('');
   const [password, setPassword] = useState('');
@@ -32,10 +34,11 @@ export function LoginForm() {
   const loginAttemptRef = useRef(false);
 
   useEffect(() => {
-    if (!isAuthLoading && isAuthenticated && !loginAttemptRef.current) {
-      void navigate(ROUTES.DASHBOARD, { replace: true });
+    if (!isAuthLoading && isAuthenticated && user && !loginAttemptRef.current) {
+      const activeUnit = resolveActiveBusinessUnit(user);
+      void navigate(activeUnit ? UNIT_ROUTES[activeUnit] : ROUTES.DASHBOARD, { replace: true });
     }
-  }, [isAuthenticated, isAuthLoading, navigate]);
+  }, [isAuthenticated, isAuthLoading, navigate, user]);
 
   const handleSubmit = (event: SubmitEvent<HTMLFormElement>): void => {
     event.preventDefault();
@@ -52,6 +55,7 @@ export function LoginForm() {
           );
         }
 
+        setActiveBusinessUnit(businessUnit);
         toast('Giriş başarılı', 'success');
         if (navigator.onLine) {
           try {

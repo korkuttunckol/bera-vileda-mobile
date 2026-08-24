@@ -3,6 +3,8 @@ import { UserRole } from '@/shared/types/role.types';
 
 export type BusinessUnit = 'sales' | 'depot' | 'packaging' | 'reporting' | 'management';
 
+const ACTIVE_BUSINESS_UNIT_KEY = 'bera-active-business-unit-v1';
+
 export interface BusinessUnitDefinition {
   id: BusinessUnit;
   title: string;
@@ -39,4 +41,27 @@ export function allowedBusinessUnits(user: AuthUser | null): BusinessUnit[] {
   if (REPORTING_CODES.has(code)) return ['reporting'];
   if (SALES_CODES.has(code) || user.role === UserRole.SALES_REP || user.role === UserRole.MERCH) return ['sales'];
   return [];
+}
+
+/**
+ * Son kullanılan birim cihazda tutulur. Oturum geri yüklendiğinde Android'in
+ * varsayılan satış ekranına dönmesini engeller; kayıt her zaman kullanıcının
+ * güncel yetkileriyle yeniden doğrulanır.
+ */
+export function setActiveBusinessUnit(unit: BusinessUnit): void {
+  localStorage.setItem(ACTIVE_BUSINESS_UNIT_KEY, unit);
+}
+
+export function resolveActiveBusinessUnit(user: AuthUser | null): BusinessUnit | null {
+  const allowed = allowedBusinessUnits(user);
+  if (allowed.length === 0) return null;
+
+  const stored = localStorage.getItem(ACTIVE_BUSINESS_UNIT_KEY);
+  if (stored && allowed.includes(stored as BusinessUnit)) {
+    return stored as BusinessUnit;
+  }
+
+  // Tek birime yetkili kullanıcılar için (özellikle DEPO) seçim kesin olur.
+  if (allowed.length === 1) return allowed[0];
+  return allowed.includes('sales') ? 'sales' : allowed[0];
 }

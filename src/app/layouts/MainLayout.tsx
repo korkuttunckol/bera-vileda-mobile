@@ -1,4 +1,4 @@
-import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { BottomNav } from '@/shared/components/layout/BottomNav';
 import { OfflineBanner } from '@/shared/components/offline/OfflineBanner';
 import { ToastContainer } from '@/shared/components/feedback/Toast';
@@ -6,6 +6,7 @@ import { APP_SHORT_NAME } from '@/shared/constants/app';
 import { ROUTES } from '@/shared/constants/routes';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { usePermissions } from '@/features/auth/hooks/usePermissions';
+import { resolveActiveBusinessUnit } from '@/features/units/unitAccess';
 import { useVisualViewportKeyboard } from '@/shared/hooks/useVisualViewportKeyboard';
 import { cn } from '@/shared/utils/cn';
 
@@ -21,6 +22,14 @@ export function MainLayout() {
   const isInitialAdminSettings = location.pathname.startsWith(ROUTES.SETTINGS_USERS);
   const isDepotRoute = location.pathname === ROUTES.DEPOT
     || location.pathname.startsWith(`${ROUTES.DEPOT}/`);
+  const activeBusinessUnit = resolveActiveBusinessUnit(user);
+
+  // Android uygulaması arka plandan döndüğünde yönlendirici bazen varsayılan
+  // satış yolunu (/) geri açabiliyor. Depo seçimi olan bir oturumu burada
+  // daha ekrana çizilmeden yeniden depo alanına sabitliyoruz.
+  if (activeBusinessUnit === 'depot' && !isDepotRoute) {
+    return <Navigate to={ROUTES.DEPOT} replace />;
+  }
 
   const handleSettingsClick = (): void => {
     void navigate(can('systemSettings') ? ROUTES.SETTINGS : ROUTES.SETTINGS_APP_INFO);
