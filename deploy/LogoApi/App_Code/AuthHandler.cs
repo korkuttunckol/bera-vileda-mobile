@@ -30,6 +30,7 @@ namespace BeraLogoApi
         public void ProcessRequest(HttpContext context)
         {
             context.Response.ContentType = "application/json; charset=utf-8";
+            context.Response.TrySkipIisCustomErrors = true;
             context.Response.Charset = "utf-8";
             context.Response.ContentEncoding = Encoding.UTF8;
             AddCors(context);
