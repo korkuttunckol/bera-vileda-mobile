@@ -2,13 +2,16 @@ import { type ReactElement } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { usePermissions } from '@/features/auth/hooks/usePermissions';
 import { NAV_ITEMS, type NavIcon } from '@/shared/constants/app';
+import { ROUTES } from '@/shared/constants/routes';
 import { useVisualViewportKeyboard } from '@/shared/hooks/useVisualViewportKeyboard';
 import { cn } from '@/shared/utils/cn';
 
-function NavIconSvg({ icon, active }: { icon: NavIcon; active: boolean }) {
+type BottomNavIcon = NavIcon | 'checklist';
+
+function NavIconSvg({ icon, active }: { icon: BottomNavIcon; active: boolean }) {
   const color = active ? 'text-brand-navy' : 'text-brand-gray-400';
 
-  const icons: Record<NavIcon, ReactElement> = {
+  const icons: Record<BottomNavIcon, ReactElement> = {
     home: (
       <path
         strokeLinecap="round"
@@ -52,6 +55,14 @@ function NavIconSvg({ icon, active }: { icon: NavIcon; active: boolean }) {
         d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.573-1.066z"
       />
     ),
+    checklist: (
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M9 11l3 3L22 4M3 5h.01M3 12h.01M3 19h.01M7 5h8M7 12h3M7 19h8"
+      />
+    ),
   };
 
   return (
@@ -71,7 +82,15 @@ export function BottomNav() {
   const { can } = usePermissions();
   const { keyboardOpen } = useVisualViewportKeyboard();
 
-  const primaryNav = NAV_ITEMS.filter((item) => {
+  const isDepotRoute = location.pathname === ROUTES.DEPOT
+    || location.pathname.startsWith(`${ROUTES.DEPOT}/`);
+
+  const primaryNav: Array<{ path: string; label: string; icon: BottomNavIcon }> = isDepotRoute
+    ? [
+        { path: ROUTES.DEPOT, label: 'Stok Sorgulama', icon: 'box' },
+        { path: ROUTES.DEPOT_TASKS, label: 'Yapacaklarım', icon: 'checklist' },
+      ]
+    : NAV_ITEMS.filter((item) => {
     if (!['/', '/orders/new', '/customers', '/products', '/orders'].includes(item.path)) {
       return false;
     }

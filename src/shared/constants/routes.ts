@@ -4,6 +4,7 @@ export const ROUTES = {
   UNITS: '/birimler',
   DASHBOARD: '/',
   DEPOT: '/depo',
+  DEPOT_TASKS: '/depo/yapacaklarim',
   PACKAGING: '/paketleme',
   REPORTING: '/raporlama',
   MANAGEMENT: '/yonetim',
