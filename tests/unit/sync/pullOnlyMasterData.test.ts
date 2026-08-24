@@ -12,12 +12,15 @@ const processAll = vi.fn(async () => ({
   errors: [],
 }));
 
-const pullAll = vi.fn(async () => ({
-  customers: 3,
-  products: 2,
+const pullUsersOnly = vi.fn(async () => ({
+  customers: 0,
+  products: 0,
   users: 1,
-  full: true,
+  full: false,
 }));
+
+const syncLogoCustomers = vi.fn(async () => ({ success: true, fetchedRows: 3, errors: [] }));
+const syncLogoProducts = vi.fn(async () => ({ success: true, fetchedRows: 2, errors: [] }));
 
 vi.mock('@/config/env', () => ({
   isFirebaseConfigured: () => true,
@@ -45,8 +48,16 @@ vi.mock('@/shared/lib/sync/OutboxProcessor', () => ({
 vi.mock('@/shared/lib/sync/PullSync', () => ({
   pullSync: {
     needsInitialSync: async () => false,
-    pullAll: (options: { full?: boolean }) => pullAll(options),
+    pullUsersOnly: () => pullUsersOnly(),
   },
+}));
+
+vi.mock('@/features/settings/services/logoCustomerSyncService', () => ({
+  logoCustomerSyncService: { syncToIndexedDB: () => syncLogoCustomers() },
+}));
+
+vi.mock('@/features/settings/services/logoProductSyncService', () => ({
+  logoProductSyncService: { syncToIndexedDB: () => syncLogoProducts() },
 }));
 
 vi.mock('@/shared/lib/sync/syncReportBuilder', () => ({
@@ -87,19 +98,23 @@ describe('SyncEngine pullOnly master data', () => {
   beforeEach(() => {
     pushPendingUsers.mockClear();
     processAll.mockClear();
-    pullAll.mockClear();
+    pullUsersOnly.mockClear();
+    syncLogoCustomers.mockClear();
+    syncLogoProducts.mockClear();
     vi.stubGlobal('navigator', { onLine: true });
     vi.resetModules();
   });
 
-  it('pullOnly runs full pull and skips user push + outbox', async () => {
+  it('pullOnly refreshes Logo master data and skips user push + outbox', async () => {
     const { SyncEngine } = await import('@/shared/lib/sync/SyncEngine');
     const engine = new SyncEngine();
 
     const result = await engine.syncNow('manual', { pullOnly: true });
 
     expect(result.success).toBe(true);
-    expect(pullAll).toHaveBeenCalledWith({ full: true });
+    expect(pullUsersOnly).toHaveBeenCalledTimes(1);
+    expect(syncLogoCustomers).toHaveBeenCalledTimes(1);
+    expect(syncLogoProducts).toHaveBeenCalledTimes(1);
     expect(pushPendingUsers).not.toHaveBeenCalled();
     expect(processAll).not.toHaveBeenCalled();
   });
@@ -112,7 +127,9 @@ describe('SyncEngine pullOnly master data', () => {
 
     expect(pushPendingUsers).toHaveBeenCalledTimes(1);
     expect(processAll).toHaveBeenCalledTimes(1);
-    expect(pullAll).toHaveBeenCalledWith({ full: true });
+    expect(pullUsersOnly).toHaveBeenCalledTimes(1);
+    expect(syncLogoCustomers).toHaveBeenCalledTimes(1);
+    expect(syncLogoProducts).toHaveBeenCalledTimes(1);
   });
 });
 

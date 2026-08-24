@@ -112,4 +112,86 @@ describe('orderDraftStore.reset after save', () => {
         ?.stockQuantity,
     ).toBe(-3);
   });
+
+  it('does not apply sales conditions when adding a product to the cart', () => {
+    const store = useOrderDraftStore.getState();
+    store.selectCustomer('c1', 'Cari', 'C1');
+    store.selectBranch('b1', 'Merkez');
+    store.addToCart(makeProduct('p1', 'Spino'), 1);
+
+    const line = useOrderDraftStore.getState().lines[0];
+    expect(line.unitPrice).toBe(10);
+    expect(line.listUnitPrice).toBe(10);
+    expect(line.salesConditionsApplied).toBe(false);
+    expect(line.discountRate).toBe(0);
+  });
+
+  it('applies net prices only through applySalesConditions', () => {
+    const store = useOrderDraftStore.getState();
+    store.selectCustomer('c1', 'Cari', 'C1');
+    store.selectBranch('b1', 'Merkez');
+    const product = makeProduct('p1', 'Spino');
+    product.erpId = '100';
+    product.barcode = '8691';
+    store.addToCart(product, 2);
+
+    const matched = useOrderDraftStore.getState().applySalesConditions([
+      {
+        logicalRef: '100',
+        barcode: '8691',
+        priceSource: 'customer',
+        listPrice: 20,
+        discount1: '10',
+        discount2: '',
+        discount3: '',
+        discount4: '',
+        discount5: '',
+        discountRate1: 10,
+        discountRate2: 0,
+        discountRate3: 0,
+        discountRate4: 0,
+        discountRate5: 0,
+        netPrice: 18,
+      },
+    ]);
+
+    expect(matched).toBe(1);
+    const line = useOrderDraftStore.getState().lines[0];
+    expect(line.salesConditionsApplied).toBe(true);
+    expect(line.listUnitPrice).toBe(20);
+    expect(line.unitPrice).toBe(18);
+    expect(line.lineTotal).toBe(36);
+  });
+
+  it('returns 0 matches when sales-condition items do not match cart lines', () => {
+    const store = useOrderDraftStore.getState();
+    store.selectCustomer('c1', 'Cari', 'C1');
+    store.selectBranch('b1', 'Merkez');
+    store.addToCart(makeProduct('p1', 'Spino'), 1);
+
+    const matched = useOrderDraftStore.getState().applySalesConditions([
+      {
+        logicalRef: '999',
+        barcode: '000',
+        priceSource: 'list',
+        listPrice: 2830,
+        discount1: '',
+        discount2: '',
+        discount3: '',
+        discount4: '',
+        discount5: '',
+        discountRate1: 0,
+        discountRate2: 0,
+        discountRate3: 0,
+        discountRate4: 0,
+        discountRate5: 0,
+        netPrice: 2044.68,
+      },
+    ]);
+
+    expect(matched).toBe(0);
+    expect(useOrderDraftStore.getState().lines[0].salesConditionsApplied).toBe(
+      false,
+    );
+  });
 });

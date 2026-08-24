@@ -59,18 +59,45 @@ class CustomerLocalRepository extends BaseRepository<LocalCustomer> {
 
 export const customerLocalRepository = new CustomerLocalRepository();
 
+function isInBeraPortfolio(customer: LocalCustomer): boolean {
+  // Manual/Excel records are local records; Logo cards are restricted to the
+  // current rollout portfolio. Missing SPECODE5 means an old Logo card and
+  // stays hidden until the next Logo customer sync refreshes it.
+  if (customer.source !== 'logo') return true;
+  return (customer.logoSpecialCode5 ?? '').trim().toLocaleUpperCase('tr-TR') === 'BERA';
+}
+
 export function filterCustomers(
   customers: LocalCustomer[],
   options: {
     search?: string;
     activeFilter?: CustomerActiveFilter;
     includeDeleted?: boolean;
+    /** Only Logo CLCARD.SPECODE values assigned to the signed-in sales rep. */
+    logoSalesRepCodes?: readonly string[];
   },
 ): LocalCustomer[] {
   let result = customers;
 
   if (!options.includeDeleted) {
     result = result.filter((c) => !c.isDeleted);
+  }
+
+  result = result.filter(isInBeraPortfolio);
+
+  if (options.logoSalesRepCodes !== undefined) {
+    const allowedCodes = new Set(
+      options.logoSalesRepCodes
+        .map((code) => String(code ?? '').trim().toLocaleUpperCase('tr-TR'))
+        .filter(Boolean),
+    );
+    result = result.filter((customer) =>
+      allowedCodes.has(
+        String(customer.logoSalesRepCode ?? '')
+          .trim()
+          .toLocaleUpperCase('tr-TR'),
+      ),
+    );
   }
 
   if (options.activeFilter === 'active') {
@@ -91,6 +118,9 @@ export function filterCustomers(
   }
 
   return result.sort((a, b) =>
-    normalizeSearchText(a.name).localeCompare(normalizeSearchText(b.name), 'tr-TR'),
+    String(a.code ?? '').localeCompare(String(b.code ?? ''), 'tr-TR', {
+      numeric: true,
+      sensitivity: 'base',
+    }),
   );
 }

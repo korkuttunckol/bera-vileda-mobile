@@ -9,6 +9,7 @@
  *   STGRPCODE    → groupCode  — never category
  *   SPECODE      → specialCode
  *   SPECODE2     → specialCode2
+ *   SPECODE5     → specialCode5
  *   VAT          → vatRate
  *   MERKEZ       → stockQuantity
  *   SATIS_FIYATI → listPrice
@@ -29,9 +30,11 @@ export interface LogoMappedProductFields {
   groupCode?: string;
   specialCode?: string;
   specialCode2?: string;
+  specialCode5?: string;
   vatRate: number;
   stockQuantity: number;
   listPrice: number;
+  isActive: boolean;
 }
 
 function asTrimmedString(value: unknown): string {
@@ -44,6 +47,13 @@ function asNumber(value: unknown, fallback = 0): number {
   const n =
     typeof value === 'number' ? value : Number(String(value).replace(',', '.'));
   return Number.isFinite(n) ? n : fallback;
+}
+
+function isLogoProductActive(value: unknown): boolean {
+  // Logo ITEMS stores ACTIVE as 0 (usable) / 1 (usage disabled).
+  if (value === null || value === undefined || value === '') return true;
+  if (value === true || value === 'true') return false;
+  return asNumber(value) !== 1;
 }
 
 /**
@@ -66,9 +76,11 @@ export function mapLogoRowToProductFields(
   const groupCode = asTrimmedString(row.STGRPCODE) || undefined;
   const specialCode = asTrimmedString(row.SPECODE) || undefined;
   const specialCode2 = asTrimmedString(row.SPECODE2) || undefined;
+  const specialCode5 = asTrimmedString(row.SPECODE5) || undefined;
   const vatRate = asNumber(row.VAT, 20);
   const stockQuantity = asNumber(row.MERKEZ, 0);
   const listPrice = asNumber(row.SATIS_FIYATI, 0);
+  const isActive = isLogoProductActive(row.ACTIVE);
 
   return {
     erpId,
@@ -78,9 +90,11 @@ export function mapLogoRowToProductFields(
     groupCode,
     specialCode,
     specialCode2,
+    specialCode5,
     vatRate,
     stockQuantity,
     listPrice,
+    isActive,
   };
 }
 
@@ -102,10 +116,12 @@ export function applyLogoFieldsToProduct(
     groupCode: mapped.groupCode,
     specialCode: mapped.specialCode,
     specialCode2: mapped.specialCode2,
+    specialCode5: mapped.specialCode5,
     vatRate: mapped.vatRate,
     stockQuantity: mapped.stockQuantity,
     listPrice: mapped.listPrice,
     // category intentionally unchanged
+    isActive: mapped.isActive,
     updatedAt: now,
   };
 }
@@ -126,6 +142,7 @@ export function logoFieldsForNewProduct(
   | 'groupCode'
   | 'specialCode'
   | 'specialCode2'
+  | 'specialCode5'
   | 'unit'
   | 'listPrice'
   | 'vatRate'
@@ -141,11 +158,12 @@ export function logoFieldsForNewProduct(
     groupCode: mapped.groupCode,
     specialCode: mapped.specialCode,
     specialCode2: mapped.specialCode2,
+    specialCode5: mapped.specialCode5,
     unit: 'Adet',
     listPrice: mapped.listPrice,
     vatRate: mapped.vatRate,
     stockQuantity: mapped.stockQuantity,
-    isActive: true,
+    isActive: mapped.isActive,
     erpId: mapped.erpId,
   };
 }

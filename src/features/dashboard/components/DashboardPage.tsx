@@ -12,7 +12,6 @@ import { usePendingSyncCount } from '@/features/sync/hooks/usePendingSyncCount';
 import { useDataStats } from '@/features/sync/hooks/useDataStats';
 import { useSync } from '@/features/sync/hooks/useSync';
 import { formatLastSyncLabel } from '@/features/sync/utils/lastSyncFormat';
-import { SyncStatusPanel } from '@/features/sync/components/SyncStatusPanel';
 import { useOrders } from '@/features/orders/hooks/useOrders';
 import { ROUTES } from '@/shared/constants/routes';
 import { USER_ROLE_LABELS } from '@/shared/types/role.types';
@@ -196,7 +195,7 @@ export function DashboardPage() {
 
       {hasRemoteUpdates ? (
         <div className="mx-4 mt-3 rounded-card border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-          Yeni veri indirildi. Cari, stok ve kullanıcı sayıları güncellendi.
+          Veriler güncellendi. Cari ve stok kartları Logo'dan yenilendi.
         </div>
       ) : null}
 
@@ -226,40 +225,20 @@ export function DashboardPage() {
         </div>
 
         {can('syncManagement') || can('pullMasterData') ? (
-          <Card padding="md" className={DASHBOARD_CARD}>
-            <div className="mb-3 flex items-start justify-between gap-3">
-              <div>
-                <h3 className="text-base font-semibold tracking-tight text-brand-navy">
-                  Veri Senkronizasyonu
-                </h3>
-                <p className="mt-1 text-xs text-brand-gray-500">
-                  {can('syncManagement')
-                    ? 'Mac ve iPhone aynı güncel verileri kullanır.'
-                    : 'Cari, stok ve kullanıcı verilerini sunucudan indirir. Cihazdan veri göndermez.'}
-                </p>
-              </div>
-              <Button
-                size="sm"
-                variant="outline"
-                isLoading={isSyncing || isInitialSyncing}
-                disabled={!isOnline}
-                onClick={() =>
-                  void syncNow(
-                    'manual',
-                    can('syncManagement') ? undefined : { pullOnly: true },
-                  )
-                }
-              >
-                Senkronize Et
-              </Button>
-            </div>
-            <SyncStatusPanel
-              compact
-              showUsers={can('manageUsers') || can('pullMasterData')}
-              isSyncing={isSyncing}
-              isInitialSyncing={isInitialSyncing}
-            />
-          </Card>
+          <Button
+            fullWidth
+            variant="outline"
+            isLoading={isSyncing || isInitialSyncing}
+            disabled={!isOnline}
+            onClick={() =>
+              void syncNow(
+                'manual',
+                can('syncManagement') ? undefined : { pullOnly: true },
+              )
+            }
+          >
+            Senkronize Et
+          </Button>
         ) : null}
 
         <Card padding="sm" className={DASHBOARD_CARD}>

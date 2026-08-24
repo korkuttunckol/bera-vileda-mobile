@@ -20,8 +20,20 @@ export const PERMISSIONS = {
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
 
-/** Order-capable non-admin set (Merch + Satış Temsilcisi). No scoped MD yet. */
+/** Satış temsilcisi için satış, cari ve stok görüntüleme/işlem seti. */
 const ORDER_OPERATOR_PERMISSIONS: ReadonlySet<Permission> = new Set([
+  PERMISSIONS.pullMasterData,
+  PERMISSIONS.manageCustomers,
+  PERMISSIONS.manageProducts,
+  PERMISSIONS.createOrder,
+  PERMISSIONS.editOrder,
+  PERMISSIONS.deleteOrder,
+  PERMISSIONS.exportReports,
+  PERMISSIONS.offlineWork,
+]);
+
+/** Merch için mevcut sınırlı sipariş çalışma seti. */
+const MERCH_PERMISSIONS: ReadonlySet<Permission> = new Set([
   PERMISSIONS.pullMasterData,
   PERMISSIONS.createOrder,
   PERMISSIONS.editOrder,
@@ -30,11 +42,31 @@ const ORDER_OPERATOR_PERMISSIONS: ReadonlySet<Permission> = new Set([
   PERMISSIONS.offlineWork,
 ]);
 
+const DEPOT_PERMISSIONS: ReadonlySet<Permission> = new Set([
+  PERMISSIONS.pullMasterData,
+  PERMISSIONS.manageStock,
+  PERMISSIONS.offlineWork,
+]);
+
+const PACKAGING_PERMISSIONS: ReadonlySet<Permission> = new Set([
+  PERMISSIONS.pullMasterData,
+  PERMISSIONS.offlineWork,
+]);
+
+const REPORTING_PERMISSIONS: ReadonlySet<Permission> = new Set([
+  PERMISSIONS.pullMasterData,
+  PERMISSIONS.exportReports,
+  PERMISSIONS.offlineWork,
+]);
+
 const ROLE_PERMISSIONS: Record<UserRole, ReadonlySet<Permission>> = {
   [UserRole.ADMIN]: new Set(Object.values(PERMISSIONS)),
-  // Foundation: same capability set as Merch until scoped sync lands.
   [UserRole.SALES_REP]: ORDER_OPERATOR_PERMISSIONS,
-  [UserRole.MERCH]: ORDER_OPERATOR_PERMISSIONS,
+  [UserRole.MERCH]: MERCH_PERMISSIONS,
+  [UserRole.DEPOT]: DEPOT_PERMISSIONS,
+  [UserRole.PACKAGING]: PACKAGING_PERMISSIONS,
+  [UserRole.REPORTING]: REPORTING_PERMISSIONS,
+  [UserRole.MANAGEMENT]: REPORTING_PERMISSIONS,
 };
 
 export function hasPermission(

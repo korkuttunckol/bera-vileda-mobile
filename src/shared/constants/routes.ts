@@ -1,12 +1,22 @@
 export const ROUTES = {
   LOGIN: '/login',
+  ADMIN_LOGIN: '/yonetici-girisi',
+  UNITS: '/birimler',
   DASHBOARD: '/',
+  DEPOT: '/depo',
+  PACKAGING: '/paketleme',
+  REPORTING: '/raporlama',
+  MANAGEMENT: '/yonetim',
   NEW_ORDER: '/orders/new',
   ORDER_HISTORY: '/orders',
   ORDER_DETAIL: '/orders/:id',
   ORDER_SEND: '/orders/:id/send',
   CUSTOMERS: '/customers',
   CUSTOMER_NEW: '/customers/new',
+  CUSTOMER_ACTIONS: '/customers/:id',
+  CUSTOMER_INFO: '/customers/:id/info',
+  CUSTOMER_STATEMENT: '/customers/:id/statement',
+  CUSTOMER_INVOICE: '/customers/:id/invoice/:invoiceRef',
   CUSTOMER_EDIT: '/customers/:id/edit',
   CUSTOMER_BRANCHES: '/customers/:id/branches',
   CUSTOMER_BRANCH_NEW: '/customers/:id/branches/new',
@@ -46,6 +56,11 @@ export function buildCustomerBranchNewRoute(
 ): string {
   const path = ROUTES.CUSTOMER_BRANCH_NEW.replace(':id', customerId);
   return returnTo ? `${path}?returnTo=${returnTo}` : path;
+}
+
+export function buildNewOrderRoute(customerId?: string): string {
+  if (!customerId) return ROUTES.NEW_ORDER;
+  return `${ROUTES.NEW_ORDER}?customerId=${encodeURIComponent(customerId)}`;
 }
 
 export type RouteKey = keyof typeof ROUTES;

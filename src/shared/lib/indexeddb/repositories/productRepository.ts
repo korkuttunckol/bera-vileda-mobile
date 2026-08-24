@@ -39,7 +39,9 @@ class ProductLocalRepository extends BaseRepository<LocalProduct> {
   }
 
   async findActive(): Promise<LocalProduct[]> {
-    return db.products.filter((p) => p.isActive && !p.isDeleted).toArray();
+    return db.products
+      .filter((p) => p.isActive && !p.isDeleted && isBeraProduct(p))
+      .toArray();
   }
 
   async findActiveNotDeleted(): Promise<LocalProduct[]> {
@@ -48,6 +50,11 @@ class ProductLocalRepository extends BaseRepository<LocalProduct> {
 }
 
 export const productLocalRepository = new ProductLocalRepository();
+
+/** All mobile stock operations are restricted to Logo ITEMS.SPECODE5 = BERA. */
+export function isBeraProduct(product: Pick<LocalProduct, 'specialCode5'>): boolean {
+  return product.specialCode5?.trim().toLocaleUpperCase('tr-TR') === 'BERA';
+}
 
 export function dedupeProducts(products: LocalProduct[]): LocalProduct[] {
   const byKey = new Map<string, LocalProduct>();
@@ -78,18 +85,32 @@ export function dedupeProducts(products: LocalProduct[]): LocalProduct[] {
 
 export type ProductActiveFilter = 'all' | 'active' | 'passive';
 
+export function uniqueProductGroupCodes(products: LocalProduct[]): string[] {
+  const visible = dedupeProducts(
+    products.filter((p) => !p.isDeleted && isBeraProduct(p)),
+  );
+  const codes = new Set<string>();
+  for (const product of visible) {
+    const code = product.groupCode?.trim();
+    if (code) codes.add(code);
+  }
+  return Array.from(codes).sort((a, b) => a.localeCompare(b, 'tr-TR'));
+}
+
 export function filterProducts(
   products: LocalProduct[],
   options: {
     search?: string;
     activeFilter?: ProductActiveFilter;
     includeDeleted?: boolean;
+    groupCode?: string;
   },
 ): LocalProduct[] {
   let result = options.includeDeleted
     ? [...products]
     : products.filter((p) => !p.isDeleted);
 
+  result = result.filter(isBeraProduct);
   result = dedupeProducts(result);
 
   if (options.activeFilter === 'active') {
@@ -98,21 +119,25 @@ export function filterProducts(
     result = result.filter((p) => !p.isActive);
   }
 
+  const groupCode = options.groupCode?.trim();
+  if (groupCode) {
+    result = result.filter((p) => (p.groupCode ?? '').trim() === groupCode);
+  }
+
   if (options.search?.trim()) {
     const raw = options.search.trim();
-    const term = normalizeSearchText(raw);
+    const terms = normalizeSearchText(raw)
+      .split(/\s+/)
+      .filter(Boolean);
     result = result.filter((p) => {
-      if (!term) return true;
+      if (terms.length === 0) return true;
       const name = normalizeSearchText(p.name);
       const sku = normalizeSearchText(p.sku);
       const barcode = normalizeSearchText(p.barcode);
-      // Exact raw barcode kept for scanner / paste paths.
-      return (
-        name.includes(term) ||
-        sku.includes(term) ||
-        barcode.includes(term) ||
-        p.barcode === raw
-      );
+      // Every typed word must match. Combining fields keeps product code and
+      // barcode searches useful while allowing names such as "duru bulgur".
+      const searchable = `${name} ${sku} ${barcode}`;
+      return p.barcode === raw || terms.every((term) => searchable.includes(term));
     });
   }
 

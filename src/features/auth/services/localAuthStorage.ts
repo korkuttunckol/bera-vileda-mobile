@@ -8,16 +8,30 @@ export interface StoredAuthSession {
   userCode: string;
   displayName: string;
   role: AuthUser['role'];
+  salesRepCodes?: string[];
   loggedInAt: string;
+  token?: string;
+  expiresAt?: string;
 }
 
-export function saveAuthSession(user: AuthUser): void {
+export interface AuthSessionExtras {
+  token?: string;
+  expiresAt?: string;
+}
+
+export function saveAuthSession(
+  user: AuthUser,
+  extras?: AuthSessionExtras,
+): void {
   const session: StoredAuthSession = {
     uid: user.uid,
     userCode: user.userCode,
     displayName: user.displayName,
     role: user.role,
+    salesRepCodes: user.salesRepCodes,
     loggedInAt: new Date().toISOString(),
+    ...(extras?.token ? { token: extras.token } : {}),
+    ...(extras?.expiresAt ? { expiresAt: extras.expiresAt } : {}),
   };
   localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
 }
@@ -41,9 +55,19 @@ export function getAuthSession(): StoredAuthSession | null {
       userCode: parsed.userCode,
       displayName: parsed.displayName ?? parsed.userCode,
       role,
+      salesRepCodes: Array.isArray(parsed.salesRepCodes)
+        ? parsed.salesRepCodes.filter((code): code is string => typeof code === 'string')
+        : [],
       loggedInAt: parsed.loggedInAt ?? new Date().toISOString(),
+      token: typeof parsed.token === 'string' ? parsed.token : undefined,
+      expiresAt:
+        typeof parsed.expiresAt === 'string' ? parsed.expiresAt : undefined,
     };
   } catch {
     return null;
   }
+}
+
+export function getStoredAuthToken(): string | null {
+  return getAuthSession()?.token ?? null;
 }

@@ -25,6 +25,7 @@ export function useCachedCustomers(search: string) {
     try {
       const list = await customerService.list(user.uid, user.role, {
         activeFilter: 'active',
+        salesRepCodes: user.salesRepCodes,
       });
       setAllCustomers(list);
     } finally {

@@ -7,9 +7,39 @@ import { cn } from '@/shared/utils/cn';
 import { MobileProductRow } from './MobileProductRow';
 import type { Product } from '@/shared/types/product.types';
 
+export interface MobileProductLinePricing {
+  listUnitPrice: number;
+  unitPrice: number;
+  salesConditionsApplied: boolean;
+}
+
+function linePricingProps(
+  product: Product,
+  linePricingByProductId?: Record<string, MobileProductLinePricing>,
+): {
+  listPrice: number;
+  netPrice?: number;
+  salesConditionsApplied: boolean;
+} {
+  const pricing = linePricingByProductId?.[product.id];
+  if (!pricing) {
+    return {
+      listPrice: product.listPrice,
+      salesConditionsApplied: false,
+    };
+  }
+  return {
+    listPrice:
+      pricing.listUnitPrice > 0 ? pricing.listUnitPrice : product.listPrice,
+    netPrice: pricing.unitPrice,
+    salesConditionsApplied: pricing.salesConditionsApplied,
+  };
+}
+
 interface MobileProductSectionProps {
   enabled: boolean;
   cartQtyByProductId: Record<string, number>;
+  linePricingByProductId?: Record<string, MobileProductLinePricing>;
   onQuantityChange: (product: Product, quantity: number) => void;
   /** Opens native Capacitor barcode scanner (auto-detect). */
   onScanBarcodeClick: () => void;
@@ -27,6 +57,7 @@ interface MobileProductSectionProps {
 export function MobileProductSection({
   enabled,
   cartQtyByProductId,
+  linePricingByProductId,
   onQuantityChange,
   onScanBarcodeClick,
   scanBarcodeBusy = false,
@@ -158,6 +189,7 @@ export function MobileProductSection({
                         onQuantityChange(product, qty);
                       }}
                       compact
+                      {...linePricingProps(product, linePricingByProductId)}
                     />
                   ))}
                 </div>
@@ -184,6 +216,7 @@ export function MobileProductSection({
                     onQuantityChange={(qty) => {
                       onQuantityChange(product, qty);
                     }}
+                    {...linePricingProps(product, linePricingByProductId)}
                   />
                 ))
               )}

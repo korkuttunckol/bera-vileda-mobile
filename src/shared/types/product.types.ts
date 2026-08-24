@@ -26,6 +26,8 @@ export interface Product extends BaseEntity {
   specialCode?: string;
   /** Logo SPECODE2 — özel kod 2 */
   specialCode2?: string;
+  /** Logo SPECODE5 — BERA ürün portföyü filtresi. */
+  specialCode5?: string;
   isDeleted?: boolean;
 }
 

@@ -8,8 +8,6 @@ import { syncQueueRepository } from '@/shared/lib/indexeddb/repositories/syncQue
 import { outboxProcessor } from '@/shared/lib/sync/OutboxProcessor';
 import { syncService } from '@/features/sync/services/syncService';
 import { calculateOrderTotals } from '@/features/orders/utils/orderCalculations';
-import { isFirebaseConfigured } from '@/config/env';
-import { erpAdapter } from '@/shared/lib/erp';
 import type { Order, OrderLine, OrderHistoryFilter } from '@/shared/types/order.types';
 import type { OrderDraft } from '@/features/orders/types/orderFlow.types';
 import { UserRole } from '@/shared/types/role.types';
@@ -49,7 +47,7 @@ class OrderService {
       orderDate: now,
       notes: draft.notes,
       subtotal: totals.subtotal,
-      discountTotal: 0,
+      discountTotal: totals.discountTotal,
       vatTotal: totals.vatTotal,
       grandTotal: totals.grandTotal,
       lineCount: totals.lineCount,
@@ -74,6 +72,8 @@ class OrderService {
       productName: line.productName,
       quantity: line.quantity,
       unitPrice: line.unitPrice,
+      listUnitPrice: line.listUnitPrice,
+      discountRates: line.discountRates,
       discountRate: line.discountRate,
       vatRate: line.vatRate,
       lineTotal: line.lineTotal,
@@ -82,53 +82,9 @@ class OrderService {
     }));
 
     await orderLocalRepository.saveWithLines(order, lines);
-
-    if (isFirebaseConfigured()) {
-      await outboxProcessor.enqueue({
-        entityType: 'order',
-        entityId: order.id,
-        operation: 'create',
-        data: { orderId: order.id, localId: order.localId },
-      });
-      await syncService.refreshPendingCount();
-    } else {
-      const erpResult = await erpAdapter.exportOrder({
-        orderId: order.id,
-        customerCode: order.customerCode ?? order.customerId,
-        lines: lines.map((line) => ({
-          productSku: line.productSku,
-          quantity: line.quantity,
-          unitPrice: line.unitPrice,
-        })),
-      });
-
-      const now = new Date().toISOString();
-      const erpSynced = erpResult.success && erpResult.deferred !== true;
-      const erpPending = erpResult.success && erpResult.deferred === true;
-      const nextErpStatus = erpSynced ? 'synced' : erpPending ? 'pending' : 'failed';
-
-      await orderLocalRepository.save({
-        ...order,
-        orderSyncStatus: 'sent',
-        syncStatus: 'synced',
-        erpSyncStatus: nextErpStatus,
-        erpId: erpResult.erpReferenceId,
-        erpSyncError: erpResult.success ? undefined : erpResult.errorMessage,
-        erpSyncedAt: erpSynced ? now : undefined,
-        updatedAt: now,
-      });
-      order.orderSyncStatus = 'sent';
-      order.syncStatus = 'synced';
-      order.erpSyncStatus = nextErpStatus;
-    }
-
+    // Kayıt, kullanıcı açıkça "Gönder" demeden senkronizasyon kuyruğuna alınmaz.
+    await syncService.refreshPendingCount();
     syncService.notifyDataChanged();
-
-    if (isFirebaseConfigured() && !isOffline) {
-      void syncService.syncNow('auto');
-    } else {
-      void syncService.publishOrderSyncReport('auto');
-    }
 
     return { order, isOffline };
   }
@@ -193,6 +149,25 @@ class OrderService {
     }
 
     await syncService.refreshPendingCount();
+  }
+
+  async queuePendingOrders(userId: string, role: UserRole): Promise<number> {
+    const orders = await orderLocalRepository.findAllForUser(
+      userId,
+      role === UserRole.ADMIN,
+    );
+    const waiting = orders.filter(
+      (order) =>
+        !order.isDeleted &&
+        (order.orderSyncStatus === 'pending_offline' ||
+          order.orderSyncStatus === 'failed'),
+    );
+
+    for (const order of waiting) {
+      await this.retryOrderSync(order.id);
+    }
+
+    return waiting.length;
   }
 }
 

@@ -1,9 +1,8 @@
-import { useState, useEffect, useRef, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { PageHeader } from '@/shared/components/layout/PageHeader';
 import { BackButton } from '@/shared/components/layout/BackButton';
 import { Card } from '@/shared/components/ui/Card';
-import { Badge } from '@/shared/components/ui/Badge';
 import { Button } from '@/shared/components/ui/Button';
 import { LoadingSpinner } from '@/shared/components/feedback/LoadingSpinner';
 import { EmptyState } from '@/shared/components/feedback/EmptyState';
@@ -11,24 +10,16 @@ import { OrderStatusBadge } from './OrderStatusBadge';
 import { OrderShareActions } from './OrderShareActions';
 import { useOrder } from '../hooks/useOrder';
 import { orderService } from '../services/orderService';
-import { productService } from '@/features/products/services/productService';
 import { useSync } from '@/features/sync';
 import {
   formatOrderReportDate,
   formatOrderReportTime,
 } from '../report';
-import { isProductOutOfStock } from '@/features/orders/utils/stockControl';
 import { toast } from '@/stores/toastStore';
 import { ROUTES } from '@/shared/constants/routes';
 import { isFirebaseConfigured } from '@/config/env';
-import { cn } from '@/shared/utils/cn';
-import type { OrderLine, OrderSyncStatus } from '@/shared/types/order.types';
-
-interface LineProductInfo {
-  barcode?: string;
-  stockQuantity: number;
-  unit: string;
-}
+import { formatCurrency } from '@/shared/utils/cn';
+import type { Order, OrderLine, OrderSyncStatus } from '@/shared/types/order.types';
 
 function SummaryIcon({ children }: { children: ReactNode }) {
   return (
@@ -82,15 +73,11 @@ function OrderSummaryCell({
 
 function OrderDetailLineItem({
   line,
-  productInfo,
 }: {
   line: OrderLine;
-  productInfo?: LineProductInfo;
 }) {
-  const unit = line.unit ?? productInfo?.unit ?? 'Adet';
-  const isOutOfStock =
-    productInfo != null && isProductOutOfStock(productInfo);
-  const barcode = productInfo?.barcode?.trim() || '—';
+  const unit = line.unit ?? 'Adet';
+  const discounts = line.discountRates?.filter((rate) => rate > 0) ?? [];
 
   return (
     <Card padding="sm" className="!px-3 !py-2.5 !shadow-sm">
@@ -98,25 +85,7 @@ function OrderDetailLineItem({
         {line.productName}
       </p>
 
-      <div className="mt-1.5 grid grid-cols-2 gap-x-3 gap-y-0.5">
-        <div className="min-w-0">
-          <p className="text-[10px] font-medium uppercase tracking-wide text-brand-gray-400">
-            Barkod
-          </p>
-          <p className="truncate text-sm font-semibold tracking-wide text-brand-navy">
-            {barcode}
-          </p>
-        </div>
-        <div className="min-w-0">
-          <p className="text-[10px] font-medium uppercase tracking-wide text-brand-gray-400">
-            Ürün Kodu
-          </p>
-          <p className="truncate text-sm font-semibold tracking-wide text-brand-navy">
-            {line.productSku}
-          </p>
-        </div>
-      </div>
-
+      <p className="mt-1 text-xs text-brand-gray-500">Ürün kodu: {line.productSku}</p>
       <div className="mt-1.5 grid grid-cols-2 gap-x-3 border-t border-brand-gray-100 pt-1.5 text-sm">
         <p className="min-w-0 text-brand-gray-600">
           Miktar:{' '}
@@ -124,30 +93,40 @@ function OrderDetailLineItem({
             {line.quantity} {unit}
           </span>
         </p>
-        {productInfo != null ? (
-          <div className="min-w-0 text-right">
-            <p className="text-brand-gray-600">
-              Depo stok:{' '}
-              <span
-                className={cn(
-                  'font-semibold',
-                  isOutOfStock ? 'text-red-700' : 'text-brand-navy',
-                )}
-              >
-                {productInfo.stockQuantity} {productInfo.unit}
-              </span>
-            </p>
-            {isOutOfStock ? (
-              <Badge
-                label="Stok Yok"
-                variant="passive"
-                className="mt-0.5 !bg-red-100 !text-red-700"
-              />
-            ) : null}
-          </div>
-        ) : (
-          <p className="min-w-0 text-right text-brand-gray-400">Depo stok: —</p>
-        )}
+        <p className="min-w-0 text-right text-brand-gray-600">
+          KDV: <span className="font-semibold text-brand-navy">%{line.vatRate}</span>
+        </p>
+      </div>
+      <div className="mt-1 flex items-center justify-between gap-3 text-sm">
+        <p className="text-brand-gray-600">
+          İskonto:{' '}
+          <span className="font-semibold text-brand-navy">
+            {discounts.length > 0 ? `% ${discounts.join('+')}` : '—'}
+          </span>
+        </p>
+        <p className="text-right font-semibold tabular-nums text-brand-navy">
+          Net: {formatCurrency(line.lineTotal)}
+        </p>
+      </div>
+    </Card>
+  );
+}
+
+function OrderFinancialSummary({ order }: { order: Order }) {
+  const grossTotal = order.subtotal + order.discountTotal;
+  return (
+    <Card padding="md" className="space-y-2">
+      <div className="flex justify-between gap-4 text-sm text-brand-gray-600">
+        <span>Sipariş toplamı</span><span className="tabular-nums">{formatCurrency(grossTotal)}</span>
+      </div>
+      <div className="flex justify-between gap-4 text-sm text-brand-gray-600">
+        <span>İskonto toplamı</span><span className="tabular-nums">-{formatCurrency(order.discountTotal)}</span>
+      </div>
+      <div className="flex justify-between gap-4 text-sm text-brand-gray-600">
+        <span>KDV</span><span className="tabular-nums">{formatCurrency(order.vatTotal)}</span>
+      </div>
+      <div className="flex justify-between gap-4 border-t border-brand-gray-200 pt-2 text-base font-bold text-brand-navy">
+        <span>KDV dahil tutar</span><span className="tabular-nums">{formatCurrency(order.grandTotal)}</span>
       </div>
     </Card>
   );
@@ -228,50 +207,6 @@ export function OrderDetailPage() {
   const { order, lines, isLoading, notFound, reload } = useOrder(id);
   const { syncNow, isSyncing } = useSync();
   const [isRetrying, setIsRetrying] = useState(false);
-  const [productInfoByProductId, setProductInfoByProductId] = useState<
-    Record<string, LineProductInfo>
-  >({});
-  const isMountedRef = useRef(true);
-
-  useEffect(() => {
-    isMountedRef.current = true;
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (lines.length === 0) {
-      setProductInfoByProductId({});
-      return;
-    }
-
-    void (async () => {
-      const entries = await Promise.all(
-        lines.map(async (line) => {
-          const product = await productService.getById(line.productId);
-          if (!product) return null;
-          return [
-            line.productId,
-            {
-              barcode: product.barcode,
-              stockQuantity: product.stockQuantity,
-              unit: product.unit,
-            },
-          ] as const;
-        }),
-      );
-
-      if (!isMountedRef.current) return;
-
-      const next: Record<string, LineProductInfo> = {};
-      for (const entry of entries) {
-        if (entry) next[entry[0]] = entry[1];
-      }
-      setProductInfoByProductId(next);
-    })();
-  }, [lines]);
-
   const canRetry =
     isFirebaseConfigured() &&
     order &&
@@ -376,10 +311,11 @@ export function OrderDetailPage() {
             <OrderDetailLineItem
               key={line.id}
               line={line}
-              productInfo={productInfoByProductId[line.productId]}
             />
           ))}
         </div>
+
+        <OrderFinancialSummary order={order} />
 
         {order.orderSyncStatus === 'sent' ? (
           <Card padding="md">
@@ -393,7 +329,7 @@ export function OrderDetailPage() {
             onClick={() => void handleRetry()}
             isLoading={isRetrying || isSyncing}
           >
-            Yeniden Gönder
+            {order.orderSyncStatus === 'failed' ? 'Yeniden Gönder' : 'Siparişi Gönder'}
           </Button>
         ) : null}
       </div>

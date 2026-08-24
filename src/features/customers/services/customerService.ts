@@ -5,6 +5,7 @@ import {
   filterCustomers,
   type CustomerActiveFilter,
 } from '@/shared/lib/indexeddb/repositories/customerRepository';
+import { userLocalRepository } from '@/shared/lib/indexeddb/repositories/userRepository';
 import type {
   Customer,
   CustomerFormData,
@@ -19,10 +20,26 @@ class CustomerService {
     options: {
       search?: string;
       activeFilter?: CustomerActiveFilter;
+      salesRepCodes?: readonly string[];
     } = {},
   ): Promise<Customer[]> {
     const all = await customerLocalRepository.getAll();
-    return filterCustomers(all, options);
+    // Kullanıcı ayarlarında değiştirilen SPECODE listesi, satış temsilcisi
+    // uygulamasının sonraki senkronizasyonunda IndexedDB'ye gelir. Oturumdaki
+    // eski kopya yerine buradan okumak, çıkış-giriş gerektirmeden portföyü
+    // güncel tutar.
+    const latestUser =
+      _role === UserRole.SALES_REP
+        ? await userLocalRepository.findByCode(_userId)
+        : undefined;
+    const salesRepCodes = latestUser?.salesRepCodes ?? options.salesRepCodes ?? [];
+
+    return filterCustomers(all, {
+      ...options,
+      activeFilter: options.activeFilter ?? 'active',
+      logoSalesRepCodes:
+        _role === UserRole.SALES_REP ? salesRepCodes : undefined,
+    });
   }
 
   async getById(id: string): Promise<Customer | undefined> {
@@ -184,6 +201,9 @@ class CustomerService {
       specialCode2: base.specialCode2,
       priceListId: base.priceListId,
       creditLimit: base.creditLimit,
+      balanceDebit: base.balanceDebit,
+      balanceCredit: base.balanceCredit,
+      balance: base.balance,
     };
   }
 

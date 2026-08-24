@@ -69,7 +69,15 @@ export interface UpdateUserInput {
 }
 
 export type UserActiveFilter = 'all' | 'active' | 'passive';
-export type UserRoleFilter = 'all' | 'admin' | 'salesRep' | 'merch';
+export type UserRoleFilter =
+  | 'all'
+  | 'admin'
+  | 'salesRep'
+  | 'merch'
+  | 'depot'
+  | 'packaging'
+  | 'reporting'
+  | 'management';
 
 export function normalizeUserCode(userCode: string): string {
   return userCode.trim().toUpperCase();

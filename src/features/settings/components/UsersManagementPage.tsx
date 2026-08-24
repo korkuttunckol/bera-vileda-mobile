@@ -8,15 +8,17 @@ import {
   ActiveFilter,
   type ActiveFilterValue,
 } from '@/shared/components/form/ActiveFilter';
-import { SettingsBackButton } from '@/features/settings/components/SettingsBackButton';
+import { BackButton } from '@/shared/components/layout/BackButton';
 import { UserCard } from '@/features/users/components/UserCard';
 import { UserRoleFilterControl } from '@/features/users/components/UserRoleFilter';
 import { useUsers } from '@/features/users/hooks/useUsers';
 import { ROUTES } from '@/shared/constants/routes';
 import type { UserRoleFilter } from '@/shared/types/user.types';
+import { useAuth } from '@/features/auth/hooks/useAuth';
 
 export function UsersManagementPage() {
   const navigate = useNavigate();
+  const { logout } = useAuth();
   const [activeFilter, setActiveFilter] = useState<ActiveFilterValue>('all');
   const [roleFilter, setRoleFilter] = useState<UserRoleFilter>('all');
   const { users, isLoading } = useUsers(activeFilter, roleFilter);
@@ -25,8 +27,16 @@ export function UsersManagementPage() {
     <div>
       <PageHeader
         title="Kullanıcı Yönetimi"
-        subtitle="Admin ve Merch kullanıcılarını yönetin"
-        backButton={<SettingsBackButton />}
+        subtitle="Birim kullanıcılarını ve giriş yetkilerini yönetin"
+        backButton={
+          <BackButton
+            label="Çıkış"
+            onClick={() => {
+              logout();
+              void navigate(ROUTES.LOGIN);
+            }}
+          />
+        }
         action={
           <Button
             size="sm"

@@ -9,8 +9,8 @@ import type { Product } from '@/shared/types/product.types';
 interface ProductInfoDisplayProps {
   product: Product;
   className?: string;
-  /** Sipariş akışında yalnızca kod, ad, barkod ve stok gösterilir */
-  variant?: 'default' | 'order';
+  /** Sipariş akışında yalnızca kod, ad, barkod ve stok gösterilir. */
+  variant?: 'default' | 'order' | 'depot';
 }
 
 export function ProductInfoDisplay({
@@ -20,6 +20,7 @@ export function ProductInfoDisplay({
 }: ProductInfoDisplayProps) {
   const productFields = useProductDisplayFields();
   const isOrderView = variant === 'order';
+  const isDepotView = variant === 'depot';
   const isVisible = (field: ProductDisplayField): boolean => {
     if (isOrderView) {
       return field === 'sku' || field === 'name' || field === 'stock';
@@ -27,6 +28,25 @@ export function ProductInfoDisplay({
     return isProductFieldVisible(productFields, field);
   };
   const isOutOfStock = product.stockQuantity <= 0;
+  const groupCode = product.groupCode?.trim() || '—';
+  const barcode = product.barcode?.trim();
+
+  const stockLine = (
+    <div className="flex flex-wrap items-center gap-2">
+      <span
+        className={cn(
+          'text-sm font-medium',
+          isOutOfStock ? 'text-red-600' : 'text-brand-gray-600',
+        )}
+      >
+        Depo Stok: {product.stockQuantity}
+        {!isOrderView && isVisible('unit') ? ` ${product.unit}` : ''}
+      </span>
+      {isOutOfStock ? (
+        <Badge label="Stok Yok" variant="passive" className="!bg-red-100 !text-red-700" />
+      ) : null}
+    </div>
+  );
 
   return (
     <div className={cn('min-w-0', className)}>
@@ -52,38 +72,34 @@ export function ProductInfoDisplay({
           Kategori: {product.category}
         </p>
       ) : null}
-      {isVisible('stock') ? (
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          <span
-            className={cn(
-              'text-sm font-medium',
-              isOutOfStock ? 'text-red-600' : 'text-brand-gray-600',
-            )}
-          >
-            Depo Stok: {product.stockQuantity}
-            {!isOrderView && isVisible('unit') ? ` ${product.unit}` : ''}
-          </span>
-          {isOutOfStock ? (
-            <Badge label="Stok Yok" variant="passive" className="!bg-red-100 !text-red-700" />
-          ) : null}
+
+      {isOrderView ? (
+        <div className="mt-2">{stockLine}</div>
+      ) : (
+        <div className="mt-2 grid grid-cols-2 items-start gap-x-3 border-t border-brand-gray-100 pt-2">
+          <div className="min-w-0 space-y-1">
+            {stockLine}
+            {barcode ? (
+              <p className="truncate text-xs text-brand-gray-400">
+                Barkod: {barcode}
+              </p>
+            ) : null}
+          </div>
+          <div className="min-w-0 space-y-1 text-right">
+            <p className="truncate text-xs text-brand-gray-500">
+              Grup Kodu: {groupCode}
+            </p>
+            {!isDepotView ? (
+              <>
+                <p className="text-sm font-medium text-brand-navy">
+                  Liste: {formatCurrency(product.listPrice)}
+                </p>
+                <p className="text-xs text-brand-gray-500">KDV: %{product.vatRate}</p>
+              </>
+            ) : null}
+          </div>
         </div>
-      ) : null}
-      {!isOrderView && isVisible('barcode') && product.barcode ? (
-        <p className="mt-1 truncate text-xs text-brand-gray-400">
-          Barkod: {product.barcode}
-        </p>
-      ) : null}
-      {!isOrderView && isVisible('price') ? (
-        <p className="mt-1 text-sm font-medium text-brand-navy">
-          {formatCurrency(product.listPrice)}
-          {isVisible('unit') ? ` / ${product.unit}` : ''}
-        </p>
-      ) : null}
-      {!isOrderView && isVisible('vatRate') ? (
-        <p className="mt-1 text-xs text-brand-gray-500">
-          KDV: %{product.vatRate}
-        </p>
-      ) : null}
+      )}
     </div>
   );
 }

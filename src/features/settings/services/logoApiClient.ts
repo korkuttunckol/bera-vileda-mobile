@@ -22,9 +22,12 @@ export interface LogoStockRow {
   STGRPCODE?: string | number | null;
   SPECODE?: string | number | null;
   SPECODE2?: string | number | null;
+  SPECODE5?: string | number | null;
   VAT?: string | number | null;
   MERKEZ?: string | number | null;
   SATIS_FIYATI?: string | number | null;
+  /** Logo ITEMS.ACTIVE: 0 = usable/active, 1 = usage disabled/passive. */
+  ACTIVE?: string | number | boolean | null;
   [key: string]: unknown;
 }
 
@@ -100,5 +103,20 @@ export async function fetchLogoStockRows(
     );
   }
 
-  return data as LogoStockRow[];
+  const rows = data as LogoStockRow[];
+  const debugRow = rows.find(
+    (row) => String(row.PRODUCERCODE ?? '').trim() === '139221',
+  );
+  if (debugRow) {
+    console.log('[STOK DEBUG 139221]', {
+      keys: Object.keys(debugRow),
+      PRODUCERCODE: debugRow.PRODUCERCODE,
+      CODE: debugRow.CODE,
+      NAME: debugRow.NAME,
+      MERKEZ: debugRow.MERKEZ,
+      SATIS_FIYATI: debugRow.SATIS_FIYATI,
+    });
+  }
+
+  return rows;
 }

@@ -105,6 +105,17 @@ describe('logoCustomerMapper', () => {
     expect(mapped?.specialCode2).toBe('SC2');
   });
 
+  it('maps SPECODE5 → logoSpecialCode5', () => {
+    const mapped = mapLogoRowToCustomerFields({
+      LOGICALREF: '1',
+      CODE: 'A',
+      DEFINITION_: 'N',
+      SPECODE5: 'BERA',
+    });
+    expect(mapped?.logoSpecialCode5).toBe('BERA');
+    expect(logoFieldsForNewCustomer(mapped!).logoSpecialCode5).toBe('BERA');
+  });
+
   it('maps CITY → address.city and TOWN → address.district', () => {
     const mapped = mapLogoRowToCustomerFields({
       LOGICALREF: '1',
@@ -117,6 +128,53 @@ describe('logoCustomerMapper', () => {
       city: 'İstanbul',
       district: 'Kadıköy',
     });
+  });
+
+  it('maps Borç / Alacak / Bakiye balance fields', () => {
+    const mapped = mapLogoRowToCustomerFields({
+      LOGICALREF: '1',
+      CODE: 'A',
+      DEFINITION_: 'N',
+      Borç: 1500,
+      Alacak: 200,
+      Bakiye: 1300,
+    });
+    expect(mapped?.balanceDebit).toBe(1500);
+    expect(mapped?.balanceCredit).toBe(200);
+    expect(mapped?.balance).toBe(1300);
+  });
+
+  it('maps Logo ACTIVE=0 to active and ACTIVE=1 to passive', () => {
+    const active = mapLogoRowToCustomerFields({
+      LOGICALREF: '1', CODE: '01001', DEFINITION_: 'Aktif', ACTIVE: 0,
+    });
+    const passive = mapLogoRowToCustomerFields({
+      LOGICALREF: '2', CODE: '01002', DEFINITION_: 'Pasif', ACTIVE: 1,
+    });
+    expect(active?.isActive).toBe(true);
+    expect(passive?.isActive).toBe(false);
+    expect(logoFieldsForNewCustomer(passive!).isActive).toBe(false);
+  });
+
+  it('applies balance fields onto existing customer', () => {
+    const mapped = mapLogoRowToCustomerFields({
+      LOGICALREF: '55',
+      CODE: 'NEWCODE',
+      DEFINITION_: 'Yeni Ad',
+      Borç: 100,
+      Alacak: 0,
+      Bakiye: 100,
+    })!;
+
+    const updated = applyLogoFieldsToCustomer(
+      baseCustomer({ salesRepId: 'keep-me' }),
+      mapped,
+      't1',
+    );
+
+    expect(updated.balanceDebit).toBe(100);
+    expect(updated.balanceCredit).toBe(0);
+    expect(updated.balance).toBe(100);
   });
 
   it('returns null when LOGICALREF or CODE missing', () => {

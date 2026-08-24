@@ -1,8 +1,8 @@
 export const APP_CONFIG = {
-  name: 'BERA VİLEDA SİPARİŞ SİSTEMİ',
-  shortName: 'BERA VİLEDA',
+  name: 'Bera Mobile',
+  shortName: 'BERA MOBILE',
   version: '2.0.0',
-  description: 'Saha satış sipariş yönetim sistemi',
+  description: 'Bera otomasyon yönetim sistemi',
   locale: 'tr-TR',
   currency: 'TRY',
 } as const;

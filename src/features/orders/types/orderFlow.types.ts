@@ -3,13 +3,22 @@ export interface OrderDraftLine {
   productSku: string;
   productName: string;
   productBarcode?: string;
+  /** Logo ITEMS.LOGICALREF when known. */
+  productErpId?: string;
   unit: string;
   stockQuantity: number;
   quantity: number;
+  /** Effective unit price (list until sales conditions are applied, then net). */
   unitPrice: number;
+  /** Snapshot of list / base price shown before net price. */
+  listUnitPrice?: number;
+  /** Logo'nun kalem bazında uyguladığı iskonto oranları (ör. 20 + 5). */
+  discountRates?: number[];
   discountRate: number;
   vatRate: number;
   lineTotal: number;
+  salesConditionsApplied?: boolean;
+  priceSource?: 'customer' | 'list';
 }
 
 export interface OrderDraft {

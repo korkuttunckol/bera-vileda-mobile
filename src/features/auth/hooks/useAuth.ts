@@ -1,7 +1,8 @@
 import { useEffect } from 'react';
 import { useAuthStore } from '@/stores/authStore';
+import { clearOrderDraftForUserChange } from '@/features/orders/hooks/useOrderDraftPersist';
 import { authService } from '../services/authService';
-import type { LoginCredentials } from '../types/auth.types';
+import type { AuthUser, LoginCredentials } from '../types/auth.types';
 
 export function useAuth() {
   const user = useAuthStore((s) => s.user);
@@ -17,12 +18,17 @@ export function useAuth() {
     return unsubscribe;
   }, [setUser, setLoading]);
 
-  const login = async (credentials: LoginCredentials): Promise<void> => {
+  const login = async (credentials: LoginCredentials): Promise<AuthUser> => {
     const authUser = await authService.login(credentials);
+    // Sipariş taslağı kullanıcıya özeldir; önceki kullanıcının müşterisi ve
+    // kalemleri yeni oturuma asla taşınmamalıdır.
+    clearOrderDraftForUserChange();
     setUser(authUser);
+    return authUser;
   };
 
   const logout = (): void => {
+    clearOrderDraftForUserChange();
     authService.logout();
     logoutStore();
   };

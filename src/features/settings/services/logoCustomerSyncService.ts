@@ -245,6 +245,12 @@ async function applyMappedRows(
   const locals = await customerLocalRepository.getAll();
   const { byErpId, byCode } = buildIndexes(locals);
   const seenLogoErpIds = new Set<string>();
+  const incomingErpIds = new Set<string>();
+  // Reconcile the BERA portfolio only when the endpoint explicitly provides
+  // SPECODE5. Older endpoints must keep their previous non-destructive sync.
+  const hasPortfolioField = rows.some((row) =>
+    Object.prototype.hasOwnProperty.call(row, 'SPECODE5'),
+  );
   const toSave: LocalCustomer[] = [];
 
   for (const row of rows) {
@@ -253,6 +259,8 @@ async function applyMappedRows(
       skipped++;
       continue;
     }
+
+    incomingErpIds.add(mapped.erpId);
 
     const plan = planLogoCustomerRowMatch(
       mapped,
@@ -307,6 +315,31 @@ async function applyMappedRows(
     toSave.push(createdCustomer);
     applyIndexMutation(byErpId, byCode, undefined, createdCustomer);
     created++;
+  }
+
+  if (hasPortfolioField) {
+    const now = new Date().toISOString();
+    for (const customer of locals) {
+      const erpId = (customer.erpId ?? '').trim();
+      const wasInBeraPortfolio =
+        customer.source === 'logo' &&
+        (customer.logoSpecialCode5 ?? '').trim().toLocaleUpperCase('tr-TR') === 'BERA';
+
+      if (!wasInBeraPortfolio || !erpId || incomingErpIds.has(erpId)) {
+        continue;
+      }
+
+      // Logo no longer returns this card under SPECODE5=BERA. Keep the local
+      // card and its order history, but remove it from the visible portfolio.
+      toSave.push({
+        ...customer,
+        logoSpecialCode5: undefined,
+        updatedAt: now,
+        updatedBy: userId,
+        version: customer.version + 1,
+        syncStatus: 'pending',
+      });
+    }
   }
 
   if (!options.dryRun) {

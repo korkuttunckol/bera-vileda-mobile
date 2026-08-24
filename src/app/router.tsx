@@ -3,13 +3,19 @@ import { MainLayout } from '@/app/layouts/MainLayout';
 import { AuthLayout } from '@/app/layouts/AuthLayout';
 import { ProtectedRoute } from '@/features/auth/components/ProtectedRoute';
 import { AdminRoute } from '@/features/auth/components/AdminRoute';
+import { PermissionRoute } from '@/features/auth/components/PermissionRoute';
 import { LoginForm } from '@/features/auth/components/LoginForm';
+import { AdminLoginForm } from '@/features/auth/components/AdminLoginForm';
 import { DashboardPage } from '@/features/dashboard/components/DashboardPage';
 import { NewOrderPage } from '@/features/orders/components/NewOrderPage';
 import { OrderHistoryPage } from '@/features/orders/components/OrderHistoryPage';
 import {
   CustomersPage,
   CustomerFormPage,
+  CustomerActionsPage,
+  CustomerInfoPage,
+  CustomerStatementPage,
+  CustomerInvoicePage,
   BranchListPage,
   BranchFormPage,
 } from '@/features/customers';
@@ -39,6 +45,9 @@ import { OrderDetailPage } from '@/features/orders/components/OrderDetailPage';
 import { SendOrderPage } from '@/features/orders/components/SendOrderPage';
 import { DiagnosticsPage } from '@/features/diagnostics';
 import { NativeBarcodePocPage } from '@/features/nativeBarcodePoc';
+import { UnitHubPage } from '@/features/units/components/UnitHubPage';
+import { UnitPlaceholderPage } from '@/features/units/components/UnitPlaceholderPage';
+import { DepotStockPage } from '@/features/units/components/DepotStockPage';
 import { ROUTES } from '@/shared/constants/routes';
 
 export const router = createBrowserRouter([
@@ -56,12 +65,22 @@ export const router = createBrowserRouter([
     children: [{ index: true, element: <LoginForm /> }],
   },
   {
+    path: ROUTES.ADMIN_LOGIN,
+    element: <AuthLayout />,
+    children: [{ index: true, element: <AdminLoginForm /> }],
+  },
+  {
     element: <ProtectedRoute />,
     children: [
       {
         element: <MainLayout />,
         children: [
+          { path: ROUTES.UNITS, element: <UnitHubPage /> },
           { path: ROUTES.DASHBOARD, element: <DashboardPage /> },
+      { path: ROUTES.DEPOT, element: <DepotStockPage /> },
+          { path: ROUTES.PACKAGING, element: <UnitPlaceholderPage unit="packaging" /> },
+          { path: ROUTES.REPORTING, element: <UnitPlaceholderPage unit="reporting" /> },
+          { path: ROUTES.MANAGEMENT, element: <UnitPlaceholderPage unit="management" /> },
           { path: ROUTES.NEW_ORDER, element: <NewOrderPage /> },
           { path: ROUTES.ORDER_HISTORY, element: <OrderHistoryPage /> },
           { path: ROUTES.ORDER_DETAIL, element: <OrderDetailPage /> },
@@ -69,17 +88,41 @@ export const router = createBrowserRouter([
           {
             path: ROUTES.CUSTOMERS,
             element: (
-              <AdminRoute>
+              <PermissionRoute permission="manageCustomers">
                 <CustomersPage />
-              </AdminRoute>
+              </PermissionRoute>
             ),
           },
           {
-            path: ROUTES.CUSTOMER_NEW,
+            path: ROUTES.CUSTOMER_ACTIONS,
             element: (
-              <AdminRoute>
-                <CustomerFormPage />
-              </AdminRoute>
+              <PermissionRoute permission="manageCustomers">
+                <CustomerActionsPage />
+              </PermissionRoute>
+            ),
+          },
+          {
+            path: ROUTES.CUSTOMER_INFO,
+            element: (
+              <PermissionRoute permission="manageCustomers">
+                <CustomerInfoPage />
+              </PermissionRoute>
+            ),
+          },
+          {
+            path: ROUTES.CUSTOMER_STATEMENT,
+            element: (
+              <PermissionRoute permission="manageCustomers">
+                <CustomerStatementPage />
+              </PermissionRoute>
+            ),
+          },
+          {
+            path: ROUTES.CUSTOMER_INVOICE,
+            element: (
+              <PermissionRoute permission="manageCustomers">
+                <CustomerInvoicePage />
+              </PermissionRoute>
             ),
           },
           {
@@ -117,17 +160,9 @@ export const router = createBrowserRouter([
           {
             path: ROUTES.PRODUCTS,
             element: (
-              <AdminRoute>
+              <PermissionRoute permission="manageProducts">
                 <ProductsPage />
-              </AdminRoute>
-            ),
-          },
-          {
-            path: ROUTES.PRODUCT_NEW,
-            element: (
-              <AdminRoute>
-                <ProductFormPage />
-              </AdminRoute>
+              </PermissionRoute>
             ),
           },
           {

@@ -5,6 +5,8 @@ export interface AuthUser {
   userCode: string;
   displayName: string;
   role: UserRole;
+  /** Satış temsilcisinin Logo CLCARD.SPECODE portföyü. */
+  salesRepCodes: string[];
 }
 
 export interface LoginCredentials {

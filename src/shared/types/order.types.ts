@@ -67,6 +67,10 @@ export interface OrderLine {
   productName: string;
   quantity: number;
   unitPrice: number;
+  /** Satış koşulları uygulanmadan önceki liste birim fiyatı. */
+  listUnitPrice?: number;
+  /** Kaleme uygulanan sıralı Logo iskonto oranları. */
+  discountRates?: number[];
   discountRate: number;
   vatRate: number;
   lineTotal: number;

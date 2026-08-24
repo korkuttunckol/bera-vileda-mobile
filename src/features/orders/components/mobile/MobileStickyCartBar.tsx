@@ -6,25 +6,40 @@ import { cn } from '@/shared/utils/cn';
 
 interface MobileStickyCartBarProps {
   isSaving: boolean;
+  isApplyingSalesConditions?: boolean;
+  reviewOpen: boolean;
+  salesConditionsReady: boolean;
   lastSavedOrderId: string | null;
   onSave: () => void;
   onShare: () => void;
   onOpenCartLines: () => void;
+  onApplySalesConditions?: () => void;
 }
 
 export function MobileStickyCartBar({
   isSaving,
+  isApplyingSalesConditions = false,
+  reviewOpen,
+  salesConditionsReady,
   lastSavedOrderId,
   onSave,
   onShare,
   onOpenCartLines,
+  onApplySalesConditions,
 }: MobileStickyCartBarProps) {
   const customerId = useOrderDraftStore((s) => s.customerId);
   const lineCount = useOrderDraftStore((s) => s.lines.length);
   const totals = useOrderTotals();
   const { keyboardOpen } = useVisualViewportKeyboard();
 
-  const canSave = Boolean(customerId) && lineCount > 0 && !isSaving;
+  const canReview = Boolean(customerId) && lineCount > 0 && !isSaving;
+  const canSave = canReview && reviewOpen && salesConditionsReady;
+  const canApply =
+    Boolean(customerId) &&
+    lineCount > 0 &&
+    !isSaving &&
+    !isApplyingSalesConditions &&
+    Boolean(onApplySalesConditions);
 
   return (
     <div
@@ -42,10 +57,23 @@ export function MobileStickyCartBar({
           disabled={lineCount === 0}
           tabIndex={keyboardOpen ? -1 : undefined}
         >
-          <span>{totals.lineCount} Kalem</span>
+          <span>Sipariş Özeti · {totals.lineCount} Kalem</span>
           <span className="text-brand-gray-300">·</span>
           <span>{totals.itemCount} Adet</span>
         </button>
+
+        {onApplySalesConditions ? (
+          <Button
+            variant="outline"
+            className="min-h-12 w-full"
+            isLoading={isApplyingSalesConditions}
+            disabled={!canApply}
+            onClick={onApplySalesConditions}
+            tabIndex={keyboardOpen ? -1 : undefined}
+          >
+            Satış Koşullarını Uygula
+          </Button>
+        ) : null}
 
         <div className="flex gap-2">
           {lastSavedOrderId ? (
@@ -58,16 +86,28 @@ export function MobileStickyCartBar({
               Paylaş
             </Button>
           ) : null}
-          <Button
-            className="min-h-12 flex-[2] uppercase tracking-wide"
-            size="lg"
-            isLoading={isSaving}
-            disabled={!canSave}
-            onClick={onSave}
-            tabIndex={keyboardOpen ? -1 : undefined}
-          >
-            Siparişi Kaydet
-          </Button>
+          {reviewOpen ? (
+            <Button
+              className="min-h-12 flex-[2] uppercase tracking-wide"
+              size="lg"
+              isLoading={isSaving}
+              disabled={!canSave}
+              onClick={onSave}
+              tabIndex={keyboardOpen ? -1 : undefined}
+            >
+              Siparişi Kaydet
+            </Button>
+          ) : (
+            <Button
+              className="min-h-12 flex-[2] uppercase tracking-wide"
+              size="lg"
+              disabled={!canReview}
+              onClick={onOpenCartLines}
+              tabIndex={keyboardOpen ? -1 : undefined}
+            >
+              {salesConditionsReady ? 'Sipariş Özetini Aç' : 'Siparişi Kontrol Et'}
+            </Button>
+          )}
         </div>
       </div>
     </div>

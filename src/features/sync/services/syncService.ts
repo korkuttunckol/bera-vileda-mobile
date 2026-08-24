@@ -200,7 +200,7 @@ class SyncService {
         }
 
         if (pullOk && navigator.onLine) {
-          await this.markIndexedDbSourcesFromFirestore();
+          await this.markSyncedDataSources();
         } else if (!navigator.onLine) {
           await this.markOfflineSources();
         }
@@ -219,10 +219,12 @@ class SyncService {
     return this.inFlight;
   }
 
-  private async markIndexedDbSourcesFromFirestore(): Promise<void> {
+  private async markSyncedDataSources(): Promise<void> {
     await Promise.all([
-      setMetaValue(META_KEYS.DATA_SOURCE_CUSTOMERS, 'firestore'),
-      setMetaValue(META_KEYS.DATA_SOURCE_PRODUCTS, 'firestore'),
+      // Cari ve stoklar Logo'dan yenilenir; IndexedDB yalnızca cihazdaki saklama
+      // alanıdır. Firestore kaynak etiketi verilmemeli.
+      setMetaValue(META_KEYS.DATA_SOURCE_CUSTOMERS, 'indexeddb'),
+      setMetaValue(META_KEYS.DATA_SOURCE_PRODUCTS, 'indexeddb'),
       setMetaValue(META_KEYS.DATA_SOURCE_USERS, 'firestore'),
     ]);
     await this.refreshDataStats();

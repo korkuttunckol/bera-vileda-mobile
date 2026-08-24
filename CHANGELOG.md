@@ -6,6 +6,12 @@ Format [Keep a Changelog](https://keepachangelog.com/) standardına uygundur.
 
 ---
 
+## [Unreleased]
+
+### Eklenen
+
+- Depo modülüne BERA stokları için aktif/pasif ve grup filtreli stok sorgulama ekranı eklendi.
+
 ## [2.0.0] - 2026-07-24
 
 ### BERA Sipariş Sistemi v2 — Logo GO Wings & Firestore Rules

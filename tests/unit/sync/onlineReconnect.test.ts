@@ -5,13 +5,15 @@ const processAll = vi.fn(async () => ({
   stats: { total: 0, synced: 0, failed: 0, skipped: 0, pending: 0 },
   errors: [] as [],
 }));
-const pullAll = vi.fn(async () => ({
+const pullUsersOnly = vi.fn(async () => ({
   customers: 0,
   products: 0,
   users: 0,
   full: false,
 }));
 const needsInitialSync = vi.fn(async () => false);
+const syncLogoCustomers = vi.fn(async () => ({ success: true, fetchedRows: 0, errors: [] }));
+const syncLogoProducts = vi.fn(async () => ({ success: true, fetchedRows: 0, errors: [] }));
 
 vi.mock('@/config/env', () => ({
   isFirebaseConfigured: () => true,
@@ -35,9 +37,17 @@ vi.mock('@/shared/lib/sync/OutboxProcessor', () => ({
 
 vi.mock('@/shared/lib/sync/PullSync', () => ({
   pullSync: {
-    pullAll: (...args: [{ full?: boolean }?]) => pullAll(...args),
+    pullUsersOnly: () => pullUsersOnly(),
     needsInitialSync: () => needsInitialSync(),
   },
+}));
+
+vi.mock('@/features/settings/services/logoCustomerSyncService', () => ({
+  logoCustomerSyncService: { syncToIndexedDB: () => syncLogoCustomers() },
+}));
+
+vi.mock('@/features/settings/services/logoProductSyncService', () => ({
+  logoProductSyncService: { syncToIndexedDB: () => syncLogoProducts() },
 }));
 
 vi.mock('@/shared/lib/sync/syncPullLogger', () => ({
@@ -87,7 +97,9 @@ describe('SyncEngine online reconnect', () => {
     installWindowStub();
     vi.useFakeTimers();
     processAll.mockClear();
-    pullAll.mockClear();
+    pullUsersOnly.mockClear();
+    syncLogoCustomers.mockClear();
+    syncLogoProducts.mockClear();
     needsInitialSync.mockClear();
     needsInitialSync.mockResolvedValue(false);
     processAll.mockResolvedValue({

@@ -17,6 +17,8 @@ export function MainLayout() {
   const { keyboardOpen } = useVisualViewportKeyboard();
 
   const isNewOrder = location.pathname === ROUTES.NEW_ORDER;
+  const isUnitHub = location.pathname === ROUTES.UNITS;
+  const isInitialAdminSettings = location.pathname.startsWith(ROUTES.SETTINGS_USERS);
 
   const handleSettingsClick = (): void => {
     void navigate(can('systemSettings') ? ROUTES.SETTINGS : ROUTES.SETTINGS_APP_INFO);
@@ -40,16 +42,18 @@ export function MainLayout() {
             ) : null}
           </div>
           <div className="flex items-center gap-1.5">
-            <button
-              onClick={handleSettingsClick}
-              className="touch-feedback rounded-xl p-2 text-white/80 hover:bg-white/10 hover:text-white"
-              aria-label="Ayarlar"
-            >
-              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.573-1.066z" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-            </button>
+            {!isUnitHub && !isInitialAdminSettings ? (
+              <button
+                onClick={handleSettingsClick}
+                className="touch-feedback rounded-xl p-2 text-white/80 hover:bg-white/10 hover:text-white"
+                aria-label="Ayarlar"
+              >
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.573-1.066z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+              </button>
+            ) : null}
             <button
               onClick={handleLogout}
               className="touch-feedback rounded-xl px-3 py-1.5 text-xs font-semibold text-white/80 hover:bg-white/10 hover:text-white"
@@ -75,13 +79,13 @@ export function MainLayout() {
           isNewOrder
             ? 'flex flex-col overflow-hidden'
             : 'overflow-y-auto overscroll-y-contain',
-          keyboardOpen ? 'pb-3' : 'pb-20',
+          keyboardOpen || isUnitHub || isInitialAdminSettings ? 'pb-3' : 'pb-20',
         )}
       >
         <Outlet />
       </main>
 
-      <BottomNav />
+      {!isUnitHub && !isInitialAdminSettings ? <BottomNav /> : null}
       <ToastContainer />
     </div>
   );

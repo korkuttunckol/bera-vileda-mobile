@@ -12,6 +12,7 @@ import { useBulkOrderSelection } from '../hooks/useBulkOrderSelection';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { useSync } from '@/features/sync';
 import { sendBulkOrders } from '../services/bulkOrderSendService';
+import { orderService } from '../services/orderService';
 import { toast } from '@/stores/toastStore';
 import { cn } from '@/shared/utils/cn';
 import { ROUTES } from '@/shared/constants/routes';
@@ -48,7 +49,13 @@ export function OrderHistoryPage() {
   }, [filter, clearSelection]);
 
   const handleSyncPending = async (): Promise<void> => {
+    if (!user) return;
     setFilter('pending');
+    const queuedCount = await orderService.queuePendingOrders(user.uid, user.role);
+    if (queuedCount === 0) {
+      toast('Gönderilecek bekleyen sipariş yok.', 'warning');
+      return;
+    }
     await syncNow('manual');
     await reload();
   };

@@ -1,6 +1,7 @@
 import { NumericQuantityInput } from '@/shared/components/form/NumericQuantityInput';
 import { Badge } from '@/shared/components/ui/Badge';
 import { isProductOutOfStock } from '@/features/orders/utils/stockControl';
+import { formatCurrency } from '@/shared/utils/cn';
 import type { OrderDraftLine } from '@/features/orders/types/orderFlow.types';
 
 interface CartLineItemProps {
@@ -39,6 +40,15 @@ export function CartLineItem({
               />
             ) : null}
           </div>
+          <p className="mt-2 text-sm text-brand-navy">
+            Liste: {formatCurrency(line.listUnitPrice ?? line.unitPrice)}
+          </p>
+          {line.salesConditionsApplied ? (
+            <p className="text-sm font-semibold text-brand-navy">
+              Net satış: {formatCurrency(line.unitPrice)}
+              {line.priceSource === 'customer' ? ' (cari özel)' : ''}
+            </p>
+          ) : null}
         </div>
         <button
           type="button"

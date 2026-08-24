@@ -4,6 +4,8 @@ import { cn } from '@/shared/utils/cn';
 interface PageHeaderProps {
   title: string;
   subtitle?: string;
+  /** Compact control rendered beside the subtitle (e.g. order branch picker). */
+  subtitleAction?: ReactNode;
   action?: ReactNode;
   backButton?: ReactNode;
   className?: string;
@@ -15,6 +17,7 @@ interface PageHeaderProps {
 export function PageHeader({
   title,
   subtitle,
+  subtitleAction,
   action,
   backButton,
   className,
@@ -33,14 +36,19 @@ export function PageHeader({
       )}
     >
       <div className="flex items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-3">
+        <div className="flex min-w-0 flex-1 items-center gap-3">
           {backButton}
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <h1 className="truncate text-xl font-bold tracking-tight text-brand-navy">
               {title}
             </h1>
             {subtitle ? (
-              <p className="truncate text-sm text-brand-gray-500">{subtitle}</p>
+              <div className="flex min-w-0 w-full items-center justify-between gap-2">
+                <p className="min-w-0 truncate text-sm text-brand-gray-500">{subtitle}</p>
+                {subtitleAction ? (
+                  <div className="shrink-0">{subtitleAction}</div>
+                ) : null}
+              </div>
             ) : null}
           </div>
         </div>

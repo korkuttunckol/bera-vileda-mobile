@@ -1,32 +1,40 @@
-import { type MouseEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { type MouseEvent } from 'react';
 import { Card } from '@/shared/components/ui/Card';
 import { Icon } from '@/shared/components/ui/Icon';
-import { CustomerInfoDisplay } from './CustomerInfoDisplay';
+import { formatCustomerBalanceDisplay } from '../utils/customerBalanceDisplay';
 import type { Customer } from '@/shared/types/customer.types';
 import { ROUTES } from '@/shared/constants/routes';
-import { cn } from '@/shared/utils/cn';
+import { cn, formatCurrency } from '@/shared/utils/cn';
 
 interface CustomerListItemProps {
   customer: Customer;
   onSelect?: (customer: Customer) => void;
   selected?: boolean;
+  /** Show Logo card balance (Müşteriler list only). */
+  showBalance?: boolean;
 }
 
 export function CustomerListItem({
   customer,
   onSelect,
   selected = false,
+  showBalance = false,
 }: CustomerListItemProps) {
   const navigate = useNavigate();
   const isSelectMode = Boolean(onSelect);
+  const balanceDisplay = formatCustomerBalanceDisplay(customer.balance);
+  const balancePrefix = balanceDisplay.kind === 'credit' ? 'A' : 'B';
+  const balanceAmount = balanceDisplay.kind === 'zero' && customer.balance !== undefined
+    ? formatCurrency(0)
+    : balanceDisplay.amountText;
 
   const handleEdit = (): void => {
     if (onSelect) {
       onSelect(customer);
-    } else {
-      void navigate(ROUTES.CUSTOMER_EDIT.replace(':id', customer.id));
+      return;
     }
+    void navigate(ROUTES.CUSTOMER_ACTIONS.replace(':id', customer.id));
   };
 
   const handleBranches = (e: MouseEvent): void => {
@@ -41,18 +49,31 @@ export function CustomerListItem({
       className={cn(selected && 'list-row-selected')}
       onClick={handleEdit}
     >
-      <div className="flex min-w-0 items-center gap-3 px-4 py-4">
-        <div
-          className={cn(
-            'flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-bold',
-            selected
-              ? 'bg-brand-navy text-white'
-              : 'bg-brand-navy/10 text-brand-navy',
-          )}
-        >
-          {customer.name.charAt(0).toUpperCase()}
+      <div className="flex min-w-0 items-center gap-3 px-4 py-3.5">
+        <div className="min-w-0 flex-1">
+          <p className="truncate font-semibold text-brand-navy">{customer.name}</p>
+
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-brand-gray-500">
+            <span className="font-medium tabular-nums text-brand-gray-600">
+              {customer.code}
+            </span>
+            {customer.address?.city ? (
+              <span className="text-brand-gray-500">{customer.address.city}</span>
+            ) : null}
+            {showBalance ? (
+              <span
+                className={cn(
+                  'ml-auto whitespace-nowrap font-semibold tabular-nums',
+                  balanceDisplay.kind === 'debit' && 'text-red-600',
+                  balanceDisplay.kind === 'credit' && 'text-emerald-700',
+                  balanceDisplay.kind === 'zero' && 'text-brand-gray-400',
+                )}
+              >
+                {balancePrefix}: {balanceAmount}
+              </span>
+            ) : null}
+          </div>
         </div>
-        <CustomerInfoDisplay customer={customer} />
         <Icon
           name="chevron-right"
           className="shrink-0 text-brand-gray-400"
@@ -60,13 +81,14 @@ export function CustomerListItem({
         />
       </div>
       {!isSelectMode ? (
-        <div className="border-t border-brand-gray-100 px-4 py-2.5">
+        <div className="border-t border-brand-gray-100">
           <button
             type="button"
             onClick={handleBranches}
-            className="text-xs font-semibold text-brand-navy transition-colors hover:text-brand-navy-light active:opacity-70"
+            className="flex w-full items-center justify-between px-4 py-2.5 text-left text-sm font-semibold text-brand-navy transition-colors hover:bg-brand-gray-50 hover:text-brand-navy-light active:opacity-70"
           >
-            Şubeleri Yönet →
+            <span>Şubeleri Yönet</span>
+            <Icon name="chevron-right" size="sm" />
           </button>
         </div>
       ) : null}

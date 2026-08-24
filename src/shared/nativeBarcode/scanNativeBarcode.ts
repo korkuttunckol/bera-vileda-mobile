@@ -41,8 +41,8 @@ function isUserCancelled(error: unknown): boolean {
 }
 
 /**
- * CameraX preview sits behind the WebView. Hide app chrome and show a cancel
- * control so the native camera is visible immediately.
+ * CameraX preview sits behind the WebView. Hide app chrome and show an
+ * explicit finish control so the native camera is visible immediately.
  */
 export function mountNativeBarcodeScanOverlay(onCancel: () => void): () => void {
   if (typeof document === 'undefined') {
@@ -64,7 +64,7 @@ export function mountNativeBarcodeScanOverlay(onCancel: () => void): () => void 
   const cancelButton = document.createElement('button');
   cancelButton.type = 'button';
   cancelButton.className = 'native-barcode-scan-overlay__cancel';
-  cancelButton.textContent = 'İptal';
+  cancelButton.textContent = 'Siparişi Bitir';
   cancelButton.addEventListener('click', onCancel);
 
   overlay.append(hint, cancelButton);

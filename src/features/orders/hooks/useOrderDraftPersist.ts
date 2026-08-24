@@ -46,14 +46,23 @@ export function clearPersistedOrderDraft(): void {
 }
 
 /**
+ * A draft always belongs to the currently signed-in sales user.  Never carry
+ * a customer's order lines into another user's session.
+ */
+export function clearOrderDraftForUserChange(): void {
+  clearPersistedOrderDraft();
+  useOrderDraftStore.getState().reset();
+}
+
+/**
  * Persist draft via store getState/setState — does not modify orderDraftStore.ts.
  * Enables refresh recovery for in-progress orders.
  */
-export function useOrderDraftPersist(): void {
+export function useOrderDraftPersist(options?: { skipHydration?: boolean }): void {
   const hydrated = useRef(false);
 
   useEffect(() => {
-    if (hydrated.current) return;
+    if (hydrated.current || options?.skipHydration) return;
     hydrated.current = true;
 
     const saved = readDraft();

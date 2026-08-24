@@ -167,6 +167,16 @@ describe('scanNativeBarcode startScan (CameraX) path', () => {
     expect(mockStopScan).toHaveBeenCalled();
   });
 
+  it('shows Siparişi Bitir as the explicit camera exit action', () => {
+    const unmount = mountNativeBarcodeScanOverlay(() => undefined);
+
+    expect(
+      document.querySelector('.native-barcode-scan-overlay__cancel')?.textContent,
+    ).toBe('Siparişi Bitir');
+
+    unmount();
+  });
+
   it('returns cancelled on user-cancel scanError without treating as hard error', async () => {
     mockAddListener.mockImplementation(
       async (eventName: string, listener: ProgressListener | ErrorListener) => {

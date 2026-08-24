@@ -38,6 +38,7 @@ function makeProduct(
     listPrice: 10,
     vatRate: 20,
     stockQuantity: 1,
+    specialCode5: 'BERA',
     isActive: true,
     isDeleted: false,
     createdAt: '2026-01-01T00:00:00.000Z',

@@ -20,10 +20,6 @@ interface SettingsSection {
 
 const ADMIN_SETTINGS_SECTIONS: SettingsSection[] = [
   {
-    title: 'Kullanıcılar',
-    items: [{ label: 'Kullanıcı Yönetimi', path: ROUTES.SETTINGS_USERS }],
-  },
-  {
     title: 'Senkronizasyon',
     items: [
       { label: 'Senkronizasyon', path: ROUTES.SETTINGS_SYNC },

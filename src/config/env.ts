@@ -16,6 +16,12 @@ const envSchema = z.object({
   VITE_LOGO_CUSTOMERS_API_URL: z.string().optional().default(''),
   /** Optional Logo Wings customers API (WAN / external). Tried after LAN failure. */
   VITE_LOGO_CUSTOMERS_API_EXTERNAL_URL: z.string().optional().default(''),
+  /** Optional sales-conditions quote API (LAN). Empty → derived from stock LAN URL. */
+  VITE_LOGO_SALES_CONDITIONS_API_URL: z.string().optional().default(''),
+  /** Optional sales-conditions quote API (WAN). Empty → derived from stock WAN URL. */
+  VITE_LOGO_SALES_CONDITIONS_API_EXTERNAL_URL: z.string().optional().default(''),
+  /** LogoApi authentication endpoint (POST userCode/password → token). */
+  VITE_LOGO_AUTH_URL: z.string().optional().default(''),
 });
 
 export type Env = z.infer<typeof envSchema>;
@@ -43,6 +49,11 @@ function parseEnv(): Env {
       VITE_LOGO_CUSTOMERS_API_URL: raw.VITE_LOGO_CUSTOMERS_API_URL ?? '',
       VITE_LOGO_CUSTOMERS_API_EXTERNAL_URL:
         raw.VITE_LOGO_CUSTOMERS_API_EXTERNAL_URL ?? '',
+      VITE_LOGO_SALES_CONDITIONS_API_URL:
+        raw.VITE_LOGO_SALES_CONDITIONS_API_URL ?? '',
+      VITE_LOGO_SALES_CONDITIONS_API_EXTERNAL_URL:
+        raw.VITE_LOGO_SALES_CONDITIONS_API_EXTERNAL_URL ?? '',
+      VITE_LOGO_AUTH_URL: raw.VITE_LOGO_AUTH_URL ?? '',
     };
   }
 
@@ -50,6 +61,36 @@ function parseEnv(): Env {
 }
 
 export const env = parseEnv();
+
+const SALES_CONDITIONS_ASHX = 'satisKosullari.ashx';
+
+/** Replace trailing *.ashx (and query) with a sibling handler name. */
+export function deriveLogoApiSibling(
+  url: string,
+  ashxFileName: string,
+): string {
+  const trimmed = url.trim();
+  if (!trimmed) return '';
+  const withoutQuery = trimmed.split('?')[0] ?? trimmed;
+  const slash = withoutQuery.lastIndexOf('/');
+  if (slash < 0) return '';
+  return `${withoutQuery.slice(0, slash + 1)}${ashxFileName}`;
+}
+
+export function resolveSalesConditionsLanUrl(): string {
+  const explicit = env.VITE_LOGO_SALES_CONDITIONS_API_URL.trim();
+  if (explicit) return explicit;
+  return deriveLogoApiSibling(env.VITE_LOGO_API_URL, SALES_CONDITIONS_ASHX);
+}
+
+export function resolveSalesConditionsExternalUrl(): string {
+  const explicit = env.VITE_LOGO_SALES_CONDITIONS_API_EXTERNAL_URL.trim();
+  if (explicit) return explicit;
+  return deriveLogoApiSibling(
+    env.VITE_LOGO_API_EXTERNAL_URL,
+    SALES_CONDITIONS_ASHX,
+  );
+}
 
 export const isFirebaseConfigured = (): boolean =>
   Boolean(env.VITE_FIREBASE_API_KEY && env.VITE_FIREBASE_PROJECT_ID);
@@ -66,3 +107,17 @@ export const isLogoCustomersApiConfigured = (): boolean =>
     env.VITE_LOGO_CUSTOMERS_API_URL.trim() ||
       env.VITE_LOGO_CUSTOMERS_API_EXTERNAL_URL.trim(),
   );
+
+/** Sales-conditions quote enabled when explicit or derivable from stock URLs. */
+export const isLogoSalesConditionsApiConfigured = (): boolean =>
+  Boolean(
+    resolveSalesConditionsLanUrl() || resolveSalesConditionsExternalUrl(),
+  );
+
+/** LogoApi auth login enabled when auth URL is set. */
+export const isLogoAuthConfigured = (): boolean =>
+  Boolean(env.VITE_LOGO_AUTH_URL.trim());
+
+/** Cari hareket statement API — derived from customers Logo URLs. */
+export const isLogoCariHareketApiConfigured = (): boolean =>
+  isLogoCustomersApiConfigured();

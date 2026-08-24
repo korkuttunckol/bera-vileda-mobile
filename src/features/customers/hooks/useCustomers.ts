@@ -21,6 +21,7 @@ export function useCustomers(
       const list = await customerService.list(user.uid, user.role, {
         search,
         activeFilter,
+        salesRepCodes: user.salesRepCodes,
       });
       setCustomers(list);
     } finally {

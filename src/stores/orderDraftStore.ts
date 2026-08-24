@@ -4,6 +4,8 @@ import {
   buildDraftLine,
   recalculateLine,
 } from '@/features/orders/utils/orderCalculations';
+import { applySalesConditionItemsToLines } from '@/features/orders/utils/applySalesConditions';
+import type { SalesConditionItemResult } from '@/features/orders/utils/applySalesConditions';
 import type { Product } from '@/shared/types/product.types';
 
 interface OrderDraftState extends OrderDraft {
@@ -15,6 +17,7 @@ interface OrderDraftState extends OrderDraft {
   updateLineQuantity: (productId: string, quantity: number) => void;
   removeLine: (productId: string) => void;
   setNotes: (notes: string) => void;
+  applySalesConditions: (items: readonly SalesConditionItemResult[]) => number;
   reset: () => void;
 }
 
@@ -81,5 +84,13 @@ export const useOrderDraftStore = create<OrderDraftState>((set, get) => ({
   removeLine: (productId) =>
     { set({ lines: get().lines.filter((l) => l.productId !== productId) }); },
   setNotes: (notes) => { set({ notes }); },
+  applySalesConditions: (items) => {
+    const { lines, matchedCount } = applySalesConditionItemsToLines(
+      get().lines,
+      items,
+    );
+    set({ lines });
+    return matchedCount;
+  },
   reset: () => { set(INITIAL); },
 }));

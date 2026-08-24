@@ -12,6 +12,10 @@ const OPTIONS: { value: UserRoleFilter; label: string }[] = [
   { value: 'admin', label: USER_ROLE_LABELS[UserRole.ADMIN] },
   { value: 'salesRep', label: USER_ROLE_LABELS[UserRole.SALES_REP] },
   { value: 'merch', label: USER_ROLE_LABELS[UserRole.MERCH] },
+  { value: 'depot', label: USER_ROLE_LABELS[UserRole.DEPOT] },
+  { value: 'packaging', label: USER_ROLE_LABELS[UserRole.PACKAGING] },
+  { value: 'reporting', label: USER_ROLE_LABELS[UserRole.REPORTING] },
+  { value: 'management', label: USER_ROLE_LABELS[UserRole.MANAGEMENT] },
 ];
 
 export function UserRoleFilterControl({ value, onChange }: UserRoleFilterProps) {

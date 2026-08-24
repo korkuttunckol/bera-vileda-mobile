@@ -7,6 +7,8 @@ import { outboxProcessor } from './OutboxProcessor';
 import { pullSync } from './PullSync';
 import { orderPullSync } from './OrderPullSync';
 import { pushPendingUsers } from '@/features/users/services/userPushService';
+import { logoCustomerSyncService } from '@/features/settings/services/logoCustomerSyncService';
+import { logoProductSyncService } from '@/features/settings/services/logoProductSyncService';
 import { buildSyncReport, saveAndNotifySyncReport } from './syncReportBuilder';
 import { logSyncFailed } from './syncPullLogger';
 import type {
@@ -146,13 +148,42 @@ export class SyncEngine implements ISyncEngine {
             }
           }
 
-          pullStats = await pullSync.pullAll({ full: shouldFullSync });
+          // Kullanıcılar Firestore'dan gelir. Cari ve stok kartlarının ana kaynağı
+          // Logo'dur; Firestore master verisi bu kartları artık silip değiştirmez.
+          pullStats = await pullSync.pullUsersOnly();
 
           // Admin-only order download — separate from master-data pullAll.
           if (includeOrders) {
             const orderStats = await orderPullSync.pullAndMerge();
             pullStats = { ...pullStats, orders: orderStats };
           }
+        }
+
+        const [customerSync, productSync] = await Promise.all([
+          logoCustomerSyncService.syncToIndexedDB({ userId: 'main-sync' }),
+          logoProductSyncService.syncToIndexedDB({ userId: 'main-sync' }),
+        ]);
+
+        pullStats = {
+          ...pullStats,
+          customers: customerSync.success ? customerSync.fetchedRows : 0,
+          products: productSync.success ? productSync.fetchedRows : 0,
+          full: true,
+        };
+
+        for (const [entityId, result] of [
+          ['logo-customers', customerSync],
+          ['logo-products', productSync],
+        ] as const) {
+          if (result.success) continue;
+          pullSucceeded = false;
+          errors.push({
+            entityType: 'sync',
+            entityId,
+            idempotencyKey: entityId,
+            message: result.errors[0] ?? 'Logo verisi güncellenemedi.',
+            timestamp: new Date().toISOString(),
+          });
         }
 
         if (pullOnly) {

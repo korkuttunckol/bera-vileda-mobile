@@ -435,6 +435,51 @@ export class PullSync {
     return initialComplete !== 'true';
   }
 
+  /**
+   * Cari ve stok kartlarının ana kaynağı Logo olduğunda, Firestore'dan yalnızca
+   * kullanıcıları günceller. Böylece Firestore'daki eski kartlar yerel Logo
+   * verisini silip değiştiremez.
+   */
+  async pullUsersOnly(): Promise<SyncPullStats> {
+    const emptyStats: SyncPullStats = {
+      customers: 0,
+      products: 0,
+      users: 0,
+      full: false,
+    };
+
+    if (!isFirebaseConfigured() || !navigator.onLine) {
+      return emptyStats;
+    }
+
+    logSyncStart();
+
+    try {
+      const remoteUsers = await runTimedFetch(
+        logUsersFetchStart,
+        logUsersFetchEnd,
+        pullUsersFromFirestore,
+        (rows) => rows.length,
+      );
+
+      logIndexedDbWriteStart();
+      const writeStartedAt = Date.now();
+      const users = await mergeUsersFromRemote(remoteUsers);
+      logIndexedDbWriteEnd(
+        Date.now() - writeStartedAt,
+        `${String(users)} kullanıcı`,
+      );
+
+      await setMetaValue(META_KEYS.INITIAL_SYNC_COMPLETE, 'true');
+      logSyncComplete();
+
+      return { ...emptyStats, users };
+    } catch (error) {
+      logSyncFailed(error);
+      throw error;
+    }
+  }
+
   async pullAll(options: PullSyncOptions = {}): Promise<SyncPullStats> {
     const full = options.full === true;
     const emptyStats: SyncPullStats = {

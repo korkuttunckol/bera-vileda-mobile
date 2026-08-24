@@ -91,12 +91,11 @@ describe('fetchLogoJsonWithFallback', () => {
     expect(fetchMock.mock.calls.map((c) => c[0])).toEqual([LAN, EXTERNAL]);
   });
 
-  it.each([401, 403, 404, 500])(
-    'D–G) LAN HTTP %s → external is not tried',
+  it.each([401, 403, 500])(
+    'D–F) LAN HTTP %s → external is not tried',
     async (status) => {
       const fetchMock = vi.fn().mockResolvedValue(httpError(status));
       vi.stubGlobal('fetch', fetchMock);
-
       await expect(fetchLogoJsonWithFallback(baseOpts)).rejects.toMatchObject({
         name: 'LogoHttpFetchError',
         statusCode: status,
@@ -106,6 +105,22 @@ describe('fetchLogoJsonWithFallback', () => {
       expect(fetchMock.mock.calls[0][0]).toBe(LAN);
     },
   );
+
+  it('G) LAN HTTP 404 → external is tried', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(httpError(404))
+      .mockResolvedValueOnce(okJson([{ id: 404 }]));
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await fetchLogoJsonWithFallback(baseOpts);
+
+    expect(result.endpoint).toBe('external');
+    expect(result.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls.map((c) => c[0])).toEqual([LAN, EXTERNAL]);
+  });
 
   it('H) LAN JSON parse error → external is not tried', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
@@ -169,5 +184,22 @@ describe('fetchLogoJsonWithFallback', () => {
       fetchLogoJsonWithFallback({ ...baseOpts, externalUrl: '' }),
     ).rejects.toBeInstanceOf(LogoHttpFetchError);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('POST uses JSON body and does not change GET default', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(okJson({ items: [] }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await fetchLogoJsonWithFallback({
+      ...baseOpts,
+      channel: 'salesConditions',
+      method: 'POST',
+      body: JSON.stringify({ customerCode: '120001', items: [] }),
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const init = fetchMock.mock.calls[0][1] as RequestInit;
+    expect(init.method).toBe('POST');
+    expect(init.body).toContain('120001');
   });
 });

@@ -28,6 +28,8 @@ export interface Customer extends BaseEntity {
   logoSalesRepCode?: string;
   /** Logo CLCARD.SPECODE2 — ayrı alan; bu aşamada filtre kuralına bağlı değil. */
   specialCode2?: string;
+  /** Logo CLCARD.SPECODE5 — müşteri portföyü/kullanıcı grubu. */
+  logoSpecialCode5?: string;
   priceListId?: string;
   creditLimit?: number;
   isActive: boolean;
@@ -36,6 +38,12 @@ export interface Customer extends BaseEntity {
   /** Logo CLCARD.LOGICALREF */
   erpId?: string;
   erpSyncStatus?: 'pending' | 'synced' | 'error';
+  /** Logo GNTOTCL debit total (Borç). */
+  balanceDebit?: number;
+  /** Logo GNTOTCL credit total (Alacak). */
+  balanceCredit?: number;
+  /** Logo card balance (Bakiye = debit - credit). */
+  balance?: number;
 }
 
 /**

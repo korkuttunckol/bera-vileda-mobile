@@ -82,6 +82,14 @@ export function filterUsers(
     result = result.filter((user) => user.role === UserRole.SALES_REP);
   } else if (options.roleFilter === 'merch') {
     result = result.filter((user) => user.role === UserRole.MERCH);
+  } else if (options.roleFilter === 'depot') {
+    result = result.filter((user) => user.role === UserRole.DEPOT);
+  } else if (options.roleFilter === 'packaging') {
+    result = result.filter((user) => user.role === UserRole.PACKAGING);
+  } else if (options.roleFilter === 'reporting') {
+    result = result.filter((user) => user.role === UserRole.REPORTING);
+  } else if (options.roleFilter === 'management') {
+    result = result.filter((user) => user.role === UserRole.MANAGEMENT);
   }
 
   if (options.search?.trim()) {

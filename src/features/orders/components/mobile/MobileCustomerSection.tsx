@@ -20,7 +20,6 @@ interface MobileCustomerSectionProps {
   selectedBranchName?: string;
   onSelectCustomer: (customer: Customer) => void;
   onSelectBranch: (branchId: string, branchName: string) => void;
-  onChangeCustomer: () => void;
   /** Notifies parent when the cari picker is open (keeps it mounted under Android IME). */
   onPickerOpenChange?: (open: boolean) => void;
 }
@@ -32,7 +31,6 @@ export function MobileCustomerSection({
   selectedBranchName,
   onSelectCustomer,
   onSelectBranch,
-  onChangeCustomer,
   onPickerOpenChange,
 }: MobileCustomerSectionProps) {
   const [search, setSearch] = useState('');
@@ -76,7 +74,10 @@ export function MobileCustomerSection({
   }, [allCustomers]);
 
   useEffect(() => {
-    if (!selectedCustomerId || !branchPickerOpen) return;
+    if (!selectedCustomerId) {
+      setBranches([]);
+      return;
+    }
     let cancelled = false;
     setBranchesLoading(true);
     void branchService
@@ -92,7 +93,7 @@ export function MobileCustomerSection({
     return () => {
       cancelled = true;
     };
-  }, [selectedCustomerId, branchPickerOpen]);
+  }, [selectedCustomerId]);
 
   if (selectedCustomerId && !pickerOpen) {
     return (
@@ -107,35 +108,18 @@ export function MobileCustomerSection({
           <button
             type="button"
             onClick={() => {
-              setPickerOpen(true);
-              setBranchPickerOpen(false);
-              onChangeCustomer();
+              setBranchPickerOpen((open) => !open);
             }}
-            className="min-h-12 shrink-0 rounded-xl px-3 text-sm font-semibold text-brand-navy active:bg-brand-gray-100"
+            className="min-h-12 shrink-0 rounded-xl bg-brand-gray-50 px-3 text-right active:bg-brand-gray-100"
           >
-            Değiştir
-          </button>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => {
-            setBranchPickerOpen((open) => !open);
-          }}
-          className="flex min-h-12 w-full items-center justify-between rounded-xl bg-brand-gray-50 px-3 text-left active:bg-brand-gray-100"
-        >
-          <div className="min-w-0">
             <p className="text-[11px] font-medium uppercase tracking-wide text-brand-gray-500">
               Şube
             </p>
             <p className="truncate text-sm font-semibold text-brand-navy">
-              {selectedBranchName ?? 'Şube seçin'}
+              {branchesLoading ? 'Yükleniyor...' : selectedBranchName ?? 'Seçin'}
             </p>
-          </div>
-          <span className="text-xs font-semibold text-brand-navy">
-            {branchPickerOpen ? 'Kapat' : 'Değiştir'}
-          </span>
-        </button>
+          </button>
+        </div>
 
         {branchPickerOpen ? (
           <div className="space-y-1 rounded-xl border border-brand-gray-100 p-1">

@@ -15,6 +15,8 @@ interface MobileNativeBarcodeConfirmSheetProps {
   onClose: () => void;
   /** Existing draft addToCart — accumulates qty for same product. */
   onAddToCart: (product: Product, quantity: number) => void;
+  /** Starts the next camera scan after a product quantity is confirmed. */
+  onConfirmed?: () => void;
 }
 
 /**
@@ -27,6 +29,7 @@ export function MobileNativeBarcodeConfirmSheet({
   scannedBarcode,
   onClose,
   onAddToCart,
+  onConfirmed,
 }: MobileNativeBarcodeConfirmSheetProps) {
   const titleId = useId();
   const qtyInputRef = useRef<HTMLInputElement | null>(null);
@@ -67,6 +70,7 @@ export function MobileNativeBarcodeConfirmSheet({
       onAddToCart(product, qty);
       toast(`${product.name} sepete eklendi (${String(qty)})`, 'success');
       onClose();
+      onConfirmed?.();
     } finally {
       setIsAdding(false);
     }

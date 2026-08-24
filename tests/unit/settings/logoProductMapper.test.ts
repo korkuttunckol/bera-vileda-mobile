@@ -7,6 +7,15 @@ import {
 import type { Product } from '@/shared/types/product.types';
 
 describe('logoProductMapper', () => {
+  it('maps Logo ACTIVE 0 as active and 1 as usage-disabled/passive', () => {
+    expect(
+      mapLogoRowToProductFields({ LOGICALREF: 1, CODE: 'A', ACTIVE: 0 })?.isActive,
+    ).toBe(true);
+    expect(
+      mapLogoRowToProductFields({ LOGICALREF: 2, CODE: 'B', ACTIVE: 1 })?.isActive,
+    ).toBe(false);
+  });
+
   it('maps LOGICALREF → erpId', () => {
     const mapped = mapLogoRowToProductFields({
       LOGICALREF: 42001,
@@ -78,6 +87,15 @@ describe('logoProductMapper', () => {
       SPECODE2: 'SP2',
     });
     expect(mapped?.specialCode2).toBe('SP2');
+  });
+
+  it('maps SPECODE5 → specialCode5 for the BERA portfolio rule', () => {
+    const mapped = mapLogoRowToProductFields({
+      LOGICALREF: '1',
+      CODE: 'B1',
+      SPECODE5: 'BERA',
+    });
+    expect(mapped?.specialCode5).toBe('BERA');
   });
 
   it('maps VAT → vatRate', () => {

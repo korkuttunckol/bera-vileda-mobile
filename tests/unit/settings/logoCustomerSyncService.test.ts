@@ -218,6 +218,30 @@ describe('logoCustomerSyncService', () => {
     expect(c.address?.district).toBe('Nilüfer');
   });
 
+  it('hides a Logo card removed from the BERA portfolio without deleting it', async () => {
+    seedCustomer({
+      id: 'removed',
+      code: '132.02',
+      erpId: '13202',
+      source: 'logo',
+      logoSpecialCode5: 'BERA',
+    });
+
+    const logoCustomerSyncService = await loadService();
+    await logoCustomerSyncService.applyRows([
+      {
+        LOGICALREF: '13201',
+        CODE: '132.01',
+        DEFINITION_: 'BERA',
+        SPECODE5: 'BERA',
+      },
+    ]);
+
+    const removed = customersStore.get('removed')!;
+    expect(removed.isDeleted).toBe(false);
+    expect(removed.logoSpecialCode5).toBeUndefined();
+  });
+
   it('updates via code fallback when erpId absent locally', async () => {
     seedCustomer({ id: 'c1', code: 'C90', erpId: undefined, name: 'Eski' });
 

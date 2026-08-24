@@ -22,6 +22,9 @@ describe('customerService Logo field preservation', () => {
       erpId: '55',
       logoSalesRepCode: '2217',
       specialCode2: 'SC2',
+      balanceDebit: 500,
+      balanceCredit: 100,
+      balance: 400,
       address: { city: 'İstanbul', district: 'Kadıköy' },
     };
 
@@ -69,14 +72,20 @@ describe('customerService Logo field preservation', () => {
         updatedBy: 'admin',
         version: existing.version,
         erpId: existing.erpId,
-        logoSalesRepCode: existing.logoSalesRepCode,
-        specialCode2: existing.specialCode2,
-      },
+      logoSalesRepCode: existing.logoSalesRepCode,
+      specialCode2: existing.specialCode2,
+      balanceDebit: existing.balanceDebit,
+      balanceCredit: existing.balanceCredit,
+      balance: existing.balance,
+    },
     );
 
     expect(built.erpId).toBe('55');
     expect(built.logoSalesRepCode).toBe('2217');
     expect(built.specialCode2).toBe('SC2');
+    expect(built.balanceDebit).toBe(500);
+    expect(built.balanceCredit).toBe(100);
+    expect(built.balance).toBe(400);
     expect(built.source).toBe('logo');
     expect(built.salesRepId).toBe('');
     expect(built.name).toBe('Logo Cari Güncel');

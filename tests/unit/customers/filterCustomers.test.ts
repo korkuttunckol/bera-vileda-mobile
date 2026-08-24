@@ -214,7 +214,52 @@ describe('filterCustomers search', () => {
       filterCustomers(dirty, { search: 'AFM', activeFilter: 'active' }).map(
         (c) => c.id,
       ),
-    ).toEqual(['afm', 'num-code']);
+    ).toEqual(['num-code', 'afm']);
+  });
+});
+
+describe('filterCustomers code ordering', () => {
+  it('sorts by customer code, not customer name', () => {
+    const ordered = filterCustomers([
+      makeCustomer({ id: 'b', code: '01010', name: 'A Ada' }),
+      makeCustomer({ id: 'a', code: '01002', name: 'Z Zeynep' }),
+      makeCustomer({ id: 'c', code: '01001', name: 'M Mehmet' }),
+    ], { activeFilter: 'all' });
+    expect(ordered.map((customer) => customer.code)).toEqual(['01001', '01002', '01010']);
+  });
+});
+
+describe('filterCustomers BERA portfolio', () => {
+  it('shows only Logo customers with SPECODE5=BERA while retaining local records', () => {
+    const result = filterCustomers([
+      makeCustomer({ id: 'bera', code: '01001', name: 'BERA Cari', source: 'logo', logoSpecialCode5: 'BERA' }),
+      makeCustomer({ id: 'other-logo', code: '01002', name: 'Diğer Logo Cari', source: 'logo', logoSpecialCode5: 'DİĞER' }),
+      makeCustomer({ id: 'old-logo', code: '01003', name: 'Eski Logo Cari', source: 'logo' }),
+      makeCustomer({ id: 'manual', code: '01004', name: 'Yerel Cari', source: 'manual' }),
+    ], { activeFilter: 'all' });
+
+    expect(result.map((customer) => customer.id)).toEqual(['bera', 'manual']);
+  });
+});
+
+describe('filterCustomers sales representative portfolio', () => {
+  it('limits the list to assigned Logo SPECODE values', () => {
+    const result = filterCustomers([
+      makeCustomer({ id: '2214', code: '01001', name: 'Bir', logoSalesRepCode: '2214' }),
+      makeCustomer({ id: '2214a', code: '01002', name: 'Iki', logoSalesRepCode: '2214A' }),
+      makeCustomer({ id: 'other', code: '01003', name: 'Uc', logoSalesRepCode: '2215' }),
+      makeCustomer({ id: 'empty', code: '01004', name: 'Dort' }),
+    ], { activeFilter: 'all', logoSalesRepCodes: ['2214', '2214A'] });
+
+    expect(result.map((customer) => customer.id)).toEqual(['2214', '2214a']);
+  });
+
+  it('shows no Logo cards when the sales representative has no assigned code', () => {
+    const result = filterCustomers([
+      makeCustomer({ id: '2214', code: '01001', name: 'Bir', logoSalesRepCode: '2214' }),
+    ], { activeFilter: 'all', logoSalesRepCodes: [] });
+
+    expect(result).toEqual([]);
   });
 });
 

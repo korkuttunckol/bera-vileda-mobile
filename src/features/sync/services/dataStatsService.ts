@@ -16,6 +16,7 @@ import type {
   DataStatsSnapshot,
   EntityDataSource,
 } from '@/shared/lib/sync/dataSource.types';
+import { UserRole } from '@/shared/types/role.types';
 
 function parseDataSource(value: string | undefined): EntityDataSource {
   if (value === 'firestore' || value === 'indexeddb' || value === 'localStorage') {
@@ -43,7 +44,11 @@ async function readDataSources(): Promise<DataSourceSnapshot> {
 }
 
 class DataStatsService {
-  async getStats(): Promise<DataStatsSnapshot> {
+  async getStats(options?: {
+    userId?: string;
+    role?: UserRole;
+    salesRepCodes?: readonly string[];
+  }): Promise<DataStatsSnapshot> {
     const [allCustomers, activeProducts, users, sources] = await Promise.all([
       customerLocalRepository.getAll(),
       productLocalRepository.findActiveNotDeleted(),
@@ -51,8 +56,16 @@ class DataStatsService {
       readDataSources(),
     ]);
 
+    const latestUser =
+      options?.role === UserRole.SALES_REP && options.userId
+        ? await userLocalRepository.findByCode(options.userId)
+        : undefined;
     const customerCount = filterCustomers(allCustomers, {
-      activeFilter: 'all',
+      activeFilter: 'active',
+      logoSalesRepCodes:
+        options?.role === UserRole.SALES_REP
+          ? latestUser?.salesRepCodes ?? options.salesRepCodes ?? []
+          : undefined,
     }).length;
 
     return {

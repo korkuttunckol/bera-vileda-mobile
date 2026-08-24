@@ -6,6 +6,7 @@ import { Card } from '@/shared/components/ui/Card';
 import { useOrderDraftStore } from '@/stores/orderDraftStore';
 import { useAuthStore } from '@/stores/authStore';
 import { orderService } from '@/features/orders/services/orderService';
+import { fetchSalesConditionsQuote } from '@/features/orders/services/salesConditionsApiClient';
 import { useOrderTotals } from '@/features/orders/hooks/useOrderTotals';
 import { toast } from '@/stores/toastStore';
 import { ROUTES } from '@/shared/constants/routes';
@@ -17,8 +18,45 @@ export function SaveOrderStep() {
   const reset = useOrderDraftStore((s) => s.reset);
   const setNotes = useOrderDraftStore((s) => s.setNotes);
   const setStep = useOrderDraftStore((s) => s.setStep);
+  const applySalesConditions = useOrderDraftStore((s) => s.applySalesConditions);
   const [isSaving, setIsSaving] = useState(false);
+  const [isApplyingSalesConditions, setIsApplyingSalesConditions] =
+    useState(false);
   const totals = useOrderTotals();
+
+  const handleApplySalesConditions = async (): Promise<void> => {
+    const code = (draft.customerCode ?? '').trim();
+    if (!code || draft.lines.length === 0) {
+      toast('Cari ve ürün seçimi gereklidir', 'error');
+      return;
+    }
+    setIsApplyingSalesConditions(true);
+    try {
+      const quote = await fetchSalesConditionsQuote({
+        customerCode: code,
+        items: draft.lines.map((line) => ({
+          logicalRef: line.productErpId,
+          barcode: line.productBarcode,
+        })),
+      });
+      const matchedCount = applySalesConditions(quote.items);
+      if (matchedCount === 0) {
+        toast(
+          'Eşleşen ürün bulunamadı. Satış koşulları uygulanmadı.',
+          'warning',
+        );
+        return;
+      }
+      toast('Satış koşulları uygulandı.', 'success');
+    } catch (err) {
+      toast(
+        err instanceof Error ? err.message : 'Satış koşulları uygulanamadı.',
+        'error',
+      );
+    } finally {
+      setIsApplyingSalesConditions(false);
+    }
+  };
 
   const handleSave = async (): Promise<void> => {
     if (!user) return;
@@ -76,6 +114,16 @@ export function SaveOrderStep() {
         placeholder="Teslimat veya sipariş notu..."
       />
 
+      <Button
+        variant="outline"
+        fullWidth
+        size="lg"
+        isLoading={isApplyingSalesConditions}
+        disabled={isSaving || draft.lines.length === 0}
+        onClick={() => void handleApplySalesConditions()}
+      >
+        Satış Koşullarını Uygula
+      </Button>
       <Button
         fullWidth
         size="lg"

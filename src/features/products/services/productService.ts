@@ -2,6 +2,8 @@ import { v4 as uuidv4 } from 'uuid';
 import {
   productLocalRepository,
   filterProducts,
+  isBeraProduct,
+  uniqueProductGroupCodes,
   type ProductActiveFilter,
 } from '@/shared/lib/indexeddb/repositories/productRepository';
 import type { Product } from '@/shared/types/product.types';
@@ -12,26 +14,35 @@ export type { ProductActiveFilter };
 class ProductService {
   async list(
     search?: string,
-    activeFilter: ProductActiveFilter = 'all',
+    activeFilter: ProductActiveFilter = 'active',
+    groupCode?: string,
   ): Promise<Product[]> {
     const all = await productLocalRepository.getAll();
-    return filterProducts(all, { search, activeFilter });
+    return filterProducts(all, { search, activeFilter, groupCode });
+  }
+
+  async listGroupCodes(): Promise<string[]> {
+    const all = await productLocalRepository.getAll();
+    return uniqueProductGroupCodes(all);
   }
 
   async getById(id: string): Promise<Product | undefined> {
     const product = await productLocalRepository.getById(id);
-    if (!product || product.isDeleted) return undefined;
+    if (!product || product.isDeleted || !isBeraProduct(product)) return undefined;
     return product;
   }
 
   async findByBarcode(barcode: string): Promise<Product | undefined> {
     const product = await productLocalRepository.findByBarcode(barcode.trim());
-    if (!product?.isActive || product.isDeleted) return undefined;
+    if (!product?.isActive || product.isDeleted || !isBeraProduct(product)) return undefined;
     return product;
   }
 
   async findBySku(sku: string): Promise<Product | undefined> {
-    return productLocalRepository.findBySku(sku.toUpperCase());
+    const product = await productLocalRepository.findBySku(sku.toUpperCase());
+    return product && !product.isDeleted && isBeraProduct(product)
+      ? product
+      : undefined;
   }
 
   toFormValues(product: Product): ProductFormValues {

@@ -12,12 +12,15 @@ const processAll = vi.fn(async () => ({
   errors: [],
 }));
 
-const pullAll = vi.fn(async () => ({
-  customers: 3,
-  products: 2,
+const pullUsersOnly = vi.fn(async () => ({
+  customers: 0,
+  products: 0,
   users: 1,
-  full: true,
+  full: false,
 }));
+
+const syncLogoCustomers = vi.fn(async () => ({ success: true, fetchedRows: 3, errors: [] }));
+const syncLogoProducts = vi.fn(async () => ({ success: true, fetchedRows: 2, errors: [] }));
 
 const pullAndMerge = vi.fn(async () => ({
   pulled: 2,
@@ -51,8 +54,16 @@ vi.mock('@/shared/lib/sync/OutboxProcessor', () => ({
 vi.mock('@/shared/lib/sync/PullSync', () => ({
   pullSync: {
     needsInitialSync: async () => false,
-    pullAll: (options: { full?: boolean }) => pullAll(options),
+    pullUsersOnly: () => pullUsersOnly(),
   },
+}));
+
+vi.mock('@/features/settings/services/logoCustomerSyncService', () => ({
+  logoCustomerSyncService: { syncToIndexedDB: () => syncLogoCustomers() },
+}));
+
+vi.mock('@/features/settings/services/logoProductSyncService', () => ({
+  logoProductSyncService: { syncToIndexedDB: () => syncLogoProducts() },
 }));
 
 vi.mock('@/shared/lib/sync/OrderPullSync', () => ({
@@ -106,7 +117,9 @@ describe('SyncEngine Admin includeOrders gate', () => {
   beforeEach(() => {
     pushPendingUsers.mockClear();
     processAll.mockClear();
-    pullAll.mockClear();
+    pullUsersOnly.mockClear();
+    syncLogoCustomers.mockClear();
+    syncLogoProducts.mockClear();
     pullAndMerge.mockClear();
     vi.stubGlobal('navigator', { onLine: true });
     vi.resetModules();
@@ -119,7 +132,9 @@ describe('SyncEngine Admin includeOrders gate', () => {
     const result = await engine.syncNow('manual', { pullOnly: true });
 
     expect(result.success).toBe(true);
-    expect(pullAll).toHaveBeenCalledWith({ full: true });
+    expect(pullUsersOnly).toHaveBeenCalledTimes(1);
+    expect(syncLogoCustomers).toHaveBeenCalledTimes(1);
+    expect(syncLogoProducts).toHaveBeenCalledTimes(1);
     expect(pullAndMerge).not.toHaveBeenCalled();
     expect(result.report.pull.orders).toBeUndefined();
     expect(processAll).not.toHaveBeenCalled();
@@ -134,7 +149,9 @@ describe('SyncEngine Admin includeOrders gate', () => {
       includeOrders: true,
     });
 
-    expect(pullAll).toHaveBeenCalledWith({ full: true });
+    expect(pullUsersOnly).toHaveBeenCalledTimes(1);
+    expect(syncLogoCustomers).toHaveBeenCalledTimes(1);
+    expect(syncLogoProducts).toHaveBeenCalledTimes(1);
     expect(pullAndMerge).toHaveBeenCalledTimes(1);
     expect(processAll).toHaveBeenCalledTimes(1);
     expect(result.report.pull.orders).toEqual({

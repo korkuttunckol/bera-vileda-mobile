@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useSyncStore } from '@/stores/syncStore';
+import { useAuthStore } from '@/stores/authStore';
 import { dataStatsService } from '../services/dataStatsService';
 import type { DataStatsSnapshot } from '@/shared/lib/sync/dataSource.types';
 
@@ -8,17 +9,26 @@ export function useDataStats() {
   const cachedStats = useSyncStore((s) => s.dataStats);
   const [stats, setStats] = useState<DataStatsSnapshot | null>(cachedStats);
   const [isLoading, setIsLoading] = useState(!cachedStats);
+  const user = useAuthStore((s) => s.user);
 
   const reload = useCallback(async () => {
     setIsLoading(true);
     try {
-      const next = await dataStatsService.getStats();
+      const next = await dataStatsService.getStats(
+        user
+          ? {
+              userId: user.uid,
+              role: user.role,
+              salesRepCodes: user.salesRepCodes,
+            }
+          : undefined,
+      );
       setStats(next);
       useSyncStore.getState().setDataStats(next);
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     void reload();

@@ -12,13 +12,15 @@ const meta = new Map<string, string>();
 const pushOrderToFirestore = vi.fn(async () => undefined);
 const findOrderByLocalId = vi.fn(async (): Promise<Order | null> => null);
 const saveSyncLog = vi.fn(async () => undefined);
-const pullAll = vi.fn(async () => ({
+const pullUsersOnly = vi.fn(async () => ({
   customers: 0,
   products: 0,
   users: 0,
   full: false,
 }));
 const needsInitialSync = vi.fn(async () => false);
+const syncLogoCustomers = vi.fn(async () => ({ success: true, fetchedRows: 0, errors: [] }));
+const syncLogoProducts = vi.fn(async () => ({ success: true, fetchedRows: 0, errors: [] }));
 
 let lastSavedReport: SyncReport | null = null;
 
@@ -73,9 +75,17 @@ vi.mock('@/shared/lib/firebase/firestoreService', () => ({
 
 vi.mock('@/shared/lib/sync/PullSync', () => ({
   pullSync: {
-    pullAll: (...args: [{ full?: boolean }?]) => pullAll(...args),
+    pullUsersOnly: () => pullUsersOnly(),
     needsInitialSync: () => needsInitialSync(),
   },
+}));
+
+vi.mock('@/features/settings/services/logoCustomerSyncService', () => ({
+  logoCustomerSyncService: { syncToIndexedDB: () => syncLogoCustomers() },
+}));
+
+vi.mock('@/features/settings/services/logoProductSyncService', () => ({
+  logoProductSyncService: { syncToIndexedDB: () => syncLogoProducts() },
 }));
 
 vi.mock('@/shared/lib/sync/syncPullLogger', () => ({
@@ -280,7 +290,9 @@ describe('Integration: start() online listener → outbox push', () => {
     findOrderByLocalId.mockClear();
     findOrderByLocalId.mockResolvedValue(null);
     saveSyncLog.mockClear();
-    pullAll.mockClear();
+    pullUsersOnly.mockClear();
+    syncLogoCustomers.mockClear();
+    syncLogoProducts.mockClear();
     needsInitialSync.mockResolvedValue(false);
     vi.resetModules();
   });

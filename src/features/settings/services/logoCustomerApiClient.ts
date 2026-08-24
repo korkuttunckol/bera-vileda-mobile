@@ -11,6 +11,7 @@
  *   DEFINITION_ / DEFINITION → Customer.name
  *   SPECODE    → Customer.logoSalesRepCode  (satış elemanı — ŞUBE DEĞİL)
  *   SPECODE2   → Customer.specialCode2
+ *   SPECODE5   → Customer.logoSpecialCode5 (BERA müşteri portföyü)
  *   CITY       → address.city
  *   TOWN       → address.district
  */
@@ -27,8 +28,11 @@ export interface LogoCustomerRow {
   CODE?: string | number | null;
   DEFINITION_?: string | number | null;
   DEFINITION?: string | number | null;
+  /** Logo CLCARD.ACTIVE: 0 = usable/active, 1 = usage disabled/passive. */
+  ACTIVE?: string | number | boolean | null;
   SPECODE?: string | number | null;
   SPECODE2?: string | number | null;
+  SPECODE5?: string | number | null;
   CITY?: string | number | null;
   TOWN?: string | number | null;
   [key: string]: unknown;

@@ -245,6 +245,10 @@ export function UserFormPage() {
                 {USER_ROLE_LABELS[UserRole.SALES_REP]}
               </option>
               <option value={UserRole.MERCH}>{USER_ROLE_LABELS[UserRole.MERCH]}</option>
+              <option value={UserRole.DEPOT}>{USER_ROLE_LABELS[UserRole.DEPOT]}</option>
+              <option value={UserRole.PACKAGING}>{USER_ROLE_LABELS[UserRole.PACKAGING]}</option>
+              <option value={UserRole.REPORTING}>{USER_ROLE_LABELS[UserRole.REPORTING]}</option>
+              <option value={UserRole.MANAGEMENT}>{USER_ROLE_LABELS[UserRole.MANAGEMENT]}</option>
             </select>
           </label>
 
@@ -262,8 +266,8 @@ export function UserFormPage() {
                 placeholder={'125\n130'}
               />
               <span className="mt-1 block text-xs text-brand-gray-500">
-                Her satıra bir kod. İleride Customer.logoSalesRepCode ile
-                eşleşecek (bu sürümde master-data filtresi yok).
+                Her satıra bir kod. Satış temsilcisinin sonraki senkronizasyonunda
+                yalnızca bu Logo SPECODE değerlerindeki cari kartlar gösterilir.
               </span>
             </label>
           ) : null}

@@ -1,4 +1,8 @@
 export { CustomersPage } from './components/CustomersPage';
+export { CustomerActionsPage } from './components/CustomerActionsPage';
+export { CustomerInfoPage } from './components/CustomerInfoPage';
+export { CustomerStatementPage } from './components/CustomerStatementPage';
+export { CustomerInvoicePage } from './components/CustomerInvoicePage';
 export { CustomerFormPage } from './components/CustomerFormPage';
 export { BranchListPage } from './components/BranchListPage';
 export { BranchFormPage } from './components/BranchFormPage';

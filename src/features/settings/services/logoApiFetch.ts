@@ -6,7 +6,7 @@
  * endpoint's error is returned immediately.
  */
 
-export type LogoApiChannel = 'stock' | 'customers';
+export type LogoApiChannel = 'stock' | 'customers' | 'salesConditions';
 export type LogoEndpointKind = 'lan' | 'external';
 
 /** Default per-attempt timeout so LAN probes do not hang forever off-site. */
@@ -53,6 +53,8 @@ async function fetchOnce(
   url: string,
   userSignal: AbortSignal | undefined,
   timeoutMs: number,
+  method: 'GET' | 'POST' = 'GET',
+  body?: string,
 ): Promise<Response> {
   if (isUserAbort(userSignal)) {
     throw new DOMException('Aborted', 'AbortError');
@@ -65,10 +67,16 @@ async function fetchOnce(
   }
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
+  const headers: Record<string, string> = { Accept: 'application/json' };
+  if (method === 'POST') {
+    headers['Content-Type'] = 'application/json';
+  }
+
   try {
     return await fetch(url, {
-      method: 'GET',
-      headers: { Accept: 'application/json' },
+      method,
+      headers,
+      body: method === 'POST' ? body : undefined,
       signal: controller.signal,
     });
   } finally {
@@ -88,6 +96,9 @@ export interface FetchLogoJsonWithFallbackOptions {
   networkErrorMessage: string;
   httpErrorMessage: (status: number) => string;
   jsonErrorMessage: string;
+  method?: 'GET' | 'POST';
+  /** JSON string body; used only when method is POST. */
+  body?: string;
 }
 
 /**
@@ -117,7 +128,13 @@ export async function fetchLogoJsonWithFallback(
 
     let response: Response;
     try {
-      response = await fetchOnce(attempt.url, options.signal, timeoutMs);
+      response = await fetchOnce(
+        attempt.url,
+        options.signal,
+        timeoutMs,
+        options.method ?? 'GET',
+        options.body,
+      );
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') {
         if (isUserAbort(options.signal)) {
@@ -143,8 +160,13 @@ export async function fetchLogoJsonWithFallback(
       throw lastNetworkError;
     }
 
-    // Reached a server — do not fall back on HTTP status errors.
+    // A LAN 404 means the sibling endpoint may not exist on the LAN
+    // binding (e.g. cariHareket.ashx). In that specific case, try WAN.
     if (!response.ok) {
+      if (response.status === 404 && hasNext) {
+        continue;
+      }
+
       throw new LogoHttpFetchError(
         options.httpErrorMessage(response.status),
         response.status,
