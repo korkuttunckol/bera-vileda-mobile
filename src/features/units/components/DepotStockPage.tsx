@@ -36,7 +36,7 @@ export function DepotStockPage() {
     void (async () => {
       setIsScanningBarcode(true);
       try {
-        const result = await scanNativeBarcode();
+        const result = await scanNativeBarcode({ cancelLabel: 'Kapat' });
         if (result.status === 'cancelled') return;
         if (result.status !== 'success') {
           toast(result.message, result.status === 'error' ? 'error' : 'warning');

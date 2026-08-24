@@ -25,6 +25,10 @@ export type NativeBarcodeScanResult =
   | { status: 'unsupported'; message: string }
   | { status: 'error'; message: string };
 
+interface NativeBarcodeScanOptions {
+  cancelLabel?: string;
+}
+
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message.trim()) return error.message;
   if (typeof error === 'string' && error.trim()) return error;
@@ -44,7 +48,10 @@ function isUserCancelled(error: unknown): boolean {
  * CameraX preview sits behind the WebView. Hide app chrome and show an
  * explicit finish control so the native camera is visible immediately.
  */
-export function mountNativeBarcodeScanOverlay(onCancel: () => void): () => void {
+export function mountNativeBarcodeScanOverlay(
+  onCancel: () => void,
+  cancelLabel = 'Siparişi Bitir',
+): () => void {
   if (typeof document === 'undefined') {
     return () => undefined;
   }
@@ -64,7 +71,7 @@ export function mountNativeBarcodeScanOverlay(onCancel: () => void): () => void 
   const cancelButton = document.createElement('button');
   cancelButton.type = 'button';
   cancelButton.className = 'native-barcode-scan-overlay__cancel';
-  cancelButton.textContent = 'Siparişi Bitir';
+  cancelButton.textContent = cancelLabel;
   cancelButton.addEventListener('click', onCancel);
 
   overlay.append(hint, cancelButton);
@@ -78,7 +85,9 @@ export function mountNativeBarcodeScanOverlay(onCancel: () => void): () => void 
   };
 }
 
-async function runStartScanSession(): Promise<NativeBarcodeScanResult> {
+async function runStartScanSession(
+  { cancelLabel }: NativeBarcodeScanOptions = {},
+): Promise<NativeBarcodeScanResult> {
   let settled = false;
   let barcodesListener: PluginListenerHandle | undefined;
   let errorListener: PluginListenerHandle | undefined;
@@ -115,9 +124,12 @@ async function runStartScanSession(): Promise<NativeBarcodeScanResult> {
       });
     };
 
-    unmountOverlay = mountNativeBarcodeScanOverlay(() => {
-      finish({ status: 'cancelled' });
-    });
+    unmountOverlay = mountNativeBarcodeScanOverlay(
+      () => {
+        finish({ status: 'cancelled' });
+      },
+      cancelLabel,
+    );
 
     void (async () => {
       try {
@@ -173,7 +185,9 @@ async function runStartScanSession(): Promise<NativeBarcodeScanResult> {
  * Does NOT use `BarcodeScanner.scan()` / Google Barcode Scanner module.
  * Browser/PWA: unsupported.
  */
-export async function scanNativeBarcode(): Promise<NativeBarcodeScanResult> {
+export async function scanNativeBarcode(
+  options: NativeBarcodeScanOptions = {},
+): Promise<NativeBarcodeScanResult> {
   if (!Capacitor.isNativePlatform()) {
     return {
       status: 'unsupported',
@@ -213,7 +227,7 @@ export async function scanNativeBarcode(): Promise<NativeBarcodeScanResult> {
     };
   }
 
-  return runStartScanSession();
+  return runStartScanSession(options);
 }
 
 /** UPC-A (12 digit) → EAN-13 style for Product.barcode lookup when needed. */
