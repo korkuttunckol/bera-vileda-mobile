@@ -10,6 +10,7 @@ export const ROUTES = {
   DEPOT_TASKS: '/depo/yapacaklarim',
   PACKAGING: '/paketleme',
   REPORTING: '/raporlama',
+  REPORTING_STOCK: '/raporlama/depo-merkez-stok',
   MANAGEMENT: '/yonetim',
   NEW_ORDER: '/orders/new',
   ORDER_HISTORY: '/orders',

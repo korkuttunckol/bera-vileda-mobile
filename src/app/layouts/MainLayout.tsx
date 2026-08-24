@@ -22,6 +22,8 @@ export function MainLayout() {
   const isInitialAdminSettings = location.pathname.startsWith(ROUTES.SETTINGS_USERS);
   const isDepotRoute = location.pathname === ROUTES.DEPOT
     || location.pathname.startsWith(`${ROUTES.DEPOT}/`);
+  const isReportingRoute = location.pathname === ROUTES.REPORTING
+    || location.pathname.startsWith(`${ROUTES.REPORTING}/`);
   const activeBusinessUnit = resolveActiveBusinessUnit(user);
 
   // Android uygulaması arka plandan döndüğünde yönlendirici bazen varsayılan
@@ -53,7 +55,7 @@ export function MainLayout() {
             ) : null}
           </div>
           <div className="flex items-center gap-1.5">
-            {!isUnitHub && !isInitialAdminSettings && !isDepotRoute ? (
+            {!isUnitHub && !isInitialAdminSettings && !isDepotRoute && !isReportingRoute ? (
               <button
                 onClick={handleSettingsClick}
                 className="touch-feedback rounded-xl p-2 text-white/80 hover:bg-white/10 hover:text-white"
@@ -90,13 +92,13 @@ export function MainLayout() {
           isNewOrder
             ? 'flex flex-col overflow-hidden'
             : 'overflow-y-auto overscroll-y-contain',
-          keyboardOpen || isUnitHub || isInitialAdminSettings || isDepotRoute ? 'pb-3' : 'pb-20',
+          keyboardOpen || isUnitHub || isInitialAdminSettings || isDepotRoute || isReportingRoute ? 'pb-3' : 'pb-20',
         )}
       >
         <Outlet />
       </main>
 
-      {!isUnitHub && !isInitialAdminSettings && !isDepotRoute ? <BottomNav /> : null}
+      {!isUnitHub && !isInitialAdminSettings && !isDepotRoute && !isReportingRoute ? <BottomNav /> : null}
       <ToastContainer />
     </div>
   );

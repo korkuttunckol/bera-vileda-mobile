@@ -52,6 +52,8 @@ import { DepotMenuPage } from '@/features/units/components/DepotMenuPage';
 import { DepotCountPage } from '@/features/units/components/DepotCountPage';
 import { DepotCountReportsPage } from '@/features/units/components/DepotCountReportsPage';
 import { DepotTasksPage } from '@/features/units/components/DepotTasksPage';
+import { ReportingMenuPage } from '@/features/units/components/ReportingMenuPage';
+import { ReportingStockPage } from '@/features/units/components/ReportingStockPage';
 import { ROUTES } from '@/shared/constants/routes';
 
 export const router = createBrowserRouter([
@@ -87,7 +89,8 @@ export const router = createBrowserRouter([
           { path: ROUTES.DEPOT_COUNT_REPORTS, element: <DepotCountReportsPage /> },
           { path: ROUTES.DEPOT_TASKS, element: <DepotTasksPage /> },
           { path: ROUTES.PACKAGING, element: <UnitPlaceholderPage unit="packaging" /> },
-          { path: ROUTES.REPORTING, element: <UnitPlaceholderPage unit="reporting" /> },
+          { path: ROUTES.REPORTING, element: <ReportingMenuPage /> },
+          { path: ROUTES.REPORTING_STOCK, element: <ReportingStockPage /> },
           { path: ROUTES.MANAGEMENT, element: <UnitPlaceholderPage unit="management" /> },
           { path: ROUTES.NEW_ORDER, element: <NewOrderPage /> },
           { path: ROUTES.ORDER_HISTORY, element: <OrderHistoryPage /> },
