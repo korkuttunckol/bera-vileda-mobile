@@ -11,6 +11,7 @@ export const ROUTES = {
   PACKAGING: '/paketleme',
   REPORTING: '/raporlama',
   REPORTING_STOCK: '/raporlama/depo-merkez-stok',
+  REPORTING_SALES: '/raporlama/satis-raporu',
   MANAGEMENT: '/yonetim',
   NEW_ORDER: '/orders/new',
   ORDER_HISTORY: '/orders',
