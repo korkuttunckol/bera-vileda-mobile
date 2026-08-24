@@ -47,6 +47,8 @@ function toAuthUser(user: AppUser): AuthUser {
     displayName: user.name,
     role: user.role,
     salesRepCodes: user.salesRepCodes,
+    reportingStockAuthorityCode: user.reportingStockAuthorityCode,
+    reportingSalesSql: user.reportingSalesSql,
   };
 }
 
@@ -132,6 +134,8 @@ class AuthService {
           ...result.user,
           displayName: profile?.name ?? result.user.displayName,
           salesRepCodes: profile?.salesRepCodes ?? [],
+          reportingStockAuthorityCode: profile?.reportingStockAuthorityCode,
+          reportingSalesSql: profile?.reportingSalesSql,
         };
         saveAuthSession(user, result.session);
         return user;
@@ -175,6 +179,8 @@ class AuthService {
       displayName: session.displayName,
       role: session.role,
       salesRepCodes: session.salesRepCodes ?? [],
+      reportingStockAuthorityCode: session.reportingStockAuthorityCode,
+      reportingSalesSql: session.reportingSalesSql,
     };
   }
 

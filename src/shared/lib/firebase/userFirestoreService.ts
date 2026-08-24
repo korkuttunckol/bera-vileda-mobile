@@ -59,6 +59,8 @@ function mapFirestoreUser(id: string, data: Record<string, unknown>): AppUser | 
     phone: readString(data.phone) || undefined,
     email: readString(data.email) || undefined,
     description: readString(data.description) || undefined,
+    reportingStockAuthorityCode: readString(data.reportingStockAuthorityCode) || undefined,
+    reportingSalesSql: readString(data.reportingSalesSql) || undefined,
     isDeleted: data.isDeleted === true,
     deletedAt: data.deletedAt
       ? timestampToIso(data.deletedAt as Timestamp | string)
@@ -85,6 +87,8 @@ function toFirestorePayload(user: AppUser): Record<string, unknown> {
     phone: user.phone,
     email: user.email,
     description: user.description,
+    reportingStockAuthorityCode: user.reportingStockAuthorityCode,
+    reportingSalesSql: user.reportingSalesSql,
     isDeleted: user.isDeleted,
     deletedAt: user.deletedAt
       ? Timestamp.fromDate(new Date(user.deletedAt))

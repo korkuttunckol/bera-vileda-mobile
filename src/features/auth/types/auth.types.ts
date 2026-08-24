@@ -7,6 +7,8 @@ export interface AuthUser {
   role: UserRole;
   /** Satış temsilcisinin Logo CLCARD.SPECODE portföyü. */
   salesRepCodes: string[];
+  reportingStockAuthorityCode?: string;
+  reportingSalesSql?: string;
 }
 
 export interface LoginCredentials {

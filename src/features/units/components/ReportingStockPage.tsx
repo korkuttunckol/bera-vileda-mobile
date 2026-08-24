@@ -14,7 +14,7 @@ export function ReportingStockPage() {
   const [search, setSearch] = useState('');
   const [groupCode, setGroupCode] = useState('');
   const { products, groupCodes, isLoading } = useProducts(search, 'active', groupCode || undefined);
-  const authorityCode = user?.userCode.trim().toLocaleUpperCase('tr-TR') ?? '';
+  const authorityCode = user?.reportingStockAuthorityCode?.trim().toLocaleUpperCase('tr-TR') ?? '';
   const visibleProducts = useMemo(() => products.filter((product) =>
     product.specialCode?.trim().toLocaleUpperCase('tr-TR') === authorityCode,
   ), [authorityCode, products]);
@@ -30,7 +30,7 @@ export function ReportingStockPage() {
           <GroupCodeFilter value={groupCode} options={filteredGroupCodes} onChange={setGroupCode} />
         </div>
         <div className="px-4 pb-6 pt-4">
-          {isLoading ? <LoadingSpinner fullPage label="Stoklar yükleniyor..." /> : visibleProducts.length === 0 ? <EmptyState title="Yetkili stok kartı bulunamadı" description={`${authorityCode || 'Bu kullanıcı'} için Logo stok yetki kodu eşleşen ürün yok.`} /> : <div className="list-stack"><p className="section-label">{visibleProducts.length} ürün · Merkez depo stokları</p>{visibleProducts.map((product) => <DepotStockCard key={product.id} product={product} />)}</div>}
+          {isLoading ? <LoadingSpinner fullPage label="Stoklar yükleniyor..." /> : !authorityCode ? <EmptyState title="Stok yetki kodu tanımlı değil" description="ADMIN, Kullanıcı Ayarları içinden bu raporlama kullanıcısına Logo SPECODE kodunu tanımlamalı." /> : visibleProducts.length === 0 ? <EmptyState title="Yetkili stok kartı bulunamadı" description={`${authorityCode} için Logo stok yetki kodu eşleşen ürün yok.`} /> : <div className="list-stack"><p className="section-label">{visibleProducts.length} ürün · Merkez depo stokları</p>{visibleProducts.map((product) => <DepotStockCard key={product.id} product={product} />)}</div>}
         </div>
       </div>
     </div>

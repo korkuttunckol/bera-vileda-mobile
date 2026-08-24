@@ -138,6 +138,8 @@ class UserManagementService {
       phone: input.phone?.trim() || undefined,
       email: input.email?.trim() || undefined,
       description: input.description?.trim() || undefined,
+      reportingStockAuthorityCode: input.reportingStockAuthorityCode,
+      reportingSalesSql: input.reportingSalesSql,
       isDeleted: false,
       deletedAt: undefined,
       syncStatus: 'pending',
@@ -198,6 +200,14 @@ class UserManagementService {
         input.description !== undefined
           ? input.description.trim() || undefined
           : existing.description,
+      reportingStockAuthorityCode:
+        input.reportingStockAuthorityCode !== undefined
+          ? input.reportingStockAuthorityCode
+          : existing.reportingStockAuthorityCode,
+      reportingSalesSql:
+        input.reportingSalesSql !== undefined
+          ? input.reportingSalesSql
+          : existing.reportingSalesSql,
       passwordHash,
       syncStatus: 'pending',
       updatedAt: now,
@@ -283,6 +293,8 @@ class UserManagementService {
       merchStockGroupCodesText: formatPermissionListText(
         user?.merchStockGroupCodes ?? [],
       ),
+      reportingStockAuthorityCode: user?.reportingStockAuthorityCode ?? '',
+      reportingSalesSql: user?.reportingSalesSql ?? '',
     };
   }
 

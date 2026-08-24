@@ -13,6 +13,10 @@ export interface AppUser extends UserPermissionProfile {
   phone?: string;
   email?: string;
   description?: string;
+  /** Raporlama kullanıcısının Logo ITEMS.SPECODE stok filtresi. */
+  reportingStockAuthorityCode?: string;
+  /** ADMIN tarafından tanımlanan, tarih parametreli satış raporu SQL'i. */
+  reportingSalesSql?: string;
   isDeleted: boolean;
   deletedAt?: string;
   syncStatus: SyncStatus;
@@ -29,6 +33,8 @@ export interface AppUserPublic extends UserPermissionProfile {
   phone?: string;
   email?: string;
   description?: string;
+  reportingStockAuthorityCode?: string;
+  reportingSalesSql?: string;
   isDeleted: boolean;
   syncStatus: SyncStatus;
   createdAt: string;
@@ -44,6 +50,8 @@ export interface CreateUserInput {
   phone?: string;
   email?: string;
   description?: string;
+  reportingStockAuthorityCode?: string;
+  reportingSalesSql?: string;
   salesRepCodes?: string[];
   merchCustomerPatterns?: string[];
   merchCustomerCodes?: string[];
@@ -60,6 +68,8 @@ export interface UpdateUserInput {
   phone?: string;
   email?: string;
   description?: string;
+  reportingStockAuthorityCode?: string;
+  reportingSalesSql?: string;
   salesRepCodes?: string[];
   merchCustomerPatterns?: string[];
   merchCustomerCodes?: string[];
@@ -105,6 +115,8 @@ export function normalizeAppUser(
     merchStockGroupCodes?: string[];
     customerFieldMask?: string[];
     productFieldMask?: string[];
+    reportingStockAuthorityCode?: string;
+    reportingSalesSql?: string;
   },
 ): AppUser {
   const profile = normalizeUserPermissionProfile(user);
@@ -118,6 +130,8 @@ export function normalizeAppUser(
     phone: user.phone?.trim() || undefined,
     email: user.email?.trim() || undefined,
     description: user.description?.trim() || undefined,
+    reportingStockAuthorityCode: user.reportingStockAuthorityCode?.trim() || undefined,
+    reportingSalesSql: user.reportingSalesSql?.trim() || undefined,
     ...profile,
   };
 }
@@ -133,6 +147,8 @@ export function toPublicUser(user: AppUser): AppUserPublic {
     phone: normalized.phone,
     email: normalized.email,
     description: normalized.description,
+    reportingStockAuthorityCode: normalized.reportingStockAuthorityCode,
+    reportingSalesSql: normalized.reportingSalesSql,
     isDeleted: normalized.isDeleted,
     syncStatus: normalized.syncStatus,
     createdAt: normalized.createdAt,

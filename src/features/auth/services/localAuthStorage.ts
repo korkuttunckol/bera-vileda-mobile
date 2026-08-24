@@ -9,6 +9,8 @@ export interface StoredAuthSession {
   displayName: string;
   role: AuthUser['role'];
   salesRepCodes?: string[];
+  reportingStockAuthorityCode?: string;
+  reportingSalesSql?: string;
   loggedInAt: string;
   token?: string;
   expiresAt?: string;
@@ -29,6 +31,8 @@ export function saveAuthSession(
     displayName: user.displayName,
     role: user.role,
     salesRepCodes: user.salesRepCodes,
+    reportingStockAuthorityCode: user.reportingStockAuthorityCode,
+    reportingSalesSql: user.reportingSalesSql,
     loggedInAt: new Date().toISOString(),
     ...(extras?.token ? { token: extras.token } : {}),
     ...(extras?.expiresAt ? { expiresAt: extras.expiresAt } : {}),
@@ -58,6 +62,12 @@ export function getAuthSession(): StoredAuthSession | null {
       salesRepCodes: Array.isArray(parsed.salesRepCodes)
         ? parsed.salesRepCodes.filter((code): code is string => typeof code === 'string')
         : [],
+      reportingStockAuthorityCode: typeof parsed.reportingStockAuthorityCode === 'string'
+        ? parsed.reportingStockAuthorityCode
+        : undefined,
+      reportingSalesSql: typeof parsed.reportingSalesSql === 'string'
+        ? parsed.reportingSalesSql
+        : undefined,
       loggedInAt: parsed.loggedInAt ?? new Date().toISOString(),
       token: typeof parsed.token === 'string' ? parsed.token : undefined,
       expiresAt:

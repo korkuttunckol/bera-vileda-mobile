@@ -76,6 +76,8 @@ function toAuthUser(
     displayName: displayName?.trim() || userCode,
     role,
     salesRepCodes: [],
+    reportingStockAuthorityCode: undefined,
+    reportingSalesSql: undefined,
   };
 }
 
