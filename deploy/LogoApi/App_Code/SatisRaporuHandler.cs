@@ -41,7 +41,7 @@ namespace BeraLogoApi
             catch (Exception ex) { Fail(context, 500, "Satış raporu oluşturulamadı: " + ex.Message); }
         }
 
-        static bool IsSafeReadQuery(string sql) { var s = sql.TrimStart(); return (s.StartsWith("SELECT", StringComparison.OrdinalIgnoreCase) || s.StartsWith("WITH", StringComparison.OrdinalIgnoreCase)) && !ForbiddenSql.IsMatch(s); }
+        static bool IsSafeReadQuery(string sql) { var s = sql.Trim(); if (s.EndsWith(";", StringComparison.Ordinal)) s = s.Substring(0, s.Length - 1).TrimEnd(); return (s.StartsWith("SELECT", StringComparison.OrdinalIgnoreCase) || s.StartsWith("WITH", StringComparison.OrdinalIgnoreCase)) && !ForbiddenSql.IsMatch(s); }
         static string ReadBearer(HttpContext c) { var h = c.Request.Headers["Authorization"] ?? ""; return h.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) ? h.Substring(7).Trim() : ""; }
         static string ReadSecret() { var s = ConfigurationManager.AppSettings["BeraTokenSecret"]; if (string.IsNullOrWhiteSpace(s)) throw new ConfigurationErrorsException("BeraTokenSecret tanımlı değil."); return s.Trim(); }
         static string ConnectionString() { foreach (var n in new[] { "Logo", "LogoDb", "Tiger", "LOGO", "SqlServer" }) { var c = ConfigurationManager.ConnectionStrings[n]; if (c != null && !string.IsNullOrWhiteSpace(c.ConnectionString)) return c.ConnectionString; } throw new ConfigurationErrorsException("Logo SQL bağlantısı bulunamadı."); }
