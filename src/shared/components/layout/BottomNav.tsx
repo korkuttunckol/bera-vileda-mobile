@@ -6,7 +6,7 @@ import { ROUTES } from '@/shared/constants/routes';
 import { useVisualViewportKeyboard } from '@/shared/hooks/useVisualViewportKeyboard';
 import { cn } from '@/shared/utils/cn';
 
-type BottomNavIcon = NavIcon | 'checklist';
+type BottomNavIcon = NavIcon | 'checklist' | 'clipboard';
 
 function NavIconSvg({ icon, active }: { icon: BottomNavIcon; active: boolean }) {
   const color = active ? 'text-brand-navy' : 'text-brand-gray-400';
@@ -63,6 +63,14 @@ function NavIconSvg({ icon, active }: { icon: BottomNavIcon; active: boolean }) 
         d="M9 11l3 3L22 4M3 5h.01M3 12h.01M3 19h.01M7 5h8M7 12h3M7 19h8"
       />
     ),
+    clipboard: (
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M9 5h6m-5-2h4a2 2 0 012 2v1H8V5a2 2 0 012-2zm-3 3h10a2 2 0 012 2v10a2 2 0 01-2 2H6a2 2 0 01-2-2V8a2 2 0 012-2zm3 5h6m-6 4h6"
+      />
+    ),
   };
 
   return (
@@ -88,6 +96,7 @@ export function BottomNav() {
   const primaryNav: Array<{ path: string; label: string; icon: BottomNavIcon }> = isDepotRoute
     ? [
         { path: ROUTES.DEPOT, label: 'Stok Sorgulama', icon: 'box' },
+        { path: ROUTES.DEPOT_COUNT, label: 'Sayım', icon: 'clipboard' },
         { path: ROUTES.DEPOT_TASKS, label: 'Yapacaklarım', icon: 'checklist' },
       ]
     : NAV_ITEMS.filter((item) => {
@@ -114,8 +123,8 @@ export function BottomNav() {
       <div className="app-shell flex min-w-0 items-stretch justify-around">
         {primaryNav.map((item) => {
           const isActive =
-            item.path === '/'
-              ? location.pathname === '/'
+            item.path === '/' || item.path === ROUTES.DEPOT
+              ? location.pathname === item.path
               : location.pathname.startsWith(item.path);
 
           return (
