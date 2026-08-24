@@ -97,6 +97,7 @@ export function BottomNav() {
     ? [
         { path: ROUTES.DEPOT, label: 'Stok Sorgulama', icon: 'box' },
         { path: ROUTES.DEPOT_COUNT, label: 'Sayım', icon: 'clipboard' },
+        { path: ROUTES.DEPOT_COUNT_REPORTS, label: 'Raporlar', icon: 'history' },
         { path: ROUTES.DEPOT_TASKS, label: 'Yapacaklarım', icon: 'checklist' },
       ]
     : NAV_ITEMS.filter((item) => {
@@ -123,7 +124,7 @@ export function BottomNav() {
       <div className="app-shell flex min-w-0 items-stretch justify-around">
         {primaryNav.map((item) => {
           const isActive =
-            item.path === '/' || item.path === ROUTES.DEPOT
+            item.path === '/' || item.path === ROUTES.DEPOT || item.path === ROUTES.DEPOT_COUNT
               ? location.pathname === item.path
               : location.pathname.startsWith(item.path);
 

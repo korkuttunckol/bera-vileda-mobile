@@ -5,6 +5,7 @@ export const ROUTES = {
   DASHBOARD: '/',
   DEPOT: '/depo',
   DEPOT_COUNT: '/depo/sayim',
+  DEPOT_COUNT_REPORTS: '/depo/sayim-raporlari',
   DEPOT_TASKS: '/depo/yapacaklarim',
   PACKAGING: '/paketleme',
   REPORTING: '/raporlama',

@@ -15,7 +15,11 @@ import {
 import { toast } from '@/stores/toastStore';
 import type { Product } from '@/shared/types/product.types';
 import { useAuth } from '@/features/auth/hooks/useAuth';
-import { exportDepotCountReport, type DepotCountReportKind } from '../services/depotCountReportService';
+import {
+  exportDepotCountReport,
+  saveDepotCountReport,
+  type DepotCountReportKind,
+} from '../services/depotCountReportService';
 
 type CountPhase = 'setup' | 'counting' | 'review' | 'complete';
 type Warehouse = 'central' | 'returns';
@@ -43,6 +47,7 @@ export function DepotCountPage() {
   const [duplicateProduct, setDuplicateProduct] = useState<Product | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [exporting, setExporting] = useState<DepotCountReportKind | null>(null);
+  const [isCompleting, setIsCompleting] = useState(false);
 
   const uncounted = useMemo(
     () => countProducts.filter((product) => counts[product.id] === undefined),
@@ -137,21 +142,41 @@ export function DepotCountPage() {
     })();
   };
 
+  const completeCount = (finalCounts: Partial<Record<string, number>>): void => {
+    if (!user || isCompleting) return;
+    void (async () => {
+      setIsCompleting(true);
+      try {
+        await saveDepotCountReport({
+          warehouse,
+          groupCode,
+          products: countProducts,
+          counts: finalCounts,
+          createdByName: user.displayName || user.userCode,
+        }, user.uid);
+        setCounts(finalCounts);
+        setPhase('complete');
+        toast('Sayım raporu kaydedildi.', 'success');
+      } catch (error) {
+        toast(error instanceof Error ? error.message : 'Sayım raporu kaydedilemedi.', 'error');
+      } finally {
+        setIsCompleting(false);
+      }
+    })();
+  };
+
   const finishCount = (): void => {
     if (uncounted.length > 0) {
       setPhase('review');
       return;
     }
-    setPhase('complete');
+    completeCount(counts);
   };
 
   const closeRemainingWithZero = (): void => {
-    setCounts((current) => {
-      const next = { ...current };
-      uncounted.forEach((product) => { next[product.id] = 0; });
-      return next;
-    });
-    setPhase('complete');
+    const finalCounts = { ...counts };
+    uncounted.forEach((product) => { finalCounts[product.id] = 0; });
+    completeCount(finalCounts);
   };
 
   const exportReport = (kind: DepotCountReportKind): void => {
@@ -272,6 +297,7 @@ export function DepotCountPage() {
           fullWidth
           size="lg"
           onClick={isReview && uncounted.length > 0 ? closeRemainingWithZero : finishCount}
+          isLoading={isCompleting}
         >
           {isReview && uncounted.length > 0 ? 'Sayılmayanları 0 ile Kapat' : 'Sayımı Bitir'}
         </Button>

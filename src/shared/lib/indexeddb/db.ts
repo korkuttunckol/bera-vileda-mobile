@@ -6,6 +6,7 @@ import type { Product } from '@/shared/types/product.types';
 import type { SyncReport } from '@/shared/lib/sync/types/sync.types';
 import type { ImportReport } from '@/shared/types/import.types';
 import type { AppUser } from '@/shared/types/user.types';
+import type { DepotCountReport } from '@/features/units/types/depotCountReport.types';
 
 export interface LocalMeta {
   key: string;
@@ -33,6 +34,7 @@ export type LocalProduct = Product;
 export type LocalSyncReport = SyncReport;
 export type LocalImportReport = ImportReport;
 export type LocalUser = AppUser;
+export type LocalDepotCountReport = DepotCountReport;
 
 export const META_KEYS = {
   LAST_PULL_CUSTOMERS: 'lastPullSyncAt:customers',
@@ -60,6 +62,7 @@ class BeraViledaDatabase extends Dexie {
   products!: EntityTable<LocalProduct, 'id'>;
   importLogs!: EntityTable<LocalImportReport, 'id'>;
   users!: EntityTable<LocalUser, 'id'>;
+  depotCountReports!: EntityTable<LocalDepotCountReport, 'id'>;
 
   constructor() {
     super(DB_CONFIG.name);
@@ -187,6 +190,25 @@ class BeraViledaDatabase extends Dexie {
     });
 
     // v9 — Logo CLCARD fields: logoSalesRepCode index (SPECODE ≠ şube)
+    this.version(9).stores({
+      meta: 'key',
+      syncQueue:
+        'id, entityType, entityId, idempotencyKey, status, createdAt',
+      syncReports: 'id, startedAt, success',
+      importLogs: 'id, type, startedAt, success',
+      users: 'id, userCode, role, active, syncStatus, isDeleted',
+      orders:
+        'id, localId, customerId, branchId, salesRepId, status, syncStatus, orderSyncStatus, erpId, isDeleted, createdAt',
+      orderLines: 'id, orderId, productId, erpId',
+      customers:
+        'id, code, name, salesRepId, syncStatus, erpId, isActive, isDeleted, logoSalesRepCode',
+      branches:
+        'id, customerId, name, isActive, isDeleted, syncStatus, erpId',
+      products:
+        'id, sku, name, syncStatus, erpId, barcode, groupCode, specialCode, specialCode2',
+    });
+
+    // v10 — kalıcı depo sayım raporları
     this.version(DB_CONFIG.version).stores({
       meta: 'key',
       syncQueue:
@@ -203,6 +225,7 @@ class BeraViledaDatabase extends Dexie {
         'id, customerId, name, isActive, isDeleted, syncStatus, erpId',
       products:
         'id, sku, name, syncStatus, erpId, barcode, groupCode, specialCode, specialCode2',
+      depotCountReports: 'id, warehouse, groupCode, createdAt, createdBy, isDeleted',
     });
   }
 }
