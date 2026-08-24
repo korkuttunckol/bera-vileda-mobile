@@ -6,7 +6,6 @@ import { Input } from '@/shared/components/ui/Input';
 import { ROUTES } from '@/shared/constants/routes';
 import { toast } from '@/stores/toastStore';
 import { syncService } from '@/features/sync/services/syncService';
-import { APP_CONFIG } from '@/config/app.config';
 import {
   BUSINESS_UNITS,
   allowedBusinessUnits,
@@ -153,10 +152,6 @@ export function LoginForm() {
         Ayarlar
       </button>
 
-      <footer className="mt-8 text-center text-[11px] leading-relaxed text-brand-gray-400">
-        <p className="font-medium text-brand-gray-500">BERA Vileda Sipariş Sistemi</p>
-        <p>v{APP_CONFIG.version}</p>
-      </footer>
     </div>
   );
 }
