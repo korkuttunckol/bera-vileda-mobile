@@ -19,6 +19,7 @@ import { exportDepotCountReport, type DepotCountReportKind } from '../services/d
 
 type CountPhase = 'setup' | 'counting' | 'review' | 'complete';
 type Warehouse = 'central' | 'returns';
+type CountEntryMode = 'set' | 'add';
 
 function matchesSearch(product: Product, value: string): boolean {
   const query = value.trim().toLocaleLowerCase('tr-TR');
@@ -37,7 +38,8 @@ export function DepotCountPage() {
   const [counts, setCounts] = useState<Partial<Record<string, number>>>({});
   const [search, setSearch] = useState('');
   const [pendingProduct, setPendingProduct] = useState<Product | null>(null);
-  const [countValue, setCountValue] = useState('1');
+  const [countValue, setCountValue] = useState('');
+  const [countEntryMode, setCountEntryMode] = useState<CountEntryMode>('set');
   const [duplicateProduct, setDuplicateProduct] = useState<Product | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [exporting, setExporting] = useState<DepotCountReportKind | null>(null);
@@ -82,7 +84,8 @@ export function DepotCountPage() {
       return;
     }
     setPendingProduct(product);
-    setCountValue('1');
+    setCountValue('');
+    setCountEntryMode('set');
   };
 
   const saveCount = (): void => {
@@ -92,7 +95,12 @@ export function DepotCountPage() {
       toast('Sayım miktarı 0 veya daha büyük tam sayı olmalı.', 'warning');
       return;
     }
-    setCounts((current) => ({ ...current, [pendingProduct.id]: quantity }));
+    setCounts((current) => ({
+      ...current,
+      [pendingProduct.id]: countEntryMode === 'add'
+        ? (current[pendingProduct.id] ?? 0) + quantity
+        : quantity,
+    }));
     setPendingProduct(null);
     setSearch('');
   };
@@ -269,12 +277,12 @@ export function DepotCountPage() {
         </Button>
       </div>
 
-      <Modal isOpen={pendingProduct !== null} onClose={() => { setPendingProduct(null); }} title="Sayım Miktarı">
+      <Modal isOpen={pendingProduct !== null} onClose={() => { setPendingProduct(null); }} title={countEntryMode === 'add' ? 'Sayım Miktarı İlave Et' : 'Sayım Miktarı'}>
         {pendingProduct ? (
           <div className="space-y-4">
             <div><p className="font-semibold text-brand-navy">{pendingProduct.name}</p><p className="mt-1 text-sm text-brand-gray-500">Depo stok: {pendingProduct.stockQuantity} · Barkod: {pendingProduct.barcode || '-'}</p></div>
-            <label className="block text-sm font-semibold text-brand-gray-700">Sayılan miktar<input autoFocus inputMode="numeric" type="number" min="0" value={countValue} onChange={(event) => { setCountValue(event.target.value); }} className="mt-1.5 h-11 w-full rounded-xl border border-brand-gray-200 px-3 text-base outline-none focus:border-brand-navy" /></label>
-            <Button type="button" fullWidth onClick={saveCount}>Sayımı Kaydet</Button>
+            <label className="block text-sm font-semibold text-brand-gray-700">{countEntryMode === 'add' ? 'İlave edilecek miktar' : 'Sayılan miktar'}<input autoFocus inputMode="numeric" type="number" min="0" value={countValue} onChange={(event) => { setCountValue(event.target.value); }} placeholder="Miktarı girin" className="mt-1.5 h-11 w-full rounded-xl border border-brand-gray-200 px-3 text-base outline-none focus:border-brand-navy" /></label>
+            <Button type="button" fullWidth onClick={saveCount}>{countEntryMode === 'add' ? 'İlave Et' : 'Sayımı Kaydet'}</Button>
           </div>
         ) : null}
       </Modal>
@@ -282,10 +290,14 @@ export function DepotCountPage() {
         isOpen={duplicateProduct !== null}
         title="Ürün daha önce sayıldı"
         message={duplicateProduct ? `${duplicateProduct.name} için mevcut sayım ${String(counts[duplicateProduct.id] ?? 0)}. Aynı ürünü yeniden okuttunuz. Sayıma 1 adet ilave edilsin mi?` : ''}
-        confirmLabel="1 Adet İlave Et"
+        confirmLabel="İlave Et"
         cancelLabel="İptal, Okumaya Devam Et"
         onConfirm={() => {
-          if (duplicateProduct) setCounts((current) => ({ ...current, [duplicateProduct.id]: (current[duplicateProduct.id] ?? 0) + 1 }));
+          if (duplicateProduct) {
+            setPendingProduct(duplicateProduct);
+            setCountValue('');
+            setCountEntryMode('add');
+          }
           setDuplicateProduct(null);
         }}
         onClose={() => { setDuplicateProduct(null); }}
