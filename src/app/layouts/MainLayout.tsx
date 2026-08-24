@@ -19,6 +19,8 @@ export function MainLayout() {
   const isNewOrder = location.pathname === ROUTES.NEW_ORDER;
   const isUnitHub = location.pathname === ROUTES.UNITS;
   const isInitialAdminSettings = location.pathname.startsWith(ROUTES.SETTINGS_USERS);
+  const isDepotRoute = location.pathname === ROUTES.DEPOT
+    || location.pathname.startsWith(`${ROUTES.DEPOT}/`);
 
   const handleSettingsClick = (): void => {
     void navigate(can('systemSettings') ? ROUTES.SETTINGS : ROUTES.SETTINGS_APP_INFO);
@@ -42,7 +44,7 @@ export function MainLayout() {
             ) : null}
           </div>
           <div className="flex items-center gap-1.5">
-            {!isUnitHub && !isInitialAdminSettings ? (
+            {!isUnitHub && !isInitialAdminSettings && !isDepotRoute ? (
               <button
                 onClick={handleSettingsClick}
                 className="touch-feedback rounded-xl p-2 text-white/80 hover:bg-white/10 hover:text-white"
