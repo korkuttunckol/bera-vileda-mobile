@@ -4,6 +4,7 @@ export const ROUTES = {
   UNITS: '/birimler',
   DASHBOARD: '/',
   DEPOT: '/depo',
+  DEPOT_STOCK: '/depo/stok-sorgulama',
   DEPOT_COUNT: '/depo/sayim',
   DEPOT_COUNT_REPORTS: '/depo/sayim-raporlari',
   DEPOT_TASKS: '/depo/yapacaklarim',

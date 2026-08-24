@@ -16,6 +16,7 @@ import {
   updateDepotCountReportLine,
   type DepotCountReportKind,
 } from '../services/depotCountReportService';
+import { DepotMenuButton } from './DepotMenuButton';
 
 function warehouseLabel(report: DepotCountReport): string {
   return report.warehouse === 'central' ? 'Merkez Depo' : 'İade Deposu';
@@ -104,7 +105,7 @@ export function DepotCountReportsPage() {
   if (selected) {
     return (
       <div>
-        <PageHeader title="Sayım Raporu" subtitle={`${warehouseLabel(selected)} · ${selected.groupCode}`} />
+        <PageHeader title="Sayım Raporu" subtitle={`${warehouseLabel(selected)} · ${selected.groupCode}`} action={<DepotMenuButton />} />
         <div className="page-content space-y-4">
           <Card padding="sm" className="flex items-center justify-between gap-3">
             <div><p className="text-sm font-semibold text-brand-navy">{new Date(selected.createdAt).toLocaleString('tr-TR')}</p><p className="text-xs text-brand-gray-500">Sayan: {selected.createdByName}</p></div>
@@ -142,7 +143,7 @@ export function DepotCountReportsPage() {
 
   return (
     <div>
-      <PageHeader title="Sayım Raporları" subtitle="Tamamlanan depo sayımları" />
+      <PageHeader title="Sayım Raporları" subtitle="Tamamlanan depo sayımları" action={<DepotMenuButton />} />
       <div className="page-content">
         {isLoading ? <LoadingSpinner label="Raporlar yükleniyor..." /> : reports.length === 0 ? <EmptyState title="Henüz sayım raporu yok" description="Tamamlanan sayımlar burada saklanır." /> : <div className="list-stack">{reports.map((report) => <button key={report.id} type="button" className="w-full text-left" onClick={() => { setSelected(report); }}><Card padding="md" className="touch-feedback"><p className="font-bold text-brand-navy">{warehouseLabel(report)} · {report.groupCode}</p><p className="mt-1 text-sm text-brand-gray-600">{new Date(report.createdAt).toLocaleString('tr-TR')}</p><p className="mt-1 text-xs text-brand-gray-500">{report.lines.length} ürün · Sayan: {report.createdByName}</p></Card></button>)}</div>}
       </div>

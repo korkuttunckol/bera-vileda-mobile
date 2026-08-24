@@ -15,6 +15,7 @@ import {
 import { toast } from '@/stores/toastStore';
 import type { Product } from '@/shared/types/product.types';
 import { DepotStockCard } from './DepotStockCard';
+import { DepotMenuButton } from './DepotMenuButton';
 
 export function DepotStockPage() {
   const [search, setSearch] = useState('');
@@ -66,7 +67,7 @@ export function DepotStockPage() {
 
   return (
     <div>
-      <PageHeader title="Stok Sorgulama" subtitle="Merkez depo stoklarını görüntüleyin" />
+      <PageHeader title="Stok Sorgulama" subtitle="Merkez depo stoklarını görüntüleyin" action={<DepotMenuButton />} />
 
       <div className="page-content !space-y-0 !p-0">
         <div className="sticky top-[76px] z-20 space-y-4 border-b border-brand-gray-200/80 bg-brand-surface/95 px-4 py-4 backdrop-blur-md">

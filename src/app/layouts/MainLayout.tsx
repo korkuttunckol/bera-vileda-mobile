@@ -90,13 +90,13 @@ export function MainLayout() {
           isNewOrder
             ? 'flex flex-col overflow-hidden'
             : 'overflow-y-auto overscroll-y-contain',
-          keyboardOpen || isUnitHub || isInitialAdminSettings ? 'pb-3' : 'pb-20',
+          keyboardOpen || isUnitHub || isInitialAdminSettings || isDepotRoute ? 'pb-3' : 'pb-20',
         )}
       >
         <Outlet />
       </main>
 
-      {!isUnitHub && !isInitialAdminSettings ? <BottomNav /> : null}
+      {!isUnitHub && !isInitialAdminSettings && !isDepotRoute ? <BottomNav /> : null}
       <ToastContainer />
     </div>
   );

@@ -48,6 +48,7 @@ import { NativeBarcodePocPage } from '@/features/nativeBarcodePoc';
 import { UnitHubPage } from '@/features/units/components/UnitHubPage';
 import { UnitPlaceholderPage } from '@/features/units/components/UnitPlaceholderPage';
 import { DepotStockPage } from '@/features/units/components/DepotStockPage';
+import { DepotMenuPage } from '@/features/units/components/DepotMenuPage';
 import { DepotCountPage } from '@/features/units/components/DepotCountPage';
 import { DepotCountReportsPage } from '@/features/units/components/DepotCountReportsPage';
 import { DepotTasksPage } from '@/features/units/components/DepotTasksPage';
@@ -80,7 +81,8 @@ export const router = createBrowserRouter([
         children: [
           { path: ROUTES.UNITS, element: <UnitHubPage /> },
           { path: ROUTES.DASHBOARD, element: <DashboardPage /> },
-          { path: ROUTES.DEPOT, element: <DepotStockPage /> },
+          { path: ROUTES.DEPOT, element: <DepotMenuPage /> },
+          { path: ROUTES.DEPOT_STOCK, element: <DepotStockPage /> },
           { path: ROUTES.DEPOT_COUNT, element: <DepotCountPage /> },
           { path: ROUTES.DEPOT_COUNT_REPORTS, element: <DepotCountReportsPage /> },
           { path: ROUTES.DEPOT_TASKS, element: <DepotTasksPage /> },

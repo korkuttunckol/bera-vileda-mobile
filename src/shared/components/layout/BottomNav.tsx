@@ -93,14 +93,7 @@ export function BottomNav() {
   const isDepotRoute = location.pathname === ROUTES.DEPOT
     || location.pathname.startsWith(`${ROUTES.DEPOT}/`);
 
-  const primaryNav: Array<{ path: string; label: string; icon: BottomNavIcon }> = isDepotRoute
-    ? [
-        { path: ROUTES.DEPOT, label: 'Stok Sorgulama', icon: 'box' },
-        { path: ROUTES.DEPOT_COUNT, label: 'Sayım', icon: 'clipboard' },
-        { path: ROUTES.DEPOT_COUNT_REPORTS, label: 'Raporlar', icon: 'history' },
-        { path: ROUTES.DEPOT_TASKS, label: 'Yapacaklarım', icon: 'checklist' },
-      ]
-    : NAV_ITEMS.filter((item) => {
+  const primaryNav: Array<{ path: string; label: string; icon: BottomNavIcon }> = NAV_ITEMS.filter((item) => {
     if (!['/', '/orders/new', '/customers', '/products', '/orders'].includes(item.path)) {
       return false;
     }
@@ -112,6 +105,8 @@ export function BottomNav() {
     }
     return true;
   });
+
+  if (isDepotRoute) return null;
 
   return (
     <nav

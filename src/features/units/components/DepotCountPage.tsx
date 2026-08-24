@@ -20,6 +20,7 @@ import {
   saveDepotCountReport,
   type DepotCountReportKind,
 } from '../services/depotCountReportService';
+import { DepotMenuButton } from './DepotMenuButton';
 
 type CountPhase = 'setup' | 'counting' | 'review' | 'complete';
 type Warehouse = 'central' | 'returns';
@@ -205,7 +206,7 @@ export function DepotCountPage() {
   if (phase === 'setup') {
     return (
       <div>
-        <PageHeader title="Depo Sayımı" subtitle="Önce depo ve grup kodunu seçin" />
+        <PageHeader title="Depo Sayımı" subtitle="Önce depo ve grup kodunu seçin" action={<DepotMenuButton />} />
         <div className="page-content space-y-5">
           <Card padding="md" className="space-y-4">
             <div>
@@ -237,7 +238,7 @@ export function DepotCountPage() {
   if (phase === 'complete') {
     return (
       <div>
-        <PageHeader title="Sayım Tamamlandı" subtitle={`${groupCode} · ${String(countProducts.length)} stok kartı`} />
+        <PageHeader title="Sayım Tamamlandı" subtitle={`${groupCode} · ${String(countProducts.length)} stok kartı`} action={<DepotMenuButton />} />
         <div className="page-content space-y-4">
           <Card padding="md">
             <p className="text-lg font-bold text-brand-navy">Sayım kapatıldı</p>
@@ -262,6 +263,7 @@ export function DepotCountPage() {
         subtitle={isReview
           ? `${String(uncounted.length)} ürün kontrol bekliyor`
           : `${groupCode} · ${String(Object.keys(counts).length)}/${String(countProducts.length)} sayıldı`}
+        action={<DepotMenuButton />}
       />
       <div className="page-content space-y-4">
         {!isReview ? (
