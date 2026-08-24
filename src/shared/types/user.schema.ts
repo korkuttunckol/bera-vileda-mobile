@@ -35,6 +35,7 @@ export const userFormSchema = z.object({
   merchCustomerCodesText: permissionListTextSchema,
   /** STGRPCODE / groupCode values, one per line — Merch stok. */
   merchStockGroupCodesText: permissionListTextSchema,
+  /** Logo ITEMS.STGRPCODE — reporting stock scope. */
   reportingStockAuthorityCode: z.string().trim().max(80).optional().or(z.literal('')),
   reportingSalesSql: z.string().trim().max(20000).optional().or(z.literal('')),
 });

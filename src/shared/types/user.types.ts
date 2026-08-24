@@ -13,7 +13,7 @@ export interface AppUser extends UserPermissionProfile {
   phone?: string;
   email?: string;
   description?: string;
-  /** Raporlama kullanıcısının Logo ITEMS.SPECODE stok filtresi. */
+  /** Raporlama kullanıcısının Logo ITEMS.STGRPCODE stok filtresi. */
   reportingStockAuthorityCode?: string;
   /** ADMIN tarafından tanımlanan, tarih parametreli satış raporu SQL'i. */
   reportingSalesSql?: string;

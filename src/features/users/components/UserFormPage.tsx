@@ -332,14 +332,14 @@ export function UserFormPage() {
             <div className="space-y-3 rounded-xl border border-brand-gray-100 bg-brand-gray-50/60 p-3">
               <p className="text-xs font-semibold uppercase tracking-wide text-brand-gray-500">Raporlama yetkileri</p>
               <label className="block text-sm">
-                <span className="mb-1 block font-medium text-brand-navy">Stok yetki kodu (Logo SPECODE)</span>
-                <Input value={form.reportingStockAuthorityCode ?? ''} onChange={(e) => { updateField('reportingStockAuthorityCode', e.target.value.toLocaleUpperCase('tr-TR')); }} placeholder="Örnek: DOA" />
-                <span className="mt-1 block text-xs text-brand-gray-500">Depo Merkez Stok ekranı yalnız bu kodlu ürünleri gösterir.</span>
+                <span className="mb-1 block font-medium text-brand-navy">Stok grup kodu (Logo STGRPCODE)</span>
+                <Input value={form.reportingStockAuthorityCode ?? ''} onChange={(e) => { updateField('reportingStockAuthorityCode', e.target.value.toLocaleUpperCase('tr-TR')); }} placeholder="Örnek: DOA veya PEREJA" />
+                <span className="mt-1 block text-xs text-brand-gray-500">Depo Merkez Stok ve satış raporu yalnız bu stok grubu için hazırlanır.</span>
               </label>
               <label className="block text-sm">
                 <span className="mb-1 block font-medium text-brand-navy">Satış raporu SQL sorgusu</span>
                 <textarea className="min-h-40 w-full rounded-xl border border-brand-gray-200 bg-white px-3 py-2.5 font-mono text-xs" value={form.reportingSalesSql ?? ''} onChange={(e) => { updateField('reportingSalesSql', e.target.value); }} placeholder={'SELECT ...\nWHERE DATE_ BETWEEN @BaslangicTarihi AND @BitisTarihi'} />
-                <span className="mt-1 block text-xs text-brand-gray-500">Yalnız SELECT sorgusu girin. Tarih filtresi için @BaslangicTarihi ve @BitisTarihi parametrelerini kullanın.</span>
+                <span className="mt-1 block text-xs text-brand-gray-500">Yalnız SELECT sorgusu girin. Tarih için @BaslangicTarihi, @BitisTarihi; kullanıcı filtresi için @StokGrupKodu kullanın.</span>
               </label>
             </div>
           ) : null}
