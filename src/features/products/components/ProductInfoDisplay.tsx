@@ -48,6 +48,28 @@ export function ProductInfoDisplay({
     </div>
   );
 
+  const depotStockSummary = (
+    <div className="mt-2 grid grid-cols-2 items-start gap-x-3 border-t border-brand-gray-100 pt-2">
+      <div className="min-w-0 space-y-1">
+        <p className="truncate text-sm text-brand-gray-500">Grup Kodu: {groupCode}</p>
+        {barcode ? (
+          <p className="truncate text-xs text-brand-gray-400">Barkod: {barcode}</p>
+        ) : null}
+      </div>
+      <div className="min-w-0 text-right">
+        <p className="text-lg font-semibold text-brand-gray-600">Depo Stok</p>
+        <p
+          className={cn(
+            'mt-0.5 text-xl font-bold tabular-nums',
+            isOutOfStock ? 'text-red-600' : 'text-brand-navy',
+          )}
+        >
+          {product.stockQuantity} {product.unit}
+        </p>
+      </div>
+    </div>
+  );
+
   return (
     <div className={cn('min-w-0', className)}>
       {isVisible('name') ? (
@@ -75,6 +97,8 @@ export function ProductInfoDisplay({
 
       {isOrderView ? (
         <div className="mt-2">{stockLine}</div>
+      ) : isDepotView ? (
+        depotStockSummary
       ) : (
         <div className="mt-2 grid grid-cols-2 items-start gap-x-3 border-t border-brand-gray-100 pt-2">
           <div className="min-w-0 space-y-1">
@@ -89,14 +113,12 @@ export function ProductInfoDisplay({
             <p className="truncate text-xs text-brand-gray-500">
               Grup Kodu: {groupCode}
             </p>
-            {!isDepotView ? (
-              <>
-                <p className="text-sm font-medium text-brand-navy">
-                  Liste: {formatCurrency(product.listPrice)}
-                </p>
-                <p className="text-xs text-brand-gray-500">KDV: %{product.vatRate}</p>
-              </>
-            ) : null}
+            <>
+              <p className="text-sm font-medium text-brand-navy">
+                Liste: {formatCurrency(product.listPrice)}
+              </p>
+              <p className="text-xs text-brand-gray-500">KDV: %{product.vatRate}</p>
+            </>
           </div>
         </div>
       )}

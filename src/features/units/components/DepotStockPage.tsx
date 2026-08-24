@@ -70,21 +70,23 @@ export function DepotStockPage() {
 
       <div className="page-content !space-y-0 !p-0">
         <div className="sticky top-[76px] z-20 space-y-4 border-b border-brand-gray-200/80 bg-brand-surface/95 px-4 py-4 backdrop-blur-md">
-          <div className="flex gap-2">
-            <SearchInput
-              className="flex-1"
-              placeholder="Barkod, ürün kodu veya ad..."
-              value={search}
-              onChange={(event) => {
-                setSearch(event.target.value);
-              }}
-              onClear={() => {
-                setSearch('');
-              }}
-            />
+          <div className="flex w-full gap-2">
+            <div className="min-w-0 flex-1">
+              <SearchInput
+                placeholder="Barkod, ürün kodu veya ad..."
+                value={search}
+                onChange={(event) => {
+                  setSearch(event.target.value);
+                }}
+                onClear={() => {
+                  setSearch('');
+                }}
+              />
+            </div>
             <Button
               type="button"
               variant="secondary"
+              className="shrink-0"
               isLoading={isScanningBarcode}
               onClick={handleScanBarcode}
             >
