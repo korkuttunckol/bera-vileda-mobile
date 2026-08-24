@@ -6,6 +6,7 @@ import { Input } from '@/shared/components/ui/Input';
 import { ROUTES } from '@/shared/constants/routes';
 import { toast } from '@/stores/toastStore';
 import { syncService } from '@/features/sync/services/syncService';
+import { logoProductSyncService } from '@/features/settings/services/logoProductSyncService';
 import {
   BUSINESS_UNITS,
   allowedBusinessUnits,
@@ -55,6 +56,19 @@ export function LoginForm() {
         if (navigator.onLine) {
           try {
             await syncService.syncNow('auto');
+            if (businessUnit === 'depot') {
+              const stockSync = await logoProductSyncService.syncToIndexedDB({
+                userId: authUser.uid,
+              });
+              if (stockSync.success) {
+                syncService.notifyDataChanged();
+              } else {
+                toast(
+                  stockSync.errors[0] ?? 'Depo stokları güncellenemedi; önceki veriler korunuyor.',
+                  'warning',
+                );
+              }
+            }
           } catch (error) {
             console.error('[Login] Giriş sonrası senkronizasyon hatası:', error);
           }
