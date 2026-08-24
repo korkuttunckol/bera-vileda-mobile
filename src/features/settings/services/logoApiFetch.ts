@@ -1,3 +1,5 @@
+import { Capacitor, CapacitorHttp } from '@capacitor/core';
+
 /**
  * Logo master-data HTTP helper: always LAN-first with optional external (WAN)
  * fallback only when the LAN endpoint is unreachable (network / timeout).
@@ -49,13 +51,19 @@ function isUserAbort(signal?: AbortSignal): boolean {
  * Fetch one URL with a timeout, while still honouring an optional caller AbortSignal.
  * Timeout aborts only this attempt (caller abort stops the whole fallback chain).
  */
+interface LogoFetchResponse {
+  ok: boolean;
+  status: number;
+  json: () => Promise<unknown>;
+}
+
 async function fetchOnce(
   url: string,
   userSignal: AbortSignal | undefined,
   timeoutMs: number,
   method: 'GET' | 'POST' = 'GET',
   body?: string,
-): Promise<Response> {
+): Promise<LogoFetchResponse> {
   if (isUserAbort(userSignal)) {
     throw new DOMException('Aborted', 'AbortError');
   }
@@ -73,6 +81,29 @@ async function fetchOnce(
   }
 
   try {
+    // Android WebView runs on https://localhost. Calling Logo's HTTP IIS endpoints
+    // through browser fetch is blocked as mixed content even when CORS is correct.
+    // Use Capacitor's native HTTP bridge only on Android; iOS and web stay unchanged.
+    if (Capacitor.getPlatform() === 'android') {
+      const response = await CapacitorHttp.request({
+        url,
+        method,
+        headers,
+        data: method === 'POST' ? body : undefined,
+        responseType: 'json',
+        connectTimeout: timeoutMs,
+        readTimeout: timeoutMs,
+      });
+      if (isUserAbort(userSignal)) {
+        throw new DOMException('Aborted', 'AbortError');
+      }
+      return {
+        ok: response.status >= 200 && response.status < 300,
+        status: response.status,
+        json: async () => response.data,
+      };
+    }
+
     return await fetch(url, {
       method,
       headers,
@@ -126,7 +157,7 @@ export async function fetchLogoJsonWithFallback(
       throw new DOMException('Aborted', 'AbortError');
     }
 
-    let response: Response;
+    let response: LogoFetchResponse;
     try {
       response = await fetchOnce(
         attempt.url,
