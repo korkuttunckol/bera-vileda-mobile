@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- Cleartext is allowed only for the fixed Logo API endpoints. -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">192.168.1.11</domain>
+        <domain includeSubdomains="false">88.248.20.232</domain>
+    </domain-config>
+</network-security-config>
