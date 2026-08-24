@@ -51,7 +51,7 @@ export function ProductInfoDisplay({
   return (
     <div className={cn('min-w-0', className)}>
       {isVisible('name') ? (
-        <p className="break-words font-semibold text-brand-navy">{product.name}</p>
+        <p className="break-words text-sm font-semibold text-brand-navy">{product.name}</p>
       ) : null}
       {isVisible('sku') ? (
         <p className="mt-0.5 truncate text-sm text-brand-gray-500">

@@ -1,6 +1,5 @@
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { APP_CONFIG } from '@/config/app.config';
 import { Card } from '@/shared/components/ui/Card';
 import { Button } from '@/shared/components/ui/Button';
 import { Icon } from '@/shared/components/ui/Icon';
@@ -274,11 +273,6 @@ export function DashboardPage() {
           </div>
         </Card>
 
-        <footer className="pb-3 pt-1 text-center text-[11px] leading-relaxed text-brand-gray-400">
-          <p className="font-medium text-brand-gray-500">BERA Vileda Sipariş Sistemi</p>
-          <p>v{APP_CONFIG.version}</p>
-          <p>© 2026 Korkut Tunçkol</p>
-        </footer>
       </div>
     </div>
   );

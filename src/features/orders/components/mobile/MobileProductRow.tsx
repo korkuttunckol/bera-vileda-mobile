@@ -58,7 +58,7 @@ export function MobileProductRow({
         <p
           className={cn(
             'truncate font-semibold text-brand-navy',
-            compact ? 'text-sm' : 'text-[15px]',
+            compact ? 'text-[13px]' : 'text-sm',
           )}
         >
           {product.name}
