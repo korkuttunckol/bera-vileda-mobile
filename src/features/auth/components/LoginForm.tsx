@@ -55,7 +55,7 @@ export function LoginForm() {
           );
         }
 
-        setActiveBusinessUnit(businessUnit);
+        setActiveBusinessUnit(authUser, businessUnit);
         toast('Giriş başarılı', 'success');
         if (navigator.onLine) {
           try {

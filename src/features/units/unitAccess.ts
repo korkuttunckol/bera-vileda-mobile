@@ -3,7 +3,7 @@ import { UserRole } from '@/shared/types/role.types';
 
 export type BusinessUnit = 'sales' | 'depot' | 'packaging' | 'reporting' | 'management';
 
-const ACTIVE_BUSINESS_UNIT_KEY = 'bera-active-business-unit-v1';
+const ACTIVE_BUSINESS_UNIT_KEY = 'bera-active-business-unit-v2';
 
 export interface BusinessUnitDefinition {
   id: BusinessUnit;
@@ -48,15 +48,22 @@ export function allowedBusinessUnits(user: AuthUser | null): BusinessUnit[] {
  * varsayılan satış ekranına dönmesini engeller; kayıt her zaman kullanıcının
  * güncel yetkileriyle yeniden doğrulanır.
  */
-export function setActiveBusinessUnit(unit: BusinessUnit): void {
-  localStorage.setItem(ACTIVE_BUSINESS_UNIT_KEY, unit);
+function activeBusinessUnitKey(user: AuthUser): string {
+  // Aynı telefonda farklı kullanıcılar sırayla giriş yapabiliyor. Bu nedenle
+  // son açık birim, cihaz geneli yerine kullanıcıya ait tutulmalıdır.
+  return `${ACTIVE_BUSINESS_UNIT_KEY}:${user.uid}`;
+}
+
+export function setActiveBusinessUnit(user: AuthUser, unit: BusinessUnit): void {
+  localStorage.setItem(activeBusinessUnitKey(user), unit);
 }
 
 export function resolveActiveBusinessUnit(user: AuthUser | null): BusinessUnit | null {
+  if (!user) return null;
   const allowed = allowedBusinessUnits(user);
   if (allowed.length === 0) return null;
 
-  const stored = localStorage.getItem(ACTIVE_BUSINESS_UNIT_KEY);
+  const stored = localStorage.getItem(activeBusinessUnitKey(user));
   if (stored && allowed.includes(stored as BusinessUnit)) {
     return stored as BusinessUnit;
   }

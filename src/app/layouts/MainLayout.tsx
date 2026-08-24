@@ -7,6 +7,7 @@ import { ROUTES } from '@/shared/constants/routes';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { usePermissions } from '@/features/auth/hooks/usePermissions';
 import { resolveActiveBusinessUnit } from '@/features/units/unitAccess';
+import { UserRole } from '@/shared/types/role.types';
 import { useVisualViewportKeyboard } from '@/shared/hooks/useVisualViewportKeyboard';
 import { cn } from '@/shared/utils/cn';
 
@@ -20,17 +21,43 @@ export function MainLayout() {
   const isNewOrder = location.pathname === ROUTES.NEW_ORDER;
   const isUnitHub = location.pathname === ROUTES.UNITS;
   const isInitialAdminSettings = location.pathname.startsWith(ROUTES.SETTINGS_USERS);
+  const isSettingsRoute = location.pathname === ROUTES.SETTINGS
+    || location.pathname.startsWith(`${ROUTES.SETTINGS}/`);
   const isDepotRoute = location.pathname === ROUTES.DEPOT
     || location.pathname.startsWith(`${ROUTES.DEPOT}/`);
   const isReportingRoute = location.pathname === ROUTES.REPORTING
     || location.pathname.startsWith(`${ROUTES.REPORTING}/`);
   const activeBusinessUnit = resolveActiveBusinessUnit(user);
+  const currentBusinessUnit = isDepotRoute
+    ? 'depot'
+    : isReportingRoute
+      ? 'reporting'
+      : location.pathname === ROUTES.PACKAGING || location.pathname.startsWith(`${ROUTES.PACKAGING}/`)
+        ? 'packaging'
+        : location.pathname === ROUTES.MANAGEMENT || location.pathname.startsWith(`${ROUTES.MANAGEMENT}/`)
+          ? 'management'
+          : 'sales';
+  const activeBusinessUnitRoute = activeBusinessUnit === 'depot'
+    ? ROUTES.DEPOT
+    : activeBusinessUnit === 'reporting'
+      ? ROUTES.REPORTING
+      : activeBusinessUnit === 'packaging'
+        ? ROUTES.PACKAGING
+        : activeBusinessUnit === 'management'
+          ? ROUTES.MANAGEMENT
+          : ROUTES.DASHBOARD;
 
   // Android uygulaması arka plandan döndüğünde yönlendirici bazen varsayılan
-  // satış yolunu (/) geri açabiliyor. Depo seçimi olan bir oturumu burada
-  // daha ekrana çizilmeden yeniden depo alanına sabitliyoruz.
-  if (activeBusinessUnit === 'depot' && !isDepotRoute) {
-    return <Navigate to={ROUTES.DEPOT} replace />;
+  // satış yolunu (/) geri açabiliyor. Tek birime yetkili kullanıcılar kendi
+  // alanına geri döner. ADMIN ise Ayarlar dahil seçtiği sayfada kalır.
+  if (
+    user?.role !== UserRole.ADMIN
+    && !isSettingsRoute
+    && !isUnitHub
+    && activeBusinessUnit
+    && currentBusinessUnit !== activeBusinessUnit
+  ) {
+    return <Navigate to={activeBusinessUnitRoute} replace />;
   }
 
   const handleSettingsClick = (): void => {
